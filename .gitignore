@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Private docs (stay local only)
+CLAUDE.md
+style.md
+antistyle.md
+
+# Dependencies
+node_modules/
+
+# Build outputs
+.svelte-kit/
+dist/
+.vercel/
+.cloudflare/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# Wrangler
+.wrangler/
+
+# Editor
+.vscode/
+.idea/
+*.swp
