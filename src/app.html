@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en-IN">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="theme-color" content="#0C2340" />
+		<meta name="author" content="Annapurna Labs" />
+		<meta name="description" content="A forgiving expense tracker." />
+
+		<!-- Preload Fraunces variable font for hero figures (CLS = 0 with size-adjust) -->
+		<link
+			rel="preload"
+			href="/fonts/Fraunces-VariableFont.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin="anonymous"
+		/>
+
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

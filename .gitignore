@@ -1,32 +1,31 @@
-# macOS
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
 .DS_Store
-.AppleDouble
-.LSOverride
+Thumbs.db
 
-# Private docs (stay local only)
-CLAUDE.md
-style.md
-antistyle.md
-
-# Dependencies
-node_modules/
-
-# Build outputs
-.svelte-kit/
-dist/
-.vercel/
-.cloudflare/
-
-# Environment and secrets
+# Env
 .env
 .env.*
 !.env.example
-.dev.vars
+!.env.test
 
-# Wrangler
-.wrangler/
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+# Playwright
+test-results
 
-# Editor
-.vscode/
-.idea/
-*.swp
+# Private docs (stay local only)
+CLAUDE.md
+LAUNCH.md
+style.md
+antistyle.md

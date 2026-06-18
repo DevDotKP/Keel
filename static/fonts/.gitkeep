@@ -1,0 +1,4 @@
+# TODO(sonnet): add Fraunces variable font woff2 file here.
+# Source: @fontsource-variable/fraunces (npm) or google-webfonts-helper.
+# File name expected by app.css: FrauncesVariable.woff2
+# font-display: optional; size-adjust: 105% (set in app.css)
