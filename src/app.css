@@ -1,0 +1,191 @@
+/* ── Fraunces: self-hosted variable font for hero figures only ─────────────── */
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/Fraunces-VariableFont.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: optional; /* no layout shift: never blocks render */
+  size-adjust: 105%; /* optical size match to system-ui so CLS = 0 on swap */
+}
+
+/* ── Design tokens ─────────────────────────────────────────────────────────── */
+:root {
+  /* Palette */
+  --color-ink:          #0C2340; /* navy ink: base text, dark surfaces */
+  --color-gold:         #E0A82E; /* warm gold: ONE primary action or hero per screen */
+  --color-paper:        #FAF7F1; /* warm paper: light background */
+  --color-income:       #2F7E72; /* muted teal: income only */
+  --color-clay:         #C2683C; /* clay: genuine alerts, used rarely */
+
+  /* Neutral ramp (warm-tinted) */
+  --color-neutral-50:   #F5F2EE;
+  --color-neutral-100:  #EAE6E0;
+  --color-neutral-200:  #D4CFC7;
+  --color-neutral-300:  #B8B2A8;
+  --color-neutral-400:  #9A9389;
+  --color-neutral-500:  #7C756A;
+  --color-neutral-600:  #5E584E;
+  --color-neutral-700:  #403B32;
+  --color-neutral-800:  #2A261E;
+  --color-neutral-900:  #15120C;
+
+  /* Semantic colours */
+  --color-bg:           var(--color-paper);
+  --color-surface:      #FFFFFF;
+  --color-border:       var(--color-neutral-200);
+  --color-text:         var(--color-ink);
+  --color-text-muted:   var(--color-neutral-500);
+  --color-text-subtle:  var(--color-neutral-400);
+
+  /* Uncategorized dot: calm gold, not an alarm */
+  --color-uncategorized: var(--color-gold);
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif; /* hero figures and section heads only */
+  --font-ui:      system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Spacing scale: 4px base */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Touch targets */
+  --tap-target: 44px;
+
+  /* Radius */
+  --radius-sm:  6px;
+  --radius-md:  12px;
+  --radius-lg:  20px;
+  --radius-full: 9999px;
+
+  /* Motion: 150–220 ms, ease-out, respect prefers-reduced-motion */
+  --duration-fast:   150ms;
+  --duration-normal: 200ms;
+  --duration-slow:   220ms;
+  --ease-out:        cubic-bezier(0, 0, 0.2, 1);
+
+  /* Bottom nav height (reserved so content never hides behind it) */
+  --nav-height: 64px;
+
+  /* Z-index layers */
+  --z-base:    0;
+  --z-overlay: 100;
+  --z-nav:     200;
+  --z-sheet:   300;
+  --z-toast:   400;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg:          var(--color-ink);
+    --color-surface:     #122540;
+    --color-border:      #1E3A5A;
+    --color-text:        #F0EDE8;
+    --color-text-muted:  var(--color-neutral-400);
+    --color-text-subtle: var(--color-neutral-500);
+  }
+}
+
+/* ── Reset and base ────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  -webkit-text-size-adjust: 100%;
+  /* Prevent horizontal scroll at >=320px */
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100dvh;
+  /* Reserve bottom nav space */
+  padding-bottom: var(--nav-height);
+}
+
+/* ── Money display ─────────────────────────────────────────────────────────── */
+.money {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  text-align: right;
+}
+
+/* Hero balance: Fraunces, gold, large */
+.money-hero {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  line-height: 1;
+  color: var(--color-gold);
+  font-variant-numeric: tabular-nums lining-nums;
+  /* Reserve fixed height so balance never shifts layout (CLS = 0) */
+  min-height: 1.1em;
+}
+
+/* Income: teal */
+.money--income { color: var(--color-income); }
+
+/* Expense: ink (not red — red is for real alerts only) */
+.money--expense { color: var(--color-text); }
+
+/* ── Section head ──────────────────────────────────────────────────────────── */
+.section-head {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: var(--color-text);
+}
+
+/* ── Tap targets ───────────────────────────────────────────────────────────── */
+button, a, [role="button"] {
+  min-height: var(--tap-target);
+  min-width: var(--tap-target);
+  touch-action: manipulation; /* remove 300 ms tap delay */
+}
+
+/* ── Focus ─────────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+}
+
+/* ── Inputs ────────────────────────────────────────────────────────────────── */
+input, textarea, select {
+  font-family: var(--font-ui);
+  font-size: 1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 0;
+  border-color: var(--color-gold);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

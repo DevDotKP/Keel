@@ -1,0 +1,4 @@
+# TODO(sonnet): add PWA icons here.
+# Required: icon-192.png, icon-512.png (square, based on Assets/ design reference)
+# Optional: maskable variants for Android adaptive icons
+# Referenced in vite.config.ts VitePWA manifest icons array
