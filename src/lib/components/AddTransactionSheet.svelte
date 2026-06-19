@@ -3,7 +3,8 @@
 	import Spinner from './Spinner.svelte';
 	import { parseToPaise, formatPaise } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
-	import { isSpeechSupported } from '$lib/utils/voice/capture';
+	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
+	import { parse } from '$lib/anchors';
 	import type { TransactionDraft, Category } from '$lib/types';
 
 	interface Props {
@@ -24,12 +25,15 @@
 	let listening = $state(false);
 	let error = $state<string | null>(null);
 
+	// Voice metadata: held between capture and submit for logging.
+	let pendingVoice = $state<{ raw_transcript: string; parsed_json: string } | null>(null);
+
 	const speechSupported = isSpeechSupported();
 
 	// Derived: parsed paise from the amount field
 	let amountPaise = $derived(parseToPaise(amountRaw));
 
-	// ── Prefill from a draft (called by parent after voice parse) ──────────
+	// ── Prefill from a draft (called after voice parse) ────────────────────
 	export function prefill(draft: TransactionDraft) {
 		if (draft.amount_paise !== null) amountRaw = (draft.amount_paise / 100).toString();
 		if (draft.category_id) categoryId = draft.category_id;
@@ -39,11 +43,45 @@
 
 	// ── Voice capture ──────────────────────────────────────────────────────
 	async function handleVoice() {
-		// TODO(sonnet): import captureOnce from '$lib/utils/voice/capture',
-		// import parse from '$lib/anchors', call captureOnce(), pass transcript
-		// to parse(), call prefill() with the result, log to voice_samples API.
-		// Show listening = true during capture, set error on failure.
-		error = 'Voice capture not yet implemented';
+		error = null;
+		listening = true;
+
+		try {
+			const capture = await captureOnce();
+			const categoryNames = categories.map((c) => c.name);
+			const result = parse(capture.transcript, categoryNames);
+
+			// Resolve category_hint → category ID
+			let resolvedCategoryId: string | null = null;
+			if (result.category_hint) {
+				const match = categories.find(
+					(c) => c.name.toLowerCase() === result.category_hint!.toLowerCase()
+				);
+				resolvedCategoryId = match?.id ?? null;
+			}
+
+			const draft: TransactionDraft = {
+				...result.draft,
+				category_id: resolvedCategoryId
+			};
+
+			prefill(draft);
+
+			// Store for fire-and-forget logging after submit.
+			pendingVoice = {
+				raw_transcript: capture.transcript,
+				parsed_json: JSON.stringify({ draft: result.draft, category_hint: result.category_hint, confidence: result.confidence })
+			};
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : 'Voice capture failed';
+			error = msg === 'not-allowed'
+				? 'Microphone access denied. Allow it in your browser settings.'
+				: msg === 'No speech detected'
+					? 'No speech detected. Try again.'
+					: 'Voice capture failed. Type instead.';
+		} finally {
+			listening = false;
+		}
 	}
 
 	// ── Submit ─────────────────────────────────────────────────────────────
@@ -53,21 +91,45 @@
 			error = 'Enter a valid amount';
 			return;
 		}
-		const resolvedCategory = categoryId ||
-			categories.find((c) => c.is_system && c.name === 'Uncategorized')?.id || '';
+		const resolvedCategory =
+			categoryId || categories.find((c) => c.is_system && c.name === 'Uncategorized')?.id || '';
 
 		submitting = true;
 		error = null;
+
+		const finalDraft: Required<TransactionDraft> = {
+			amount_paise: amountPaise,
+			category_id: resolvedCategory,
+			description,
+			occurred_at: parseFlexDate(occurredAt)
+		};
+
 		try {
-			await onsubmit({
-				amount_paise: amountPaise,
-				category_id: resolvedCategory,
-				description,
-				occurred_at: parseFlexDate(occurredAt)
-			});
+			await onsubmit(finalDraft);
+
+			// Fire-and-forget: log voice sample if this was a voice entry.
+			if (pendingVoice) {
+				const { raw_transcript, parsed_json } = pendingVoice;
+				const final_json = JSON.stringify(finalDraft);
+				// Detect correction: compare description or category changed from parse
+				const parsedDraft = (JSON.parse(parsed_json) as { draft: TransactionDraft }).draft;
+				const was_corrected =
+					finalDraft.description !== parsedDraft.description ||
+					finalDraft.category_id !== parsedDraft.category_id ||
+					finalDraft.amount_paise !== parsedDraft.amount_paise;
+
+				void fetch('/api/voice-samples', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ raw_transcript, parsed_json, final_json, was_corrected })
+				});
+
+				pendingVoice = null;
+			}
+
 			reset();
 			onclose();
-		} catch (e) {
+		} catch {
 			error = 'Could not save. Try again.';
 		} finally {
 			submitting = false;
@@ -80,11 +142,41 @@
 		description = '';
 		occurredAt = nowIso().slice(0, 10);
 		error = null;
+		pendingVoice = null;
 	}
 
-	// Trap focus when open
-	// TODO(sonnet): implement focus trap using Melt UI's createFocusTrap or a
-	// lightweight utility; trap on open, release on close.
+	// ── Focus trap ─────────────────────────────────────────────────────────
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	function focusTrap(node: HTMLElement) {
+		const getEls = () => [...node.querySelectorAll<HTMLElement>(FOCUSABLE)];
+
+		function onKeydown(e: KeyboardEvent) {
+			if (e.key !== 'Tab') return;
+			const els = getEls();
+			if (!els.length) return;
+			const first = els[0];
+			const last = els[els.length - 1];
+			if (e.shiftKey) {
+				if (document.activeElement === first) {
+					e.preventDefault();
+					last.focus();
+				}
+			} else {
+				if (document.activeElement === last) {
+					e.preventDefault();
+					first.focus();
+				}
+			}
+		}
+
+		node.addEventListener('keydown', onKeydown);
+		// Move focus into the sheet when it opens.
+		getEls()[0]?.focus();
+
+		return { destroy() { node.removeEventListener('keydown', onKeydown); } };
+	}
 </script>
 
 {#if open}
@@ -104,6 +196,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-label="Add expense"
+		use:focusTrap
 	>
 		<div class="sheet-header">
 			<span class="sheet-title">Add expense</span>
@@ -135,7 +228,7 @@
 							class:listening
 							onclick={handleVoice}
 							aria-label={listening ? 'Listening...' : 'Add by voice'}
-							disabled={submitting}
+							disabled={submitting || listening}
 						>
 							{#if listening}
 								<Spinner size={20} label="Listening" />
@@ -145,6 +238,9 @@
 						</button>
 					{/if}
 				</div>
+				{#if listening}
+					<p class="listening-hint" aria-live="polite">Listening… speak your expense</p>
+				{/if}
 			</div>
 
 			<!-- Category -->
@@ -277,6 +373,12 @@
 	.amount-input:focus {
 		outline: none;
 		border-bottom-color: var(--color-gold);
+	}
+
+	.listening-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		padding-top: var(--space-1);
 	}
 
 	.icon-btn {
