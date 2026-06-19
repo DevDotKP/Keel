@@ -98,6 +98,7 @@ export interface Transaction {
 	period_id: string | null; // null = unassigned, swept at harbour
 	amount_paise: number; // negative = expense, positive = income
 	description: string;
+	note: string; // optional free-text context, separate from description
 	occurred_at: string; // ISO datetime, user-supplied
 	entered_at: string;
 	source: TransactionSource;
@@ -122,6 +123,7 @@ export interface NewTransaction {
 	category_id: string;
 	amount_paise: number;
 	description: string;
+	note?: string;
 	occurred_at: string;
 	source: TransactionSource;
 }
@@ -131,6 +133,7 @@ export interface TransactionDraft {
 	amount_paise: number | null;
 	category_id: string | null;
 	description: string;
+	note: string;
 	occurred_at: string; // defaults to now
 }
 

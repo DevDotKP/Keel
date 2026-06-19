@@ -9,6 +9,7 @@ const NewTransactionSchema = z.object({
 	category_id: z.string().optional(),
 	amount_paise: z.number().int(),
 	description: z.string().default(''),
+	note: z.string().max(500).default(''),
 	occurred_at: z.string().datetime({ offset: true }),
 	source: z.enum(['tap', 'voice']).default('tap')
 });
@@ -64,6 +65,7 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		category_id: categoryId,
 		amount_paise,
 		description: parsed.data.description,
+		note: parsed.data.note,
 		occurred_at: parsed.data.occurred_at,
 		source: parsed.data.source
 	});

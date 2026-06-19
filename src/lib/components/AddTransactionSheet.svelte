@@ -17,9 +17,12 @@
 	let { open, categories, onclose, onsubmit }: Props = $props();
 
 	// ── Local state ────────────────────────────────────────────────────────
+	let entryKind = $state<'expense' | 'income'>('expense'); // expense or income
 	let amountRaw = $state('');
 	let categoryId = $state('');
 	let description = $state('');
+	let note = $state('');
+	let showNote = $state(false);
 	let occurredAt = $state(nowIso().slice(0, 10)); // YYYY-MM-DD
 	let submitting = $state(false);
 	let listening = $state(false);
@@ -33,11 +36,32 @@
 	// Derived: parsed paise from the amount field
 	let amountPaise = $derived(parseToPaise(amountRaw));
 
+	// Categories matching the chosen kind (income vs spending), minus the fallbacks.
+	let pickableCategories = $derived(
+		categories.filter(
+			(c) =>
+				c.kind === entryKind &&
+				!(c.is_system && (c.name === 'Uncategorized' || c.name === 'Income'))
+		)
+	);
+
+	// Switching kind clears a category that no longer matches.
+	function setKind(kind: 'expense' | 'income') {
+		if (entryKind === kind) return;
+		entryKind = kind;
+		const stillValid = categories.find((c) => c.id === categoryId && c.kind === kind);
+		if (!stillValid) categoryId = '';
+	}
+
 	// ── Prefill from a draft (called after voice parse) ────────────────────
 	export function prefill(draft: TransactionDraft) {
 		if (draft.amount_paise !== null) amountRaw = (draft.amount_paise / 100).toString();
 		if (draft.category_id) categoryId = draft.category_id;
 		if (draft.description) description = draft.description;
+		if (draft.note) {
+			note = draft.note;
+			showNote = true;
+		}
 		if (draft.occurred_at) occurredAt = draft.occurred_at.slice(0, 10);
 	}
 
@@ -62,7 +86,8 @@
 
 			const draft: TransactionDraft = {
 				...result.draft,
-				category_id: resolvedCategoryId
+				category_id: resolvedCategoryId,
+				note: ''
 			};
 
 			prefill(draft);
@@ -91,8 +116,11 @@
 			error = 'Enter a valid amount';
 			return;
 		}
+		// Default category follows the chosen kind: Uncategorized for spending,
+		// Income for income. The category's kind sets the sign server-side.
+		const fallbackName = entryKind === 'income' ? 'Income' : 'Uncategorized';
 		const resolvedCategory =
-			categoryId || categories.find((c) => c.is_system && c.name === 'Uncategorized')?.id || '';
+			categoryId || categories.find((c) => c.is_system && c.name === fallbackName)?.id || '';
 
 		submitting = true;
 		error = null;
@@ -101,6 +129,7 @@
 			amount_paise: amountPaise,
 			category_id: resolvedCategory,
 			description,
+			note,
 			occurred_at: parseFlexDate(occurredAt)
 		};
 
@@ -137,9 +166,12 @@
 	}
 
 	function reset() {
+		entryKind = 'expense';
 		amountRaw = '';
 		categoryId = '';
 		description = '';
+		note = '';
+		showNote = false;
 		occurredAt = nowIso().slice(0, 10);
 		error = null;
 		pendingVoice = null;
@@ -195,17 +227,39 @@
 		class="sheet"
 		role="dialog"
 		aria-modal="true"
-		aria-label="Add expense"
+		aria-label="Add entry"
 		use:focusTrap
 	>
 		<div class="sheet-header">
-			<span class="sheet-title">Add expense</span>
+			<span class="sheet-title">Add {entryKind === 'income' ? 'income' : 'expense'}</span>
 			<button class="icon-btn" onclick={onclose} aria-label="Close">
 				<X size={20} />
 			</button>
 		</div>
 
 		<form class="sheet-body" onsubmit={handleSubmit} novalidate>
+			<!-- Expense or income: drives the category list and the sign. -->
+			<div class="kind-toggle" role="radiogroup" aria-label="Expense or income">
+				<button
+					type="button"
+					class="kind-option"
+					class:active={entryKind === 'expense'}
+					aria-pressed={entryKind === 'expense'}
+					onclick={() => setKind('expense')}
+				>
+					Expense
+				</button>
+				<button
+					type="button"
+					class="kind-option"
+					class:active={entryKind === 'income'}
+					aria-pressed={entryKind === 'income'}
+					onclick={() => setKind('income')}
+				>
+					Income
+				</button>
+			</div>
+
 			<!-- Amount: first and largest -->
 			<div class="field field--hero">
 				<label for="amount" class="sr-only">Amount in rupees</label>
@@ -243,21 +297,14 @@
 				{/if}
 			</div>
 
-			<!-- Category: grouped by kind. The chosen kind sets the sign server-side. -->
+			<!-- Category: only those matching the chosen kind. Kind sets the sign. -->
 			<div class="field">
 				<label for="category">Category</label>
 				<select id="category" bind:value={categoryId}>
-					<option value="">Uncategorized</option>
-					<optgroup label="Spending">
-						{#each categories.filter((c) => c.kind === 'expense' && !(c.is_system && c.name === 'Uncategorized')) as cat}
-							<option value={cat.id}>{cat.name}</option>
-						{/each}
-					</optgroup>
-					<optgroup label="Income">
-						{#each categories.filter((c) => c.kind === 'income' && !(c.is_system && c.name === 'Income')) as cat}
-							<option value={cat.id}>{cat.name}</option>
-						{/each}
-					</optgroup>
+					<option value="">{entryKind === 'income' ? 'Income (uncategorised)' : 'Uncategorized'}</option>
+					{#each pickableCategories as cat}
+						<option value={cat.id}>{cat.name}</option>
+					{/each}
 				</select>
 			</div>
 
@@ -272,6 +319,24 @@
 					autocomplete="off"
 				/>
 			</div>
+
+			<!-- Note: optional, revealed on demand to keep capture fast. -->
+			{#if showNote}
+				<div class="field">
+					<label for="note">Note</label>
+					<textarea
+						id="note"
+						placeholder="Any extra context"
+						bind:value={note}
+						rows="2"
+						maxlength="500"
+					></textarea>
+				</div>
+			{:else}
+				<button type="button" class="add-note-btn" onclick={() => (showNote = true)}>
+					+ Add a note
+				</button>
+			{/if}
 
 			<!-- Date -->
 			<div class="field">
@@ -350,6 +415,62 @@
 	}
 
 	.field--hero label { display: none; }
+
+	.field textarea {
+		font-family: inherit;
+		font-size: 1rem;
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		color: var(--color-text);
+		resize: vertical;
+	}
+
+	.field textarea:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	/* Expense/Income segmented toggle */
+	.kind-toggle {
+		display: flex;
+		gap: var(--space-2);
+	}
+
+	.kind-option {
+		flex: 1;
+		height: 40px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.9375rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition:
+			border-color var(--duration-fast) var(--ease-out),
+			color var(--duration-fast) var(--ease-out);
+	}
+
+	.kind-option.active {
+		border-color: var(--color-text);
+		color: var(--color-text);
+		font-weight: 600;
+		background: var(--color-surface-subtle);
+	}
+
+	.add-note-btn {
+		align-self: flex-start;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
 
 	.amount-row {
 		display: flex;

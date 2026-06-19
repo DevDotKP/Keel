@@ -216,6 +216,7 @@ export function parse(transcript: string, knownCategories: string[] = []): Ancho
 			amount_paise: amountPaise,
 			category_id: null, // caller resolves category_hint → ID
 			description,
+			note: '',
 			occurred_at: occurredAt
 		},
 		category_hint: categoryHint,

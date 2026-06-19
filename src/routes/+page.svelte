@@ -36,6 +36,7 @@
 				category_id: draft.category_id || undefined,
 				amount_paise: draft.amount_paise,
 				description: draft.description,
+				note: draft.note,
 				occurred_at: draft.occurred_at,
 				source: 'tap'
 			})
