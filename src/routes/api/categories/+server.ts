@@ -12,17 +12,24 @@ const NewCategorySchema = z.object({
 export const GET: RequestHandler = async ({ platform, locals }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
-	void db;
-	// TODO(sonnet): call listCategories(db, locals.userId) and return json.
-	throw error(501, 'Not implemented');
+	const categories = await listCategories(db, locals.userId);
+	return json(categories);
 };
 
 export const POST: RequestHandler = async ({ platform, locals, request }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
-	const body = NewCategorySchema.safeParse(await request.json());
-	if (!body.success) throw error(400, body.error.message);
-	void db;
-	// TODO(sonnet): call createCategory, return 201.
-	throw error(501, 'Not implemented');
+	const body = NewCategorySchema.safeParse(await request.json().catch(() => null));
+	if (!body.success) throw error(400, 'Invalid name or colour');
+
+	try {
+		const cat = await createCategory(db, { user_id: locals.userId, ...body.data });
+		return json(cat, { status: 201 });
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : 'Failed to create';
+		if (msg.includes('UNIQUE')) {
+			throw error(409, 'Category name already exists');
+		}
+		throw error(500, msg);
+	}
 };

@@ -2,6 +2,7 @@
 	import { Trash2 } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -17,15 +18,39 @@
 		'#6B7280', '#374151', '#0C2340', '#2F4858'
 	];
 
-	// TODO(sonnet): implement handleCreate — POST /api/categories, invalidate page.
 	async function handleCreate(e: Event) {
 		e.preventDefault();
-		throw new Error('Not implemented');
+		error = null;
+		submitting = true;
+
+		const res = await fetch('/api/categories', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ name: newName.trim(), color: newColor })
+		});
+
+		submitting = false;
+		if (!res.ok) {
+			const msg = res.status === 409 ? 'Category name already exists' : 'Could not create. Try again.';
+			error = msg;
+			return;
+		}
+
+		newName = '';
+		newColor = '#6B7280';
+		await invalidateAll();
 	}
 
-	// TODO(sonnet): implement handleDelete — DELETE /api/categories/[id], invalidate page.
-	async function handleDelete(_id: string) {
-		throw new Error('Not implemented');
+	async function handleDelete(id: string) {
+		if (!confirm('Delete this category?')) return;
+
+		const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			error = 'Could not delete. Try again.';
+			return;
+		}
+
+		await invalidateAll();
 	}
 </script>
 
@@ -105,6 +130,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-8);
+		padding-bottom: calc(var(--space-6) + var(--nav-height));
 	}
 
 	.category-list {
@@ -173,6 +199,21 @@
 		font-size: 0.875rem;
 		font-weight: 500;
 		color: var(--color-text-muted);
+	}
+
+	.field input {
+		height: 44px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+	}
+
+	.field input:focus {
+		outline: none;
+		border-color: var(--color-gold);
 	}
 
 	.color-grid {
