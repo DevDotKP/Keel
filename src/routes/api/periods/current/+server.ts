@@ -2,12 +2,13 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDb } from '$lib/server/db';
 import { getOrCreateCurrentPeriod } from '$lib/server/queries/periods';
+import { resolveAccountAndCadence } from '$lib/server/context';
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
-	void db;
-	// TODO(sonnet): resolve account_id and cadence from locals.userId,
-	// call getOrCreateCurrentPeriod, return json.
-	throw error(501, 'Not implemented');
+	const { account, cadence } = await resolveAccountAndCadence(db, locals.userId);
+	if (!account) throw error(409, 'No account for user');
+	const period = await getOrCreateCurrentPeriod(db, account.id, cadence);
+	return json(period);
 };

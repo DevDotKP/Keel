@@ -1,16 +1,44 @@
 <script lang="ts">
-	import Spinner from '$lib/components/Spinner.svelte';
+	import { goto } from '$app/navigation';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import { formatPaise, formatPaiseLedger, parseToPaise } from '$lib/utils/money';
+	import { formatDisplayDate } from '$lib/utils/date';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
 	let submitting = $state(false);
 	let balanceInput = $state('');
+	let error = $state<string | null>(null);
 
-	// TODO(sonnet): implement handleHarbour — POST to /api/periods/[id]/harbour
-	// with closing_balance_paise and fresh_start flag.
-	async function handleHarbour(_freshStart: boolean) {
-		throw new Error('Not implemented');
+	let catById = $derived(new Map(data.categories.map((c) => [c.id, c])));
+	let enteredPaise = $derived(parseToPaise(balanceInput));
+	let drift = $derived(enteredPaise !== null ? enteredPaise - data.estimatePaise : null);
+
+	function periodRange(): string {
+		if (!data.period) return '';
+		return `${formatDisplayDate(data.period.period_start)} to ${formatDisplayDate(data.period.period_end)}`;
+	}
+
+	async function handleHarbour(freshStart: boolean) {
+		if (!data.period || enteredPaise === null) {
+			error = 'Enter your balance to close the period';
+			return;
+		}
+		submitting = true;
+		error = null;
+		const res = await fetch(`/api/periods/${data.period.id}/harbour`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ closing_balance_paise: enteredPaise, fresh_start: freshStart })
+		});
+		submitting = false;
+		if (!res.ok) {
+			error = 'Could not close the period. Try again.';
+			return;
+		}
+		await goto('/');
 	}
 </script>
 
@@ -21,24 +49,47 @@
 <div class="harbour-page">
 	<header class="page-header">
 		<h1 class="section-head">Harbour</h1>
-		<p class="page-sub">Squared the balance for this period.</p>
+		<p class="page-sub">{periodRange()}</p>
 	</header>
 
-	<!-- Period summary: grouped by category -->
-	<!-- TODO(sonnet): render data.summary?.by_category as a category breakdown table.
-	     Show categorized vs uncategorized totals.
-	     Uncategorized: calm gold dot, no alarm language. -->
-	<EmptyState
-		heading="Nothing to harbour yet"
-		body="Add some entries and come back to close the period."
-	/>
+	<section class="estimate">
+		<p class="estimate-label">Keel's estimate of money left</p>
+		<p class="money-hero">{formatPaise(data.estimatePaise)}</p>
+	</section>
 
-	<!-- Drift: Keel's estimate vs real balance -->
+	<section class="entries">
+		<h2 class="section-head">This period</h2>
+		{#if data.transactions.length === 0}
+			<EmptyState heading="Nothing logged yet" body="Add entries, then come back to settle." />
+		{:else}
+			<ul class="ledger">
+				{#each data.transactions as tx (tx.id)}
+					{@const cat = catById.get(tx.category_id)}
+					{@const income = tx.amount_paise >= 0}
+					<li class="ledger-row">
+						<span
+							class="cat-dot"
+							style="background: {cat?.color ?? 'var(--color-neutral-300)'}"
+							aria-hidden="true"
+						></span>
+						<span class="ledger-main">
+							<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
+							<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+						</span>
+						<span class="money {income ? 'money--income' : 'money--expense'}">
+							{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
+
 	<section class="drift-section">
 		<h2 class="section-head">Your actual balance</h2>
-		<p class="drift-hint">Enter your balance from your bank or UPI app.</p>
+		<p class="drift-hint">Enter the balance from your bank or UPI app.</p>
 		<div class="balance-input-row">
-			<span class="currency-symbol" aria-hidden="true">Rs</span>
+			<span class="currency-symbol" aria-hidden="true">₹</span>
 			<input
 				type="text"
 				inputmode="decimal"
@@ -48,17 +99,24 @@
 				aria-label="Actual balance in rupees"
 			/>
 		</div>
-		<!-- TODO(sonnet): show drift = input - keel_estimate, neutral language,
-		     trending graph over past periods. -->
+		{#if drift !== null && drift !== 0}
+			<p class="drift-note">
+				Difference of {formatPaiseLedger(Math.abs(drift))}. Keel files it as Uncategorized so your
+				total stays clean.
+			</p>
+		{:else if drift === 0}
+			<p class="drift-note">Spot on. Nothing to reconcile.</p>
+		{/if}
 	</section>
 
-	<!-- Amnesty: fresh-start (default) or settle what I missed -->
-	<!-- TODO(sonnet): show amnesty section only when data.openPeriods > 1 -->
+	{#if error}
+		<p class="error" role="alert">{error}</p>
+	{/if}
 
 	<div class="actions">
 		<button
 			class="primary-btn"
-			disabled={submitting || !balanceInput}
+			disabled={submitting || enteredPaise === null}
 			onclick={() => handleHarbour(false)}
 		>
 			{#if submitting}
@@ -67,6 +125,15 @@
 				Close this period
 			{/if}
 		</button>
+		{#if data.openPeriods > 1}
+			<button
+				class="secondary-btn"
+				disabled={submitting || enteredPaise === null}
+				onclick={() => handleHarbour(true)}
+			>
+				Start fresh from today
+			</button>
+		{/if}
 	</div>
 </div>
 
@@ -87,6 +154,66 @@
 	.page-sub {
 		color: var(--color-text-muted);
 		font-size: 0.9375rem;
+	}
+
+	.estimate {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.estimate-label {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		font-weight: 500;
+	}
+
+	.entries {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+
+	.ledger {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.ledger-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.cat-dot {
+		flex: none;
+		width: 10px;
+		height: 10px;
+		border-radius: var(--radius-full);
+	}
+
+	.ledger-main {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.ledger-desc {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.ledger-date {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
 	}
 
 	.drift-section {
@@ -129,6 +256,22 @@
 		border-bottom-color: var(--color-gold);
 	}
 
+	.drift-note {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.error {
+		color: var(--color-clay);
+		font-size: 0.875rem;
+	}
+
+	.actions {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
 	.primary-btn {
 		display: flex;
 		align-items: center;
@@ -150,9 +293,23 @@
 		cursor: not-allowed;
 	}
 
-	.actions {
+	.secondary-btn {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+		height: 48px;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-weight: 500;
+		font-size: 0.9375rem;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+	}
+
+	.secondary-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 </style>

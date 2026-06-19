@@ -1,9 +1,7 @@
 -- Keel initial schema
 -- All money stored as integer paise (Rs 1 = 100 paise). No floats.
 -- All rows are user-scoped. Soft deletes via deleted_at.
-
-PRAGMA journal_mode = WAL;
-PRAGMA foreign_keys = ON;
+-- D1 manages journal mode and enforces foreign keys; PRAGMA statements are not permitted.
 
 -- ── Users ────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (

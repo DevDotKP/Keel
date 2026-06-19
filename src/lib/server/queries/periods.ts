@@ -1,41 +1,93 @@
-import type { ReconciliationPeriod, AccountSummary } from '$lib/types';
-import type { HarbourCadence } from '$lib/types';
+import type { ReconciliationPeriod, AccountSummary, HarbourCadence } from '$lib/types';
+
+// ── Date helpers (local, not UTC, so period boundaries match the user's day) ───
+// Note: occurred_at is stored as a UTC ISO datetime; near-midnight entries can
+// land in an adjacent period by the tz offset. Acceptable for now.
+// TODO(sonnet): store/compare occurred_at in the user's local day for exactness.
+
+function ymdLocal(d: Date): string {
+	const y = d.getFullYear();
+	const m = String(d.getMonth() + 1).padStart(2, '0');
+	const day = String(d.getDate()).padStart(2, '0');
+	return `${y}-${m}-${day}`;
+}
+
+function mondayOf(date: Date): Date {
+	const d = new Date(date);
+	const day = d.getDay(); // 0 = Sun
+	const diff = day === 0 ? -6 : 1 - day;
+	d.setDate(d.getDate() + diff);
+	d.setHours(0, 0, 0, 0);
+	return d;
+}
+
+/** Day after the given 'YYYY-MM-DD', as 'YYYY-MM-DD'. Used as an exclusive upper bound. */
+function nextDay(ymd: string): string {
+	const d = new Date(`${ymd}T00:00:00`);
+	d.setDate(d.getDate() + 1);
+	return ymdLocal(d);
+}
+
+function computePeriod(cadence: HarbourCadence, now: Date): { start: string; end: string } {
+	if (cadence === 'monthly') {
+		const start = new Date(now.getFullYear(), now.getMonth(), 1);
+		const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // last day of month
+		return { start: ymdLocal(start), end: ymdLocal(end) };
+	}
+	const blockDays = cadence === 'fortnightly' ? 14 : 7;
+	const monday = mondayOf(now);
+	if (cadence === 'fortnightly') {
+		// Anchor fortnights to a fixed Monday epoch so the blocks are stable week to week.
+		const epoch = new Date(2024, 0, 1); // Mon 2024-01-01 (local)
+		const weeks = Math.floor((monday.getTime() - epoch.getTime()) / (7 * 86400000));
+		if (weeks % 2 === 1) monday.setDate(monday.getDate() - 7);
+	}
+	const end = new Date(monday);
+	end.setDate(end.getDate() + blockDays - 1);
+	return { start: ymdLocal(monday), end: ymdLocal(end) };
+}
 
 /**
  * Return the current open period for an account, creating it if it doesn't exist.
- * "Current" is determined by the account's settings.harbour_cadence and today's date.
- * The opening_balance_paise of a new period equals the account's current balance_paise.
+ * The opening_balance_paise of a new period equals the account's current balance.
  */
 export async function getOrCreateCurrentPeriod(
 	db: D1Database,
 	account_id: string,
 	cadence: HarbourCadence
 ): Promise<ReconciliationPeriod> {
-	// TODO(sonnet): compute period_start and period_end from cadence and today,
-	// then INSERT OR IGNORE into reconciliation_periods and SELECT the row back.
-	throw new Error('Not implemented');
+	const { start, end } = computePeriod(cadence, new Date());
+	const account = await db
+		.prepare('SELECT balance_paise FROM accounts WHERE id = ?')
+		.bind(account_id)
+		.first<{ balance_paise: number }>();
+	const opening = account?.balance_paise ?? 0;
+
+	await db
+		.prepare(
+			`INSERT OR IGNORE INTO reconciliation_periods
+			   (account_id, period_start, period_end, cadence, opening_balance_paise)
+			 VALUES (?, ?, ?, ?, ?)`
+		)
+		.bind(account_id, start, end, cadence, opening)
+		.run();
+
+	const period = await db
+		.prepare('SELECT * FROM reconciliation_periods WHERE account_id = ? AND period_start = ?')
+		.bind(account_id, start)
+		.first<ReconciliationPeriod>();
+	if (!period) throw new Error('getOrCreateCurrentPeriod: upsert returned no row');
+	return period;
 }
 
 /**
  * Harbour (close) a period.
  *
- * Contract (implement all steps atomically in a D1 transaction):
- * 1. Find all transactions WHERE account_id = account_id AND period_id IS NULL
- *    AND deleted_at IS NULL AND occurred_at >= period.period_start
- *    AND occurred_at < period.period_end + 1 day.
- * 2. UPDATE those transactions: set period_id = period.id,
- *    category_id = <user's Uncategorized system category id>,
- *    is_uncategorized_fallback = 1.
- * 3. UPDATE reconciliation_periods SET closing_balance_paise = closingBalance,
- *    harboured_at = datetime('now') WHERE id = period.id.
- * 4. UPDATE accounts SET balance_paise = closingBalance,
- *    updated_at = datetime('now') WHERE id = account_id.
- *
- * Fresh-start path: if opts.freshStart = true, also seal all open periods
- * older than the one being harboured (set closing_balance_paise = opening_balance_paise,
- * harboured_at = datetime('now'), leave their transactions unassigned).
- * Multi-period catch-up: callers may call harbourPeriod once per open period;
- * the fresh-start path collapses all of them into one user action.
+ * Miss-tolerant by design: existing categories are preserved. The gap between
+ * Keel's estimate and the user's real balance (the drift) is recorded as a single
+ * Uncategorized adjustment so the total reconciles without hunting individual
+ * missed entries. The period seals at the real balance, and the account balance
+ * is set to it.
  */
 export async function harbourPeriod(
 	db: D1Database,
@@ -44,23 +96,138 @@ export async function harbourPeriod(
 	closing_balance_paise: number,
 	opts: { freshStart?: boolean } = {}
 ): Promise<void> {
-	// TODO(sonnet): implement the full atomic contract above.
-	// Use D1 batch() to run all UPDATEs in one round-trip.
-	// Respect opts.freshStart for the amnesty path.
-	throw new Error('Not implemented');
+	const period = await db
+		.prepare('SELECT * FROM reconciliation_periods WHERE id = ? AND account_id = ?')
+		.bind(period_id, account_id)
+		.first<ReconciliationPeriod>();
+	if (!period) throw new Error('harbourPeriod: period not found');
+	if (period.harboured_at) throw new Error('harbourPeriod: period already harboured');
+
+	const endExclusive = nextDay(period.period_end);
+
+	// 1. Assign all unassigned in-window transactions to this period. Keep their categories.
+	await db
+		.prepare(
+			`UPDATE transactions SET period_id = ?
+			 WHERE account_id = ? AND period_id IS NULL AND deleted_at IS NULL
+			   AND occurred_at >= ? AND occurred_at < ?`
+		)
+		.bind(period_id, account_id, period.period_start, endExclusive)
+		.run();
+
+	// 2. Keel's estimate = opening balance + net of this period's transactions.
+	const sum = await db
+		.prepare('SELECT COALESCE(SUM(amount_paise), 0) AS net FROM transactions WHERE period_id = ? AND deleted_at IS NULL')
+		.bind(period_id)
+		.first<{ net: number }>();
+	const estimate = period.opening_balance_paise + (sum?.net ?? 0);
+	const drift = closing_balance_paise - estimate;
+
+	const writes: D1PreparedStatement[] = [];
+
+	// 3. Record the drift as a single Uncategorized adjustment (never corrupts the rest).
+	if (drift !== 0) {
+		const uncat = await db
+			.prepare(
+				"SELECT id FROM categories WHERE user_id = (SELECT user_id FROM accounts WHERE id = ?) AND name = 'Uncategorized' AND deleted_at IS NULL"
+			)
+			.bind(account_id)
+			.first<{ id: string }>();
+		if (!uncat) throw new Error('harbourPeriod: Uncategorized category missing');
+		writes.push(
+			db
+				.prepare(
+					`INSERT INTO transactions
+					   (account_id, category_id, period_id, amount_paise, description, occurred_at, source, is_uncategorized_fallback)
+					 VALUES (?, ?, ?, ?, 'Harbour adjustment', ?, 'tap', 1)`
+				)
+				.bind(account_id, uncat.id, period_id, drift, `${period.period_end}T23:59:59.000Z`)
+		);
+	}
+
+	// 4. Amnesty: seal all older open periods in one action.
+	if (opts.freshStart) {
+		writes.push(
+			db
+				.prepare(
+					`UPDATE reconciliation_periods
+					 SET closing_balance_paise = opening_balance_paise, harboured_at = datetime('now')
+					 WHERE account_id = ? AND harboured_at IS NULL AND period_start < ?`
+				)
+				.bind(account_id, period.period_start)
+		);
+	}
+
+	// 5. Seal this period. 6. Update the account balance to the real one.
+	writes.push(
+		db
+			.prepare(
+				"UPDATE reconciliation_periods SET closing_balance_paise = ?, harboured_at = datetime('now') WHERE id = ?"
+			)
+			.bind(closing_balance_paise, period_id)
+	);
+	writes.push(
+		db
+			.prepare("UPDATE accounts SET balance_paise = ?, updated_at = datetime('now') WHERE id = ?")
+			.bind(closing_balance_paise, account_id)
+	);
+
+	await db.batch(writes);
 }
 
 /**
- * Return an account summary including remaining balance for the current period
- * and the total count of harboured periods (never resets).
+ * Account summary: remaining for the current period, plus harbour visit counts.
+ * remaining = opening_balance + income - expenses, over the current period window.
  */
 export async function getAccountSummary(
 	db: D1Database,
 	account_id: string,
 	cadence: HarbourCadence
 ): Promise<AccountSummary> {
-	// TODO(sonnet): run getOrCreateCurrentPeriod, aggregate expense/income
-	// for the period, compute remaining = opening + income - abs(expense),
-	// count harboured_at IS NOT NULL periods for harbour_visits.
-	throw new Error('Not implemented');
+	const period = await getOrCreateCurrentPeriod(db, account_id, cadence);
+
+	// amount_paise is signed (expense negative, income positive), so the net sum
+	// added to opening gives remaining directly.
+	const agg = await db
+		.prepare(
+			`SELECT
+			   COALESCE(SUM(CASE WHEN amount_paise > 0 THEN amount_paise ELSE 0 END), 0) AS income,
+			   COALESCE(SUM(CASE WHEN amount_paise < 0 THEN amount_paise ELSE 0 END), 0) AS expense
+			 FROM transactions
+			 WHERE account_id = ? AND deleted_at IS NULL
+			   AND occurred_at >= ? AND occurred_at < ?`
+		)
+		.bind(account_id, period.period_start, nextDay(period.period_end))
+		.first<{ income: number; expense: number }>();
+
+	const income = agg?.income ?? 0;
+	const expense = agg?.expense ?? 0; // negative or zero
+	const remaining = period.opening_balance_paise + income + expense;
+
+	const account = await db
+		.prepare('SELECT balance_paise FROM accounts WHERE id = ?')
+		.bind(account_id)
+		.first<{ balance_paise: number }>();
+
+	const visits = await db
+		.prepare(
+			'SELECT COUNT(*) AS c FROM reconciliation_periods WHERE account_id = ? AND harboured_at IS NOT NULL'
+		)
+		.bind(account_id)
+		.first<{ c: number }>();
+
+	const open = await db
+		.prepare(
+			'SELECT COUNT(*) AS c FROM reconciliation_periods WHERE account_id = ? AND harboured_at IS NULL'
+		)
+		.bind(account_id)
+		.first<{ c: number }>();
+
+	return {
+		balance_paise: account?.balance_paise ?? 0,
+		remaining_paise: remaining,
+		current_period: period,
+		harbour_visits: visits?.c ?? 0,
+		open_periods: open?.c ?? 0
+	};
 }

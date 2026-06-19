@@ -2,8 +2,8 @@ import type { Transaction, NewTransaction } from '$lib/types';
 
 /**
  * List transactions for an account, most recent first.
- * Scoped to the account_id (which is itself user-scoped).
- * Excludes soft-deleted rows.
+ * Scoped to the account_id (which is itself user-scoped). Excludes soft-deleted rows.
+ * Optional occurred_at window: from (inclusive) and to (exclusive).
  */
 export async function listTransactions(
 	db: D1Database,
@@ -13,38 +13,74 @@ export async function listTransactions(
 		offset?: number;
 		period_id?: string;
 		category_id?: string;
+		from?: string;
+		to?: string;
 	}
 ): Promise<Transaction[]> {
-	// TODO(sonnet): build the WHERE clause from opts, run SELECT against D1,
-	// return typed rows. Include category join for display if needed.
-	throw new Error('Not implemented');
+	const where = ['account_id = ?', 'deleted_at IS NULL'];
+	const binds: unknown[] = [opts.account_id];
+	if (opts.period_id) {
+		where.push('period_id = ?');
+		binds.push(opts.period_id);
+	}
+	if (opts.category_id) {
+		where.push('category_id = ?');
+		binds.push(opts.category_id);
+	}
+	if (opts.from) {
+		where.push('occurred_at >= ?');
+		binds.push(opts.from);
+	}
+	if (opts.to) {
+		where.push('occurred_at < ?');
+		binds.push(opts.to);
+	}
+	let sql = `SELECT * FROM transactions WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC, entered_at DESC`;
+	if (opts.limit != null) {
+		sql += ' LIMIT ?';
+		binds.push(opts.limit);
+		if (opts.offset != null) {
+			sql += ' OFFSET ?';
+			binds.push(opts.offset);
+		}
+	}
+	const { results } = await db
+		.prepare(sql)
+		.bind(...binds)
+		.all<Transaction>();
+	return results ?? [];
 }
 
 /**
- * Insert a new transaction.
- * category_id defaults to the user's Uncategorized system category if omitted.
- * period_id is always null on insert (assigned at harbour time).
+ * Insert a new transaction. period_id is always null on insert (assigned at harbour).
  * Returns the newly created row.
  */
-export async function insertTransaction(
-	db: D1Database,
-	tx: NewTransaction
-): Promise<Transaction> {
-	// TODO(sonnet): INSERT into transactions with generated id, entered_at = now,
-	// period_id = NULL, is_uncategorized_fallback = 0. Return the inserted row.
-	throw new Error('Not implemented');
+export async function insertTransaction(db: D1Database, tx: NewTransaction): Promise<Transaction> {
+	const row = await db
+		.prepare(
+			`INSERT INTO transactions
+			   (account_id, category_id, period_id, amount_paise, description, occurred_at, source, is_uncategorized_fallback)
+			 VALUES (?, ?, NULL, ?, ?, ?, ?, 0)
+			 RETURNING *`
+		)
+		.bind(tx.account_id, tx.category_id, tx.amount_paise, tx.description, tx.occurred_at, tx.source)
+		.first<Transaction>();
+	if (!row) throw new Error('insertTransaction: insert returned no row');
+	return row;
 }
 
 /**
- * Soft-delete a transaction by id.
- * Verifies the transaction belongs to the given account_id before deleting.
+ * Soft-delete a transaction by id. Verifies it belongs to account_id first.
  */
 export async function softDeleteTransaction(
 	db: D1Database,
 	id: string,
 	account_id: string
 ): Promise<void> {
-	// TODO(sonnet): UPDATE transactions SET deleted_at = datetime('now')
-	// WHERE id = ? AND account_id = ? AND deleted_at IS NULL
-	throw new Error('Not implemented');
+	await db
+		.prepare(
+			"UPDATE transactions SET deleted_at = datetime('now') WHERE id = ? AND account_id = ? AND deleted_at IS NULL"
+		)
+		.bind(id, account_id)
+		.run();
 }
