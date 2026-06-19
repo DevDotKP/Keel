@@ -9,7 +9,7 @@
 		{
 			"binding": "DB",
 			"database_name": "keel-prod",
-			"database_id": "REPLACE_AFTER_CREATION",
+			"database_id": "eacc7feb-df14-4a2e-a2e4-a572bb00ed1a",
 			"migrations_dir": "migrations"
 		}
 	],
@@ -19,8 +19,8 @@
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "keel-preview",
-					"database_id": "REPLACE_AFTER_CREATION",
+					"database_name": "keel-prod",
+					"database_id": "eacc7feb-df14-4a2e-a2e4-a572bb00ed1a",
 					"migrations_dir": "migrations"
 				}
 			]
