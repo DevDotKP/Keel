@@ -232,7 +232,7 @@
 		align-items: baseline;
 		justify-content: space-between;
 		padding: var(--space-4) var(--space-5);
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 	}

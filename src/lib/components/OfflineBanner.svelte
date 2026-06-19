@@ -30,7 +30,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: var(--space-2) var(--space-4);
-		background: var(--color-neutral-100);
+		background: var(--color-surface-subtle);
 		color: var(--color-text-muted);
 		font-size: 0.875rem;
 		border-bottom: 1px solid var(--color-border);

@@ -227,7 +227,7 @@
 	}
 
 	.manage-link:hover {
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 	}
 
 	.manage-chevron {
@@ -256,7 +256,7 @@
 	}
 
 	.export-btn:hover {
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 	}
 
 	.secondary-btn {
@@ -274,7 +274,7 @@
 	}
 
 	.secondary-btn:hover {
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 	}
 
 	.secondary-btn:disabled {

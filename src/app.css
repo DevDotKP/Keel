@@ -32,6 +32,7 @@
   /* Semantic colours */
   --color-bg:           var(--color-paper);
   --color-surface:      #FFFFFF;
+  --color-surface-subtle: #F5F2EE; /* raised/subtle card fill, theme-aware (see dark block) */
   --color-border:       var(--color-neutral-200);
   --color-text:         var(--color-ink);
   --color-text-muted:   var(--color-neutral-500);
@@ -87,6 +88,7 @@
   :root {
     --color-bg:          var(--color-ink);
     --color-surface:     #122540;
+    --color-surface-subtle: #16294A; /* lifted navy: subtle card fill in dark mode */
     --color-border:      #1E3A5A;
     --color-text:        #F0EDE8;
     --color-text-muted:  var(--color-neutral-400);

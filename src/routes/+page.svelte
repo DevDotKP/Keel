@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus, Trash2 } from 'lucide-svelte';
+	import { Plus, Trash2, Anchor, ChevronRight, ChevronDown } from 'lucide-svelte';
 	import { invalidateAll } from '$app/navigation';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
@@ -11,9 +11,17 @@
 	let { data }: { data: PageData } = $props();
 
 	let sheetOpen = $state(false);
+	let essentialsOpen = $state(false);
 
 	// Lookup category metadata (colour, name) by id for ledger rows.
 	let catById = $derived(new Map(data.categories.map((c) => [c.id, c])));
+
+	// The essentials the reserve is made of: committed categories with a daily rate.
+	let reservedEssentials = $derived(
+		data.categories
+			.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
+			.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)
+	);
 
 	function periodRange(p: ReconciliationPeriod): string {
 		return `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`;
@@ -86,30 +94,65 @@
 			{/if}
 			{#if data.summary.locked_reserve_paise > 0}
 				<div class="breakdown-row">
-					<span class="breakdown-label">
-						Reserved for essentials
+					<button
+						class="breakdown-label breakdown-toggle"
+						class:open={essentialsOpen}
+						onclick={() => (essentialsOpen = !essentialsOpen)}
+						aria-expanded={essentialsOpen}
+						aria-controls="essentials-list"
+						disabled={reservedEssentials.length === 0}
+					>
+						<span class="toggle-head">
+							Reserved for essentials
+							{#if reservedEssentials.length > 0}
+								<span class="toggle-chevron" aria-hidden="true">
+									{#if essentialsOpen}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+								</span>
+							{/if}
+						</span>
 						<span class="breakdown-note">
 							{formatPaise(data.summary.daily_reserve_paise)}/day for
 							{data.summary.days_remaining}
 							{data.summary.days_remaining === 1 ? 'day' : 'days'} left this cycle
 						</span>
-					</span>
+					</button>
 					<span class="money breakdown-amount muted"
 						>−{formatPaiseLedger(data.summary.locked_reserve_paise)}</span
 					>
 				</div>
+				{#if essentialsOpen && reservedEssentials.length > 0}
+					<ul class="essentials-list" id="essentials-list">
+						{#each reservedEssentials as ess (ess.id)}
+							<li class="essential-row">
+								<span class="essential-name">{ess.name}</span>
+								<span class="money essential-amount"
+									>{formatPaise(ess.daily_reserve_paise)}/day</span
+								>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			{/if}
 			<div class="breakdown-row breakdown-total">
 				<span class="breakdown-label">Safe to spend</span>
-				<span class="money breakdown-amount">{formatPaiseLedger(data.summary.safe_to_spend_paise)}</span>
+				<span class="money breakdown-amount total-amount"
+					>{formatPaiseLedger(data.summary.safe_to_spend_paise)}</span
+				>
 			</div>
 		</section>
 	{/if}
 
 	<!-- Harbour open-loop pull (Zeigarnik, not guilt). Shown once there is something to settle. -->
 	{#if data.transactions.length > 0}
-		<a href="/harbour" class="harbour-nudge" aria-label="Go to Harbour">
-			Come to harbour <span aria-hidden="true">·</span> ~2 min
+		<a href="/harbour" class="harbour-nudge" aria-label="Come to harbour, about two minutes">
+			<span class="harbour-disc" aria-hidden="true">
+				<Anchor size={18} />
+			</span>
+			<span class="harbour-text">
+				<span class="harbour-title">Come to harbour</span>
+				<span class="harbour-sub">Settle this cycle · about 2 min</span>
+			</span>
+			<ChevronRight class="harbour-chevron" size={20} aria-hidden="true" />
 		</a>
 	{/if}
 
@@ -204,7 +247,7 @@
 		display: flex;
 		flex-direction: column;
 		padding: var(--space-4) var(--space-5);
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 	}
@@ -241,34 +284,141 @@
 		font-weight: 500;
 	}
 
+	/* Expandable "Reserved for essentials" toggle */
+	.breakdown-toggle {
+		background: none;
+		border: none;
+		padding: 0;
+		margin: 0;
+		text-align: left;
+		cursor: pointer;
+		font: inherit;
+		color: var(--color-text-muted);
+	}
+
+	.breakdown-toggle:disabled {
+		cursor: default;
+	}
+
+	.toggle-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		font-size: 0.9375rem;
+	}
+
+	.toggle-chevron {
+		display: inline-flex;
+		color: var(--color-text-subtle);
+	}
+
+	.essentials-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin: 0 0 var(--space-2) var(--space-3);
+		padding: var(--space-2) 0 var(--space-1) var(--space-3);
+		border-left: 2px solid var(--color-border);
+	}
+
+	.essential-row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-4);
+	}
+
+	.essential-name {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.essential-amount {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		white-space: nowrap;
+	}
+
+	/* The answer dominates: Fraunces, larger, full ink. */
 	.breakdown-total {
-		margin-top: var(--space-1);
+		margin-top: var(--space-2);
 		padding-top: var(--space-3);
 		border-top: 1px solid var(--color-border);
+		align-items: center;
 	}
 
 	.breakdown-total .breakdown-label {
+		font-size: 1.0625rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.breakdown-amount.total-amount {
+		font-family: var(--font-display);
+		font-size: 1.375rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	/* Harbour: the open-loop invitation. Icon disc, two lines, chevron. Not gold. */
+	.harbour-nudge {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		text-decoration: none;
+		min-height: var(--tap-target);
+		transition:
+			border-color var(--duration-fast) var(--ease-out),
+			transform var(--duration-fast) var(--ease-out);
+	}
+
+	.harbour-nudge:hover {
+		border-color: var(--color-text-subtle);
+	}
+
+	.harbour-nudge:active {
+		transform: scale(0.99);
+	}
+
+	.harbour-disc {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: var(--radius-full);
+		background: var(--color-surface-subtle);
+		color: var(--color-text);
+	}
+
+	.harbour-text {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.harbour-title {
+		font-size: 0.9375rem;
 		font-weight: 600;
 		color: var(--color-text);
 	}
 
-	.harbour-nudge {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-3) var(--space-4);
-		background: var(--color-neutral-50);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
+	.harbour-sub {
+		font-size: 0.8125rem;
 		color: var(--color-text-muted);
-		font-size: 0.9375rem;
-		text-decoration: none;
-		min-height: var(--tap-target);
-		transition: background var(--duration-fast) var(--ease-out);
 	}
 
-	.harbour-nudge:hover {
-		background: var(--color-neutral-100);
+	.harbour-nudge :global(.harbour-chevron) {
+		flex: none;
+		color: var(--color-text-subtle);
 	}
 
 	.ledger-section {

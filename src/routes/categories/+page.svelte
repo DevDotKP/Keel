@@ -289,7 +289,7 @@
 
 	.category-row.child {
 		padding-left: var(--space-8);
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 	}
 
 	.cat-name {
@@ -439,7 +439,7 @@
 		border-color: var(--color-text);
 		color: var(--color-text);
 		font-weight: 600;
-		background: var(--color-neutral-50);
+		background: var(--color-surface-subtle);
 	}
 
 	.bucket-option input {
