@@ -7,6 +7,7 @@ import { deleteCategory, updateCategory } from '$lib/server/queries/categories';
 const PatchSchema = z.object({
 	bucket: z.enum(['committed', 'flexible']).optional(),
 	daily_reserve_paise: z.number().int().min(0).optional(),
+	budget_paise: z.number().int().min(0).optional(),
 	name: z.string().min(1).max(50).optional(),
 	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional()
 });

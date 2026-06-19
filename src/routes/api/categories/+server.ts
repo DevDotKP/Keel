@@ -10,7 +10,8 @@ const NewCategorySchema = z.object({
 	parent_id: z.string().nullable().optional(),
 	bucket: z.enum(['committed', 'flexible']).optional(),
 	daily_reserve_paise: z.number().int().min(0).optional(),
-	kind: z.enum(['expense', 'income']).optional()
+	kind: z.enum(['expense', 'income']).optional(),
+	budget_paise: z.number().int().min(0).optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {

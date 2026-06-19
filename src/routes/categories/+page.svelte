@@ -15,6 +15,7 @@
 	let newKind = $state<CategoryKind>('expense');
 	let newBucket = $state<CategoryBucket>('flexible');
 	let newReserve = $state('');
+	let newBudget = $state('');
 	let submitting = $state(false);
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
@@ -36,6 +37,7 @@
 
 		const isIncome = newKind === 'income';
 		const reservePaise = !isIncome && newBucket === 'committed' ? parseToPaise(newReserve) ?? 0 : 0;
+		const budgetPaise = !isIncome ? parseToPaise(newBudget) ?? 0 : 0;
 
 		const res = await fetch('/api/categories', {
 			method: 'POST',
@@ -44,10 +46,11 @@
 				name: newName.trim(),
 				color: newColor,
 				kind: newKind,
-				// Parent, bucket and reserve are spending-only concepts.
+				// Parent, bucket, reserve and budget are spending-only concepts.
 				parent_id: isIncome ? null : newParent || null,
 				bucket: isIncome ? 'flexible' : newBucket,
-				daily_reserve_paise: reservePaise
+				daily_reserve_paise: reservePaise,
+				budget_paise: budgetPaise
 			})
 		});
 
@@ -63,6 +66,7 @@
 		newKind = 'expense';
 		newBucket = 'flexible';
 		newReserve = '';
+		newBudget = '';
 		await invalidateAll();
 	}
 
@@ -209,6 +213,21 @@
 					</div>
 				</div>
 			{/if}
+
+			<div class="field">
+				<label for="cat-budget">Budget for the cycle (optional)</label>
+				<div class="amount-row">
+					<span class="currency-symbol" aria-hidden="true">₹</span>
+					<input
+						id="cat-budget"
+						type="text"
+						inputmode="decimal"
+						placeholder="0"
+						bind:value={newBudget}
+						class="money"
+					/>
+				</div>
+			</div>
 		{/if}
 
 		<div class="field">

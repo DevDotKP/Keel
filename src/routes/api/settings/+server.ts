@@ -7,7 +7,8 @@ import type { Settings } from '$lib/types';
 const PatchSettingsSchema = z.object({
 	harbour_cadence: z.enum(['weekly', 'fortnightly', 'monthly']).optional(),
 	harbour_day: z.string().optional(),
-	harbour_notify_at: z.string().regex(/^\d{2}:\d{2}$/).optional()
+	harbour_notify_at: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+	cycle_budget_paise: z.number().int().min(0).optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
@@ -44,6 +45,10 @@ export const PATCH: RequestHandler = async ({ platform, locals, request }) => {
 	if (updates.harbour_notify_at !== undefined) {
 		setClauses.push('harbour_notify_at = ?');
 		bindings.push(updates.harbour_notify_at);
+	}
+	if (updates.cycle_budget_paise !== undefined) {
+		setClauses.push('cycle_budget_paise = ?');
+		bindings.push(updates.cycle_budget_paise);
 	}
 
 	if (setClauses.length === 0) {

@@ -55,6 +55,13 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 		.bind(userId, catId('Bills'))
 		.run();
 
+	// Sample budgets so Insights has soft caps to show (Food intentionally tight).
+	await db.batch([
+		db.prepare('UPDATE categories SET budget_paise = 400000 WHERE id = ?').bind(catId('Food')),
+		db.prepare('UPDATE categories SET budget_paise = 500000 WHERE id = ?').bind(catId('Groceries')),
+		db.prepare("UPDATE settings SET cycle_budget_paise = 3000000 WHERE user_id = ?").bind(userId)
+	]);
+
 	const daysAgo = (n: number) => {
 		const d = new Date();
 		d.setDate(d.getDate() - n);

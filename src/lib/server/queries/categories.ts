@@ -48,8 +48,8 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 	const result = await db
 		.prepare(
 			`INSERT INTO categories
-			   (user_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise, kind)
-			 VALUES (?, ?, ?, 0, 999, ?, ?, ?, ?) RETURNING *`
+			   (user_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise, kind, budget_paise)
+			 VALUES (?, ?, ?, 0, 999, ?, ?, ?, ?, ?) RETURNING *`
 		)
 		.bind(
 			cat.user_id,
@@ -58,7 +58,8 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 			cat.parent_id ?? null,
 			cat.bucket ?? 'flexible',
 			cat.daily_reserve_paise ?? 0,
-			cat.kind ?? 'expense'
+			cat.kind ?? 'expense',
+			cat.budget_paise ?? 0
 		)
 		.first<Category>();
 
@@ -74,7 +75,13 @@ export async function updateCategory(
 	db: D1Database,
 	id: string,
 	user_id: string,
-	fields: { bucket?: CategoryBucket; daily_reserve_paise?: number; name?: string; color?: string }
+	fields: {
+		bucket?: CategoryBucket;
+		daily_reserve_paise?: number;
+		name?: string;
+		color?: string;
+		budget_paise?: number;
+	}
 ): Promise<Category> {
 	const sets: string[] = [];
 	const binds: unknown[] = [];
@@ -85,6 +92,10 @@ export async function updateCategory(
 	if (fields.daily_reserve_paise !== undefined) {
 		sets.push('daily_reserve_paise = ?');
 		binds.push(fields.daily_reserve_paise);
+	}
+	if (fields.budget_paise !== undefined) {
+		sets.push('budget_paise = ?');
+		binds.push(fields.budget_paise);
 	}
 	if (fields.name !== undefined) {
 		sets.push('name = ?');

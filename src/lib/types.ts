@@ -29,6 +29,7 @@ export interface Settings {
 	harbour_cadence: HarbourCadence;
 	harbour_day: string; // 'sunday', 'monday', 'payday', etc.
 	harbour_notify_at: string; // 'HH:MM'
+	cycle_budget_paise: number; // optional overall spending target for the cycle (0 = none)
 }
 
 export interface Account {
@@ -53,6 +54,7 @@ export interface Category {
 	bucket: CategoryBucket; // committed = essential/obligation, flexible = discretionary
 	daily_reserve_paise: number; // paise locked per remaining day (0 = none)
 	kind: CategoryKind; // expense (default) or income; drives the transaction sign
+	budget_paise: number; // optional soft cap for the cycle (0 = none)
 	deleted_at: string | null;
 }
 
@@ -140,6 +142,7 @@ export interface NewCategory {
 	bucket?: CategoryBucket;
 	daily_reserve_paise?: number;
 	kind?: CategoryKind;
+	budget_paise?: number;
 }
 
 export interface NewObligation {
@@ -184,4 +187,21 @@ export interface CategoryTotal {
 export interface DriftPoint {
 	period_start: string;
 	drift_paise: number; // closing_balance_paise - keel_estimate_paise
+}
+
+// ── Budgets (soft caps) ─────────────────────────────────────────────────────────
+
+export interface CategoryBudget {
+	category_id: string;
+	name: string;
+	color: string;
+	spent_paise: number; // expenses this cycle, positive magnitude
+	budget_paise: number; // 0 = no budget set
+}
+
+export interface BudgetOverview {
+	by_category: CategoryBudget[];
+	total_spent_paise: number; // all expenses this cycle, positive magnitude
+	cycle_budget_paise: number; // overall target (0 = none)
+	period: ReconciliationPeriod;
 }

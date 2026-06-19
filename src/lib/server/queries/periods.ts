@@ -22,7 +22,7 @@ function mondayOf(date: Date): Date {
 }
 
 /** Day after the given 'YYYY-MM-DD', as 'YYYY-MM-DD'. Used as an exclusive upper bound. */
-function nextDay(ymd: string): string {
+export function nextDay(ymd: string): string {
 	const d = new Date(`${ymd}T00:00:00`);
 	d.setDate(d.getDate() + 1);
 	return ymdLocal(d);
