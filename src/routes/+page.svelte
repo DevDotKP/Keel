@@ -78,15 +78,20 @@
 				{#each data.transactions as tx (tx.id)}
 					{@const cat = catById.get(tx.category_id)}
 					{@const income = tx.amount_paise >= 0}
+					{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
 					<li class="ledger-row">
-						<span
-							class="cat-dot"
-							style="background: {cat?.color ?? 'var(--color-neutral-300)'}"
-							aria-hidden="true"
-						></span>
 						<span class="ledger-main">
 							<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
-							<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+							<span class="ledger-meta">
+								{#if uncategorized}
+									<span class="uncat-dot" aria-hidden="true"></span>
+								{/if}
+								{#if tx.description}
+									<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
+									<span class="meta-sep" aria-hidden="true">·</span>
+								{/if}
+								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+							</span>
 						</span>
 						<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
 							{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
@@ -183,13 +188,6 @@
 		border-bottom: 1px solid var(--color-border);
 	}
 
-	.cat-dot {
-		flex: none;
-		width: 10px;
-		height: 10px;
-		border-radius: var(--radius-full);
-	}
-
 	.ledger-main {
 		display: flex;
 		flex-direction: column;
@@ -206,8 +204,28 @@
 		text-overflow: ellipsis;
 	}
 
-	.ledger-date {
+	.ledger-meta {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
+	/* The one meaningful dot: gold = uncategorized, settle it at Harbour. */
+	.uncat-dot {
+		flex: none;
+		width: 8px;
+		height: 8px;
+		border-radius: var(--radius-full);
+		background: var(--color-gold);
+	}
+
+	.ledger-cat {
+		color: var(--color-text-muted);
+	}
+
+	.meta-sep {
 		color: var(--color-text-subtle);
 	}
 

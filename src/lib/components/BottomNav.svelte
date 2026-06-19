@@ -38,6 +38,7 @@
 	}
 
 	.nav-item {
+		position: relative;
 		flex: 1;
 		display: flex;
 		flex-direction: column;
@@ -52,8 +53,22 @@
 		transition: color var(--duration-fast) var(--ease-out);
 	}
 
+	/* Active: ink label, with a small gold indicator. Gold stays reserved. */
 	.nav-item.active {
-		color: var(--color-gold);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.nav-item.active::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		width: 24px;
+		height: 2px;
+		border-radius: 0 0 var(--radius-full) var(--radius-full);
+		background: var(--color-gold);
 	}
 
 	.nav-label {
