@@ -1,17 +1,27 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
+import { dev } from '$app/environment';
 import { getDb } from '$lib/server/db';
 import { issueMagicLink } from '$lib/server/auth';
 
 const SendSchema = z.object({ email: z.string().email() });
 
-export const POST: RequestHandler = async ({ platform, request }) => {
-	const db = getDb(platform);
-	const body = SendSchema.safeParse(await request.json());
+export const POST: RequestHandler = async ({ platform, request, url }) => {
+	const body = SendSchema.safeParse(await request.json().catch(() => null));
 	if (!body.success) throw error(400, 'Valid email required');
-	void db;
-	// TODO(sonnet): call issueMagicLink(db, body.data.email),
-	// return 200 regardless of whether the email exists (don't leak user presence).
-	throw error(501, 'Not implemented');
+
+	const db = getDb(platform);
+	const baseUrl =
+		platform?.env?.MAGIC_LINK_BASE_URL ?? (dev ? url.origin : 'https://keel.pages.dev');
+
+	const result = await issueMagicLink(db, body.data.email, {
+		baseUrl,
+		resendApiKey: platform?.env?.RESEND_API_KEY,
+		fromEmail: platform?.env?.MAGIC_LINK_FROM_EMAIL
+	});
+
+	// In dev, return the token so the developer can test without email.
+	// In production, result.token is null — don't expose it.
+	return json({ ok: true, ...(dev && result.token ? { token: result.token } : {}) });
 };

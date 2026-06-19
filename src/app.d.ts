@@ -1,5 +1,13 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 declare global {
+	// Augment the auto-generated Env with secrets not tracked in wrangler.jsonc.
+	// Add these via: wrangler secret put RESEND_API_KEY
+	interface Env {
+		RESEND_API_KEY?: string;
+		MAGIC_LINK_BASE_URL?: string;
+		MAGIC_LINK_FROM_EMAIL?: string;
+	}
+
 	namespace App {
 		interface Platform {
 			env: Env;
