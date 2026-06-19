@@ -35,14 +35,14 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 
 	// Resolve category: the given one, else the Uncategorized system category.
 	let categoryId = parsed.data.category_id;
-	let categoryName: string;
+	let categoryKind: string;
 	if (categoryId) {
 		const cat = await db
-			.prepare('SELECT name FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+			.prepare('SELECT kind FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
 			.bind(categoryId, locals.userId)
-			.first<{ name: string }>();
+			.first<{ kind: string }>();
 		if (!cat) throw error(400, 'Unknown category');
-		categoryName = cat.name;
+		categoryKind = cat.kind;
 	} else {
 		const uncat = await db
 			.prepare(
@@ -52,12 +52,12 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 			.first<{ id: string }>();
 		if (!uncat) throw error(500, 'Uncategorized category missing');
 		categoryId = uncat.id;
-		categoryName = 'Uncategorized';
+		categoryKind = 'expense';
 	}
 
-	// Income is positive; everything else is an expense (negative).
+	// Income categories are positive; everything else is an expense (negative).
 	const magnitude = Math.abs(parsed.data.amount_paise);
-	const amount_paise = categoryName === 'Income' ? magnitude : -magnitude;
+	const amount_paise = categoryKind === 'income' ? magnitude : -magnitude;
 
 	const tx = await insertTransaction(db, {
 		account_id: account.id,

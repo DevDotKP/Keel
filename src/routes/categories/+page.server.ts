@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ platform, locals }) => {
 		listCategoryTree(db, locals.userId),
 		listCategories(db, locals.userId)
 	]);
-	// Top-level, non-system categories can be parents for new subcategories.
-	const parents = categories.filter((c) => !c.parent_id && !c.is_system);
+	// Top-level, non-system spending categories can be parents for new subcategories.
+	const parents = categories.filter((c) => !c.parent_id && !c.is_system && c.kind === 'expense');
 	return { tree, parents };
 };

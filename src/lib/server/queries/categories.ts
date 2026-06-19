@@ -48,8 +48,8 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 	const result = await db
 		.prepare(
 			`INSERT INTO categories
-			   (user_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise)
-			 VALUES (?, ?, ?, 0, 999, ?, ?, ?) RETURNING *`
+			   (user_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise, kind)
+			 VALUES (?, ?, ?, 0, 999, ?, ?, ?, ?) RETURNING *`
 		)
 		.bind(
 			cat.user_id,
@@ -57,7 +57,8 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 			cat.color,
 			cat.parent_id ?? null,
 			cat.bucket ?? 'flexible',
-			cat.daily_reserve_paise ?? 0
+			cat.daily_reserve_paise ?? 0,
+			cat.kind ?? 'expense'
 		)
 		.first<Category>();
 

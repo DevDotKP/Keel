@@ -5,6 +5,7 @@ export type HarbourCadence = 'weekly' | 'fortnightly' | 'monthly';
 export type TransactionSource = 'tap' | 'voice';
 export type EntitlementStatus = 'trialing' | 'expired' | 'owned';
 export type CategoryBucket = 'committed' | 'flexible';
+export type CategoryKind = 'expense' | 'income';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export interface Category {
 	parent_id: string | null; // null = top-level; one level of nesting only
 	bucket: CategoryBucket; // committed = essential/obligation, flexible = discretionary
 	daily_reserve_paise: number; // paise locked per remaining day (0 = none)
+	kind: CategoryKind; // expense (default) or income; drives the transaction sign
 	deleted_at: string | null;
 }
 
@@ -137,6 +139,7 @@ export interface NewCategory {
 	parent_id?: string | null;
 	bucket?: CategoryBucket;
 	daily_reserve_paise?: number;
+	kind?: CategoryKind;
 }
 
 export interface NewObligation {

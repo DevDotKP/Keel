@@ -243,14 +243,21 @@
 				{/if}
 			</div>
 
-			<!-- Category -->
+			<!-- Category: grouped by kind. The chosen kind sets the sign server-side. -->
 			<div class="field">
 				<label for="category">Category</label>
 				<select id="category" bind:value={categoryId}>
 					<option value="">Uncategorized</option>
-					{#each categories.filter((c) => !c.is_system || c.name !== 'Uncategorized') as cat}
-						<option value={cat.id}>{cat.name}</option>
-					{/each}
+					<optgroup label="Spending">
+						{#each categories.filter((c) => c.kind === 'expense' && !(c.is_system && c.name === 'Uncategorized')) as cat}
+							<option value={cat.id}>{cat.name}</option>
+						{/each}
+					</optgroup>
+					<optgroup label="Income">
+						{#each categories.filter((c) => c.kind === 'income' && !(c.is_system && c.name === 'Income')) as cat}
+							<option value={cat.id}>{cat.name}</option>
+						{/each}
+					</optgroup>
 				</select>
 			</div>
 

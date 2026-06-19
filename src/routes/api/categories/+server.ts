@@ -9,7 +9,8 @@ const NewCategorySchema = z.object({
 	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
 	parent_id: z.string().nullable().optional(),
 	bucket: z.enum(['committed', 'flexible']).optional(),
-	daily_reserve_paise: z.number().int().min(0).optional()
+	daily_reserve_paise: z.number().int().min(0).optional(),
+	kind: z.enum(['expense', 'income']).optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {

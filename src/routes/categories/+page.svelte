@@ -5,18 +5,23 @@
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
 	import type { PageData } from './$types';
-	import type { Category, CategoryBucket } from '$lib/types';
+	import type { Category, CategoryBucket, CategoryKind } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 
 	let newName = $state('');
 	let newColor = $state('#6B7280');
 	let newParent = $state('');
+	let newKind = $state<CategoryKind>('expense');
 	let newBucket = $state<CategoryBucket>('flexible');
 	let newReserve = $state('');
 	let submitting = $state(false);
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
+
+	// Spending tree and income categories shown as separate sections.
+	let spendingTree = $derived(data.tree.filter((t) => t.kind === 'expense'));
+	let incomeCats = $derived(data.tree.filter((t) => t.kind === 'income'));
 
 	const PRESET_COLORS = [
 		'#E07B54', '#E0A82E', '#5FA85D', '#2F7E72',
@@ -29,7 +34,8 @@
 		error = null;
 		submitting = true;
 
-		const reservePaise = newBucket === 'committed' ? parseToPaise(newReserve) ?? 0 : 0;
+		const isIncome = newKind === 'income';
+		const reservePaise = !isIncome && newBucket === 'committed' ? parseToPaise(newReserve) ?? 0 : 0;
 
 		const res = await fetch('/api/categories', {
 			method: 'POST',
@@ -37,8 +43,10 @@
 			body: JSON.stringify({
 				name: newName.trim(),
 				color: newColor,
-				parent_id: newParent || null,
-				bucket: newBucket,
+				kind: newKind,
+				// Parent, bucket and reserve are spending-only concepts.
+				parent_id: isIncome ? null : newParent || null,
+				bucket: isIncome ? 'flexible' : newBucket,
 				daily_reserve_paise: reservePaise
 			})
 		});
@@ -52,6 +60,7 @@
 		newName = '';
 		newColor = '#6B7280';
 		newParent = '';
+		newKind = 'expense';
 		newBucket = 'flexible';
 		newReserve = '';
 		await invalidateAll();
@@ -108,7 +117,8 @@
 		<p class="error" role="alert">{error}</p>
 	{/if}
 
-	{#each data.tree as top (top.id)}
+	<h2 class="group-head">Spending</h2>
+	{#each spendingTree as top (top.id)}
 		<div class="cat-group">
 			{@render categoryRow(top, false)}
 			{#each top.children as child (child.id)}
@@ -116,65 +126,89 @@
 			{/each}
 		</div>
 	{:else}
-		<EmptyState heading="No categories" />
+		<EmptyState heading="No spending categories" />
 	{/each}
+
+	<h2 class="group-head">Income</h2>
+	<div class="cat-group">
+		{#each incomeCats as inc (inc.id)}
+			{@render categoryRow(inc, false)}
+		{/each}
+	</div>
 
 	<!-- Add new category -->
 	<form class="add-form" onsubmit={handleCreate} novalidate>
 		<h2 class="form-head">New category</h2>
 
 		<div class="field">
+			<span class="field-label">Income or spending</span>
+			<div class="bucket-toggle" role="radiogroup" aria-label="Income or spending">
+				<label class="bucket-option" class:active={newKind === 'expense'}>
+					<input type="radio" name="kind" value="expense" bind:group={newKind} />
+					<span>Spending</span>
+				</label>
+				<label class="bucket-option" class:active={newKind === 'income'}>
+					<input type="radio" name="kind" value="income" bind:group={newKind} />
+					<span>Income</span>
+				</label>
+			</div>
+		</div>
+
+		<div class="field">
 			<label for="cat-name">Name</label>
 			<input
 				id="cat-name"
 				type="text"
-				placeholder="e.g. Food"
+				placeholder={newKind === 'income' ? 'e.g. Freelance' : 'e.g. Food'}
 				bind:value={newName}
 				maxlength="50"
 				required
 			/>
 		</div>
 
-		<div class="field">
-			<label for="cat-parent">Parent (optional)</label>
-			<select id="cat-parent" bind:value={newParent}>
-				<option value="">None (top level)</option>
-				{#each data.parents as p}
-					<option value={p.id}>{p.name}</option>
-				{/each}
-			</select>
-		</div>
-
-		<div class="field">
-			<span class="field-label">Type</span>
-			<div class="bucket-toggle" role="radiogroup" aria-label="Category type">
-				<label class="bucket-option" class:active={newBucket === 'flexible'}>
-					<input type="radio" name="bucket" value="flexible" bind:group={newBucket} />
-					<span>Flexible</span>
-				</label>
-				<label class="bucket-option" class:active={newBucket === 'committed'}>
-					<input type="radio" name="bucket" value="committed" bind:group={newBucket} />
-					<span>Committed</span>
-				</label>
-			</div>
-		</div>
-
-		{#if newBucket === 'committed'}
+		<!-- Parent, type and reserve are spending-only. Income categories are simple labels. -->
+		{#if newKind === 'expense'}
 			<div class="field">
-				<label for="cat-reserve">Daily reserve (optional)</label>
-				<div class="amount-row">
-					<span class="currency-symbol" aria-hidden="true">₹</span>
-					<input
-						id="cat-reserve"
-						type="text"
-						inputmode="decimal"
-						placeholder="0"
-						bind:value={newReserve}
-						class="money"
-					/>
-					<span class="per-day">/ day</span>
+				<label for="cat-parent">Parent (optional)</label>
+				<select id="cat-parent" bind:value={newParent}>
+					<option value="">None (top level)</option>
+					{#each data.parents as p}
+						<option value={p.id}>{p.name}</option>
+					{/each}
+				</select>
+			</div>
+
+			<div class="field">
+				<span class="field-label">Type</span>
+				<div class="bucket-toggle" role="radiogroup" aria-label="Category type">
+					<label class="bucket-option" class:active={newBucket === 'flexible'}>
+						<input type="radio" name="bucket" value="flexible" bind:group={newBucket} />
+						<span>Flexible</span>
+					</label>
+					<label class="bucket-option" class:active={newBucket === 'committed'}>
+						<input type="radio" name="bucket" value="committed" bind:group={newBucket} />
+						<span>Committed</span>
+					</label>
 				</div>
 			</div>
+
+			{#if newBucket === 'committed'}
+				<div class="field">
+					<label for="cat-reserve">Daily reserve (optional)</label>
+					<div class="amount-row">
+						<span class="currency-symbol" aria-hidden="true">₹</span>
+						<input
+							id="cat-reserve"
+							type="text"
+							inputmode="decimal"
+							placeholder="0"
+							bind:value={newReserve}
+							class="money"
+						/>
+						<span class="per-day">/ day</span>
+					</div>
+				</div>
+			{/if}
 		{/if}
 
 		<div class="field">
@@ -201,35 +235,38 @@
 </div>
 
 {#snippet categoryRow(cat: Category, isChild: boolean)}
+	{@const isExpense = cat.kind === 'expense'}
 	<div class="category-row" class:child={isChild}>
 		<span class="cat-name">{cat.name}</span>
 
-		{#if cat.bucket === 'committed' && cat.daily_reserve_paise > 0}
+		{#if isExpense && cat.bucket === 'committed' && cat.daily_reserve_paise > 0}
 			<span class="reserve-tag">{formatPaiseLedger(cat.daily_reserve_paise)}/day</span>
 		{/if}
 
 		{#if !cat.is_system}
-			<button
-				class="bucket-chip"
-				class:committed={cat.bucket === 'committed'}
-				onclick={() => toggleBucket(cat)}
-				disabled={busyId === cat.id}
-				aria-label="Toggle type for {cat.name}, currently {cat.bucket}"
-			>
-				{cat.bucket}
-			</button>
-
-			{#if cat.bucket === 'committed'}
-				<input
-					type="text"
-					inputmode="decimal"
-					class="reserve-input money"
-					placeholder="₹/day"
-					value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
-					onchange={(e) => setReserve(cat, e.currentTarget.value)}
+			{#if isExpense}
+				<button
+					class="bucket-chip"
+					class:committed={cat.bucket === 'committed'}
+					onclick={() => toggleBucket(cat)}
 					disabled={busyId === cat.id}
-					aria-label="Daily reserve for {cat.name}"
-				/>
+					aria-label="Toggle type for {cat.name}, currently {cat.bucket}"
+				>
+					{cat.bucket}
+				</button>
+
+				{#if cat.bucket === 'committed'}
+					<input
+						type="text"
+						inputmode="decimal"
+						class="reserve-input money"
+						placeholder="₹/day"
+						value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
+						onchange={(e) => setReserve(cat, e.currentTarget.value)}
+						disabled={busyId === cat.id}
+						aria-label="Daily reserve for {cat.name}"
+					/>
+				{/if}
 			{/if}
 
 			<button
@@ -264,6 +301,15 @@
 	.page-sub {
 		font-size: 0.9375rem;
 		color: var(--color-text-muted);
+	}
+
+	.group-head {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		margin-bottom: calc(var(--space-4) * -0.5);
 	}
 
 	.cat-group {

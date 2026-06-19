@@ -19,15 +19,22 @@ export async function ensureUserSetup(
 				"INSERT OR IGNORE INTO entitlements (user_id, status, provider) VALUES (?, 'trialing', 'local')"
 			)
 			.bind(userId),
-		// Uncategorized: calm gold dot. Income: muted teal. Both undeletable (is_system = 1).
+		// Uncategorized: calm gold dot (expense fallback). Income: muted teal
+		// (income fallback). Both undeletable (is_system = 1).
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Uncategorized', '#E0A82E', 1, 0)"
+				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Uncategorized', '#E0A82E', 1, 0, 'expense')"
 			)
 			.bind(userId),
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Income', '#2F7E72', 1, 1)"
+				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Income', '#2F7E72', 1, 1, 'income')"
+			)
+			.bind(userId),
+		// Salary: the default income category users start with; deletable, addable.
+		db
+			.prepare(
+				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Salary', '#2F7E72', 0, 2, 'income')"
 			)
 			.bind(userId)
 	]);

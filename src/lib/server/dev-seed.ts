@@ -61,8 +61,10 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 		return d.toISOString();
 	};
 
-	// All expenses (negative), within the current week so they count toward "remaining".
+	// Mostly expenses (negative); one salary credit (positive income) so the
+	// income path is visible. All within the current cycle so they count.
 	const samples: Array<[string | null, number, string, number]> = [
+		[catId('Salary'), 8500000, 'Salary credit', 3],
 		[catId('Transport'), -12000, 'Auto to office', 0],
 		[catId('Food'), -38000, 'Swiggy dinner', 0],
 		[catId('Groceries'), -145000, 'BigBasket weekly', 1],

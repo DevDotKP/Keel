@@ -186,7 +186,7 @@
 			<label for="obl-category">Category</label>
 			<select id="obl-category" bind:value={newCategory}>
 				<option value="">Uncategorized</option>
-				{#each data.categories.filter((c) => !c.is_system) as cat}
+				{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
 					<option value={cat.id}>{cat.name}</option>
 				{/each}
 			</select>
