@@ -31,6 +31,8 @@ export function formatPaise(paise: number): string {
 export function parseToPaise(input: string): number | null {
 	if (!input || typeof input !== 'string') return null;
 	const cleaned = input.replace(/[₹,\s]/g, '');
+	// Validate: cleaned must be all digits with at most one decimal point
+	if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
 	const num = parseFloat(cleaned);
 	if (!isFinite(num) || num < 0) return null;
 	return Math.round(num * 100);
