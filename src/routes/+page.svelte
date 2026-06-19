@@ -88,7 +88,11 @@
 				<div class="breakdown-row">
 					<span class="breakdown-label">
 						Reserved for essentials
-						<span class="breakdown-note">{data.summary.days_remaining} days left</span>
+						<span class="breakdown-note">
+							{formatPaise(data.summary.daily_reserve_paise)}/day for
+							{data.summary.days_remaining}
+							{data.summary.days_remaining === 1 ? 'day' : 'days'} left this cycle
+						</span>
 					</span>
 					<span class="money breakdown-amount muted"
 						>−{formatPaiseLedger(data.summary.locked_reserve_paise)}</span

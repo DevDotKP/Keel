@@ -10,7 +10,10 @@ export async function ensureUserSetup(
 ): Promise<void> {
 	await db.batch([
 		db.prepare('INSERT OR IGNORE INTO users (id, email) VALUES (?, ?)').bind(userId, email),
-		db.prepare('INSERT OR IGNORE INTO settings (user_id) VALUES (?)').bind(userId),
+		// India-first default cadence: monthly (salary and rent cycles).
+		db
+			.prepare("INSERT OR IGNORE INTO settings (user_id, harbour_cadence) VALUES (?, 'monthly')")
+			.bind(userId),
 		db
 			.prepare(
 				"INSERT OR IGNORE INTO entitlements (user_id, status, provider) VALUES (?, 'trialing', 'local')"

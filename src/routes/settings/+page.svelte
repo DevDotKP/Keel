@@ -56,7 +56,7 @@
 			<label for="cadence">How often do you want to harbour?</label>
 			<select
 				id="cadence"
-				value={data.settings?.harbour_cadence ?? 'weekly'}
+				value={data.settings?.harbour_cadence ?? 'monthly'}
 				onchange={(e) => handleCadenceChange(e.currentTarget.value)}
 				disabled={saving}
 			>

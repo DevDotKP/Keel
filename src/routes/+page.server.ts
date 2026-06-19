@@ -18,7 +18,7 @@ export const load: PageServerLoad = async ({ platform, locals }) => {
 		.prepare('SELECT harbour_cadence FROM settings WHERE user_id = ?')
 		.bind(locals.userId)
 		.first<{ harbour_cadence: HarbourCadence }>();
-	const cadence = settings?.harbour_cadence ?? 'weekly';
+	const cadence = settings?.harbour_cadence ?? 'monthly';
 
 	const [summary, transactions, categories] = await Promise.all([
 		getAccountSummary(db, account.id, cadence),

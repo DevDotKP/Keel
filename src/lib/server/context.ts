@@ -11,5 +11,6 @@ export async function resolveAccountAndCadence(
 		.prepare('SELECT harbour_cadence FROM settings WHERE user_id = ?')
 		.bind(userId)
 		.first<{ harbour_cadence: HarbourCadence }>();
-	return { account, cadence: settings?.harbour_cadence ?? 'weekly' };
+	// India-first default: monthly (salary and rent cycles). Weekly/fortnightly opt-in.
+	return { account, cadence: settings?.harbour_cadence ?? 'monthly' };
 }
