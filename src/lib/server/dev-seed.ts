@@ -16,15 +16,17 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 	// Realistic opening balance: Rs 50,000.
 	await db.prepare('UPDATE accounts SET balance_paise = 5000000 WHERE id = ?').bind(account.id).run();
 
+	// Food is committed with a Rs 120/day reserve so the "safe to spend" view has
+	// something to lock. Transport committed at Rs 50/day. Others flexible.
 	await db.batch([
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Food', '#C2683C', 0, 2)"
+				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, bucket, daily_reserve_paise) VALUES (?, 'Food', '#C2683C', 0, 2, 'committed', 12000)"
 			)
 			.bind(userId),
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Transport', '#1B3A66', 0, 3)"
+				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, bucket, daily_reserve_paise) VALUES (?, 'Transport', '#1B3A66', 0, 3, 'committed', 5000)"
 			)
 			.bind(userId),
 		db
@@ -44,6 +46,14 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 		.bind(userId)
 		.all<{ id: string; name: string }>();
 	const catId = (name: string) => results.find((c) => c.name === name)?.id ?? null;
+
+	// A rent obligation: due once per period, unpaid so it shows as locked.
+	await db
+		.prepare(
+			"INSERT INTO obligations (user_id, name, amount_paise, category_id, cadence) VALUES (?, 'Rent', 1500000, ?, 'monthly')"
+		)
+		.bind(userId, catId('Bills'))
+		.run();
 
 	const daysAgo = (n: number) => {
 		const d = new Date();

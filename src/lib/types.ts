@@ -4,6 +4,7 @@
 export type HarbourCadence = 'weekly' | 'fortnightly' | 'monthly';
 export type TransactionSource = 'tap' | 'voice';
 export type EntitlementStatus = 'trialing' | 'expired' | 'owned';
+export type CategoryBucket = 'committed' | 'flexible';
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -47,7 +48,32 @@ export interface Category {
 	color: string;
 	is_system: 0 | 1;
 	sort_order: number;
+	parent_id: string | null; // null = top-level; one level of nesting only
+	bucket: CategoryBucket; // committed = essential/obligation, flexible = discretionary
+	daily_reserve_paise: number; // paise locked per remaining day (0 = none)
 	deleted_at: string | null;
+}
+
+/** A category with its children attached, for grouped display. */
+export interface CategoryTree extends Category {
+	children: Category[];
+}
+
+export interface Obligation {
+	id: string;
+	user_id: string;
+	name: string;
+	amount_paise: number;
+	category_id: string | null;
+	cadence: HarbourCadence;
+	is_active: 0 | 1;
+	created_at: string;
+	deleted_at: string | null;
+}
+
+/** An obligation plus whether it has been settled in the current period. */
+export interface ObligationStatus extends Obligation {
+	paid: boolean;
 }
 
 export interface ReconciliationPeriod {
@@ -108,6 +134,17 @@ export interface NewCategory {
 	user_id: string;
 	name: string;
 	color: string;
+	parent_id?: string | null;
+	bucket?: CategoryBucket;
+	daily_reserve_paise?: number;
+}
+
+export interface NewObligation {
+	user_id: string;
+	name: string;
+	amount_paise: number;
+	category_id?: string | null;
+	cadence?: HarbourCadence;
 }
 
 // ── View/aggregate types ──────────────────────────────────────────────────────
@@ -118,6 +155,13 @@ export interface AccountSummary {
 	current_period: ReconciliationPeriod;
 	harbour_visits: number; // count of harboured periods, never resets
 	open_periods: number; // periods not yet harboured (>1 = amnesty needed)
+
+	// The control view: what is actually free to spend.
+	safe_to_spend_paise: number; // remaining - unpaid obligations - reserved essentials
+	locked_obligations_paise: number; // unpaid obligations due this period
+	locked_reserve_paise: number; // days_remaining * total daily reserve
+	daily_reserve_paise: number; // sum of per-category daily reserves
+	days_remaining: number; // days from today to period end (today excluded)
 }
 
 export interface PeriodSummary {

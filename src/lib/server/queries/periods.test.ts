@@ -358,7 +358,7 @@ describe('harbourPeriod drift mechanism', () => {
 			const current = periods[3]; // p4
 
 			// After freshStart harbour, p1-p3 should be sealed
-			const sealed = periods.map((p) => {
+			const sealed = periods.map((p): { id: string; period_start: string; harboured_at: string | null; opening: number; closing_balance_paise: number | null } => {
 				if (p.id !== 'p4' && p.period_start < current.period_start && !p.harboured_at) {
 					// Fresh start seals older periods
 					return { ...p, harboured_at: 'now', closing_balance_paise: p.opening };
@@ -366,7 +366,7 @@ describe('harbourPeriod drift mechanism', () => {
 				if (p.id === 'p4') {
 					return { ...p, harboured_at: 'now', closing_balance_paise: 70000 };
 				}
-				return p;
+				return { ...p, closing_balance_paise: null };
 			});
 
 			expect(sealed[0].harboured_at).toBe('now'); // p1 sealed

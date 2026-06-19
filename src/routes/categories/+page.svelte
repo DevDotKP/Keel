@@ -3,13 +3,19 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
 	import type { PageData } from './$types';
+	import type { Category, CategoryBucket } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 
 	let newName = $state('');
 	let newColor = $state('#6B7280');
+	let newParent = $state('');
+	let newBucket = $state<CategoryBucket>('flexible');
+	let newReserve = $state('');
 	let submitting = $state(false);
+	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
 
 	const PRESET_COLORS = [
@@ -23,34 +29,66 @@
 		error = null;
 		submitting = true;
 
+		const reservePaise = newBucket === 'committed' ? parseToPaise(newReserve) ?? 0 : 0;
+
 		const res = await fetch('/api/categories', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ name: newName.trim(), color: newColor })
+			body: JSON.stringify({
+				name: newName.trim(),
+				color: newColor,
+				parent_id: newParent || null,
+				bucket: newBucket,
+				daily_reserve_paise: reservePaise
+			})
 		});
 
 		submitting = false;
 		if (!res.ok) {
-			const msg = res.status === 409 ? 'Category name already exists' : 'Could not create. Try again.';
-			error = msg;
+			error = res.status === 409 ? 'Category name already exists' : 'Could not create. Try again.';
 			return;
 		}
 
 		newName = '';
 		newColor = '#6B7280';
+		newParent = '';
+		newBucket = 'flexible';
+		newReserve = '';
 		await invalidateAll();
 	}
 
-	async function handleDelete(id: string) {
-		if (!confirm('Delete this category?')) return;
-
-		const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+	async function patchCategory(id: string, body: Record<string, unknown>) {
+		busyId = id;
+		error = null;
+		const res = await fetch(`/api/categories/${id}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+		busyId = null;
 		if (!res.ok) {
-			error = 'Could not delete. Try again.';
+			error = 'Could not save. Try again.';
 			return;
 		}
-
 		await invalidateAll();
+	}
+
+	function toggleBucket(cat: Category) {
+		patchCategory(cat.id, { bucket: cat.bucket === 'committed' ? 'flexible' : 'committed' });
+	}
+
+	function setReserve(cat: Category, value: string) {
+		const paise = parseToPaise(value) ?? 0;
+		patchCategory(cat.id, { daily_reserve_paise: paise });
+	}
+
+	async function handleDelete(id: string) {
+		if (!confirm('Delete this category? Subcategories under it are removed too.')) return;
+		busyId = id;
+		const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+		busyId = null;
+		if (res.ok) await invalidateAll();
+		else error = 'Could not delete. Try again.';
 	}
 </script>
 
@@ -59,27 +97,27 @@
 </svelte:head>
 
 <div class="categories-page">
-	<h1 class="section-head">Categories</h1>
+	<header class="page-header">
+		<h1 class="section-head">Categories</h1>
+		<p class="page-sub">
+			Mark essentials as committed and set a daily reserve. Keel locks that money before you spend.
+		</p>
+	</header>
 
-	<ul class="category-list" aria-label="Your categories">
-		{#each data.categories as cat}
-			<li class="category-row">
-				<span class="color-dot" style="background:{cat.color}" aria-hidden="true"></span>
-				<span class="cat-name">{cat.name}</span>
-				{#if !cat.is_system}
-					<button
-						class="delete-btn"
-						onclick={() => handleDelete(cat.id)}
-						aria-label="Delete {cat.name}"
-					>
-						<Trash2 size={16} />
-					</button>
-				{/if}
-			</li>
-		{:else}
-			<EmptyState heading="No categories" />
-		{/each}
-	</ul>
+	{#if error}
+		<p class="error" role="alert">{error}</p>
+	{/if}
+
+	{#each data.tree as top (top.id)}
+		<div class="cat-group">
+			{@render categoryRow(top, false)}
+			{#each top.children as child (child.id)}
+				{@render categoryRow(child, true)}
+			{/each}
+		</div>
+	{:else}
+		<EmptyState heading="No categories" />
+	{/each}
 
 	<!-- Add new category -->
 	<form class="add-form" onsubmit={handleCreate} novalidate>
@@ -90,12 +128,54 @@
 			<input
 				id="cat-name"
 				type="text"
-				placeholder="e.g. Transport"
+				placeholder="e.g. Food"
 				bind:value={newName}
 				maxlength="50"
 				required
 			/>
 		</div>
+
+		<div class="field">
+			<label for="cat-parent">Parent (optional)</label>
+			<select id="cat-parent" bind:value={newParent}>
+				<option value="">None (top level)</option>
+				{#each data.parents as p}
+					<option value={p.id}>{p.name}</option>
+				{/each}
+			</select>
+		</div>
+
+		<div class="field">
+			<span class="field-label">Type</span>
+			<div class="bucket-toggle" role="radiogroup" aria-label="Category type">
+				<label class="bucket-option" class:active={newBucket === 'flexible'}>
+					<input type="radio" name="bucket" value="flexible" bind:group={newBucket} />
+					<span>Flexible</span>
+				</label>
+				<label class="bucket-option" class:active={newBucket === 'committed'}>
+					<input type="radio" name="bucket" value="committed" bind:group={newBucket} />
+					<span>Committed</span>
+				</label>
+			</div>
+		</div>
+
+		{#if newBucket === 'committed'}
+			<div class="field">
+				<label for="cat-reserve">Daily reserve (optional)</label>
+				<div class="amount-row">
+					<span class="currency-symbol" aria-hidden="true">₹</span>
+					<input
+						id="cat-reserve"
+						type="text"
+						inputmode="decimal"
+						placeholder="0"
+						bind:value={newReserve}
+						class="money"
+					/>
+					<span class="per-day">/ day</span>
+				</div>
+			</div>
+		{/if}
 
 		<div class="field">
 			<span class="field-label">Colour</span>
@@ -114,30 +194,81 @@
 			</div>
 		</div>
 
-		{#if error}
-			<p class="error" role="alert">{error}</p>
-		{/if}
-
 		<button type="submit" class="submit-btn" disabled={submitting || !newName.trim()}>
 			{#if submitting}<Spinner size={18} />{:else}Add category{/if}
 		</button>
 	</form>
 </div>
 
+{#snippet categoryRow(cat: Category, isChild: boolean)}
+	<div class="category-row" class:child={isChild}>
+		<span class="cat-name">{cat.name}</span>
+
+		{#if cat.bucket === 'committed' && cat.daily_reserve_paise > 0}
+			<span class="reserve-tag">{formatPaiseLedger(cat.daily_reserve_paise)}/day</span>
+		{/if}
+
+		{#if !cat.is_system}
+			<button
+				class="bucket-chip"
+				class:committed={cat.bucket === 'committed'}
+				onclick={() => toggleBucket(cat)}
+				disabled={busyId === cat.id}
+				aria-label="Toggle type for {cat.name}, currently {cat.bucket}"
+			>
+				{cat.bucket}
+			</button>
+
+			{#if cat.bucket === 'committed'}
+				<input
+					type="text"
+					inputmode="decimal"
+					class="reserve-input money"
+					placeholder="₹/day"
+					value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
+					onchange={(e) => setReserve(cat, e.currentTarget.value)}
+					disabled={busyId === cat.id}
+					aria-label="Daily reserve for {cat.name}"
+				/>
+			{/if}
+
+			<button
+				class="delete-btn"
+				onclick={() => handleDelete(cat.id)}
+				disabled={busyId === cat.id}
+				aria-label="Delete {cat.name}"
+			>
+				<Trash2 size={16} aria-hidden="true" />
+			</button>
+		{:else}
+			<span class="system-tag">system</span>
+		{/if}
+	</div>
+{/snippet}
+
 <style>
 	.categories-page {
 		padding: var(--space-6);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-8);
+		gap: var(--space-6);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
 	}
 
-	.category-list {
-		list-style: none;
+	.page-header {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
+		gap: var(--space-2);
+	}
+
+	.page-sub {
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+	}
+
+	.cat-group {
+		display: flex;
+		flex-direction: column;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		overflow: hidden;
@@ -146,24 +277,83 @@
 	.category-row {
 		display: flex;
 		align-items: center;
-		gap: var(--space-3);
+		gap: var(--space-2);
 		padding: var(--space-3) var(--space-4);
 		border-bottom: 1px solid var(--color-border);
 		min-height: var(--tap-target);
 	}
 
-	.category-row:last-child { border-bottom: none; }
-
-	.color-dot {
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		flex-shrink: 0;
+	.category-row:last-child {
+		border-bottom: none;
 	}
 
-	.cat-name { flex: 1; }
+	.category-row.child {
+		padding-left: var(--space-8);
+		background: var(--color-neutral-50);
+	}
+
+	.cat-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.9375rem;
+	}
+
+	.reserve-tag {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		white-space: nowrap;
+	}
+
+	.bucket-chip {
+		flex: none;
+		font-size: 0.75rem;
+		text-transform: capitalize;
+		padding: var(--space-1) var(--space-2);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-full);
+		background: transparent;
+		color: var(--color-text-muted);
+		cursor: pointer;
+	}
+
+	.bucket-chip.committed {
+		border-color: var(--color-text-muted);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.bucket-chip:disabled {
+		opacity: 0.5;
+	}
+
+	.reserve-input {
+		width: 72px;
+		height: 32px;
+		padding: 0 var(--space-2);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		background: var(--color-surface);
+		font-size: 0.8125rem;
+		color: var(--color-text);
+	}
+
+	.reserve-input:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	.system-tag {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
 
 	.delete-btn {
+		flex: none;
 		color: var(--color-text-subtle);
 		background: transparent;
 		border: none;
@@ -175,6 +365,15 @@
 		min-width: var(--tap-target);
 		border-radius: var(--radius-full);
 		cursor: pointer;
+		opacity: 0.5;
+		transition:
+			opacity var(--duration-fast) var(--ease-out),
+			color var(--duration-fast) var(--ease-out);
+	}
+
+	.delete-btn:hover {
+		opacity: 1;
+		color: var(--color-clay);
 	}
 
 	.add-form {
@@ -201,7 +400,8 @@
 		color: var(--color-text-muted);
 	}
 
-	.field input {
+	.field input,
+	.field select {
 		height: 44px;
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
@@ -211,9 +411,60 @@
 		color: var(--color-text);
 	}
 
-	.field input:focus {
+	.field input:focus,
+	.field select:focus {
 		outline: none;
 		border-color: var(--color-gold);
+	}
+
+	.bucket-toggle {
+		display: flex;
+		gap: var(--space-2);
+	}
+
+	.bucket-option {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 44px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+	}
+
+	.bucket-option.active {
+		border-color: var(--color-text);
+		color: var(--color-text);
+		font-weight: 600;
+		background: var(--color-neutral-50);
+	}
+
+	.bucket-option input {
+		display: none;
+	}
+
+	.amount-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.amount-row input {
+		flex: 1;
+	}
+
+	.currency-symbol {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		color: var(--color-text-muted);
+	}
+
+	.per-day {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
 	}
 
 	.color-grid {
@@ -222,7 +473,9 @@
 		gap: var(--space-2);
 	}
 
-	.color-swatch input { display: none; }
+	.color-swatch input {
+		display: none;
+	}
 
 	.swatch-circle {
 		display: block;
@@ -253,7 +506,10 @@
 		cursor: pointer;
 	}
 
-	.submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+	.submit-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
 
 	.error {
 		color: var(--color-clay);

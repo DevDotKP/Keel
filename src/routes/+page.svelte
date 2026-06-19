@@ -47,18 +47,60 @@
 </svelte:head>
 
 <div class="dashboard">
-	<!-- Hero: money remaining this period -->
-	<section class="hero" aria-label="Balance summary">
-		<p class="hero-label">Remaining this period</p>
-		<p class="money-hero" aria-live="polite" aria-atomic="true">
-			{formatPaise(data.summary?.remaining_paise ?? 0)}
+	<!-- Hero: what is actually safe to spend, after obligations and essentials -->
+	<section class="hero" aria-label="Safe to spend">
+		<p class="hero-label">Safe to spend</p>
+		<p
+			class="money-hero"
+			class:over-committed={(data.summary?.safe_to_spend_paise ?? 0) < 0}
+			aria-live="polite"
+			aria-atomic="true"
+		>
+			{formatPaise(data.summary?.safe_to_spend_paise ?? 0)}
 		</p>
 		<p class="hero-sub">
 			{#if data.summary}
-				{periodRange(data.summary.current_period)}
+				{#if data.summary.safe_to_spend_paise < 0}
+					Your commitments run ahead of your balance this period.
+				{:else}
+					Free to spend before your next harbour · {periodRange(data.summary.current_period)}
+				{/if}
 			{/if}
 		</p>
 	</section>
+
+	<!-- The breakdown: how safe-to-spend is derived. Calm, never scolding. -->
+	{#if data.summary && (data.summary.locked_obligations_paise > 0 || data.summary.locked_reserve_paise > 0)}
+		<section class="breakdown" aria-label="How safe to spend is calculated">
+			<div class="breakdown-row">
+				<span class="breakdown-label">Remaining this period</span>
+				<span class="money breakdown-amount">{formatPaiseLedger(data.summary.remaining_paise)}</span>
+			</div>
+			{#if data.summary.locked_obligations_paise > 0}
+				<div class="breakdown-row">
+					<span class="breakdown-label">Obligations still due</span>
+					<span class="money breakdown-amount muted"
+						>−{formatPaiseLedger(data.summary.locked_obligations_paise)}</span
+					>
+				</div>
+			{/if}
+			{#if data.summary.locked_reserve_paise > 0}
+				<div class="breakdown-row">
+					<span class="breakdown-label">
+						Reserved for essentials
+						<span class="breakdown-note">{data.summary.days_remaining} days left</span>
+					</span>
+					<span class="money breakdown-amount muted"
+						>−{formatPaiseLedger(data.summary.locked_reserve_paise)}</span
+					>
+				</div>
+			{/if}
+			<div class="breakdown-row breakdown-total">
+				<span class="breakdown-label">Safe to spend</span>
+				<span class="money breakdown-amount">{formatPaiseLedger(data.summary.safe_to_spend_paise)}</span>
+			</div>
+		</section>
+	{/if}
 
 	<!-- Harbour open-loop pull (Zeigarnik, not guilt). Shown once there is something to settle. -->
 	{#if data.transactions.length > 0}
@@ -147,6 +189,63 @@
 		font-size: 0.875rem;
 		color: var(--color-text-subtle);
 		min-height: 1.2em;
+	}
+
+	/* Over-committed is a genuine attention state: clay, never red alarm. */
+	.money-hero.over-committed {
+		color: var(--color-clay);
+	}
+
+	.breakdown {
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-neutral-50);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.breakdown-row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-4);
+		padding: var(--space-2) 0;
+	}
+
+	.breakdown-label {
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.breakdown-note {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+	}
+
+	.breakdown-amount {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
+		white-space: nowrap;
+	}
+
+	.breakdown-amount.muted {
+		color: var(--color-text-muted);
+		font-weight: 500;
+	}
+
+	.breakdown-total {
+		margin-top: var(--space-1);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.breakdown-total .breakdown-label {
+		font-weight: 600;
+		color: var(--color-text);
 	}
 
 	.harbour-nudge {

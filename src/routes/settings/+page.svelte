@@ -83,6 +83,21 @@
 		{/if}
 	</section>
 
+	<!-- Manage -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Manage</h2>
+		<nav class="manage-links" aria-label="Manage">
+			<a href="/categories" class="manage-link">
+				<span>Categories</span>
+				<span class="manage-chevron" aria-hidden="true">›</span>
+			</a>
+			<a href="/obligations" class="manage-link">
+				<span>Recurring &amp; obligations</span>
+				<span class="manage-chevron" aria-hidden="true">›</span>
+			</a>
+		</nav>
+	</section>
+
 	<!-- Export -->
 	<section class="settings-section">
 		<h2 class="settings-section-head">Your data</h2>
@@ -184,6 +199,40 @@
 		gap: var(--space-2);
 		font-size: 0.8125rem;
 		color: var(--color-text-muted);
+	}
+
+	.manage-links {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+	}
+
+	.manage-link {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--space-3) var(--space-4);
+		min-height: var(--tap-target);
+		color: var(--color-text);
+		text-decoration: none;
+		border-bottom: 1px solid var(--color-border);
+		font-size: 0.9375rem;
+		transition: background var(--duration-fast) var(--ease-out);
+	}
+
+	.manage-link:last-child {
+		border-bottom: none;
+	}
+
+	.manage-link:hover {
+		background: var(--color-neutral-50);
+	}
+
+	.manage-chevron {
+		color: var(--color-text-subtle);
+		font-size: 1.25rem;
 	}
 
 	.export-row {

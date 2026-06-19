@@ -6,7 +6,10 @@ import { listCategories, createCategory } from '$lib/server/queries/categories';
 
 const NewCategorySchema = z.object({
 	name: z.string().min(1).max(50),
-	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/)
+	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
+	parent_id: z.string().nullable().optional(),
+	bucket: z.enum(['committed', 'flexible']).optional(),
+	daily_reserve_paise: z.number().int().min(0).optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
@@ -27,9 +30,8 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		return json(cat, { status: 201 });
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Failed to create';
-		if (msg.includes('UNIQUE')) {
-			throw error(409, 'Category name already exists');
-		}
+		if (msg.includes('UNIQUE')) throw error(409, 'Category name already exists');
+		if (msg.includes('nest') || msg.includes('Parent')) throw error(400, msg);
 		throw error(500, msg);
 	}
 };

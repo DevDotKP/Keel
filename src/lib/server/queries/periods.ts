@@ -205,9 +205,10 @@ export async function getAccountSummary(
 	const remaining = period.opening_balance_paise + income + expense;
 
 	const account = await db
-		.prepare('SELECT balance_paise FROM accounts WHERE id = ?')
+		.prepare('SELECT user_id, balance_paise FROM accounts WHERE id = ?')
 		.bind(account_id)
-		.first<{ balance_paise: number }>();
+		.first<{ user_id: string; balance_paise: number }>();
+	const userId = account?.user_id ?? '';
 
 	const visits = await db
 		.prepare(
@@ -223,11 +224,56 @@ export async function getAccountSummary(
 		.bind(account_id)
 		.first<{ c: number }>();
 
+	// ── Control view ────────────────────────────────────────────────────────
+	// Days left in the period, today excluded (period_end - today, floored at 0).
+	const days_remaining = daysUntil(period.period_end);
+
+	// Total daily reserve across the user's categories (e.g. Food Rs 120/day).
+	const reserveAgg = await db
+		.prepare(
+			'SELECT COALESCE(SUM(daily_reserve_paise), 0) AS r FROM categories WHERE user_id = ? AND deleted_at IS NULL'
+		)
+		.bind(userId)
+		.first<{ r: number }>();
+	const daily_reserve_paise = reserveAgg?.r ?? 0;
+	const locked_reserve_paise = daily_reserve_paise * days_remaining;
+
+	// Unpaid obligations: active, not yet settled for this period.
+	const oblAgg = await db
+		.prepare(
+			`SELECT COALESCE(SUM(o.amount_paise), 0) AS due
+			 FROM obligations o
+			 WHERE o.user_id = ? AND o.is_active = 1 AND o.deleted_at IS NULL
+			   AND NOT EXISTS (
+			     SELECT 1 FROM obligation_settlements s
+			     WHERE s.obligation_id = o.id AND s.period_id = ?
+			   )`
+		)
+		.bind(userId, period.id)
+		.first<{ due: number }>();
+	const locked_obligations_paise = oblAgg?.due ?? 0;
+
+	const safe_to_spend_paise = remaining - locked_obligations_paise - locked_reserve_paise;
+
 	return {
 		balance_paise: account?.balance_paise ?? 0,
 		remaining_paise: remaining,
 		current_period: period,
 		harbour_visits: visits?.c ?? 0,
-		open_periods: open?.c ?? 0
+		open_periods: open?.c ?? 0,
+		safe_to_spend_paise,
+		locked_obligations_paise,
+		locked_reserve_paise,
+		daily_reserve_paise,
+		days_remaining
 	};
+}
+
+/** Whole days from today (midnight) to an ISO date 'YYYY-MM-DD', floored at 0. */
+function daysUntil(isoDate: string): number {
+	const today = new Date();
+	today.setHours(0, 0, 0, 0);
+	const end = new Date(`${isoDate}T00:00:00`);
+	const diff = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+	return Math.max(0, diff);
 }
