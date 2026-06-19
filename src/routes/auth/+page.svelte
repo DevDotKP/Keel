@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { PageData } from './$types';
 
@@ -14,7 +13,7 @@
 	let authState = $state<AuthState>('idle');
 	let email = $state('');
 	let formError = $state<string | null>(initialError);
-	// Dev only: the verify token returned from the API so you can test without email.
+	// The verify token, when the server reveals it (dev, or closed-testing flag).
 	let devToken = $state<string | null>(null);
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -34,10 +33,9 @@
 			return;
 		}
 
-		if (dev) {
-			const body = (await res.json()) as { ok: boolean; token?: string };
-			devToken = body.token ?? null;
-		}
+		// If the server returns a token (dev or closed-testing reveal), surface the link.
+		const body = (await res.json().catch(() => ({}))) as { ok?: boolean; token?: string };
+		devToken = body.token ?? null;
 
 		authState = 'sent';
 	}
@@ -61,7 +59,7 @@
 			</p>
 			{#if devToken}
 				<div class="dev-token" role="note">
-					<p class="dev-label">Dev — verify link (no email sent):</p>
+					<p class="dev-label">Sign-in link (closed testing, no email sent):</p>
 					<a href="/api/auth/verify?token={devToken}" class="dev-link">
 						/api/auth/verify?token={devToken.slice(0, 16)}…
 					</a>
