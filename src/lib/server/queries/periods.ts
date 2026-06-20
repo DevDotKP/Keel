@@ -182,78 +182,81 @@ export async function getAccountSummary(
 	account_id: string,
 	cadence: HarbourCadence
 ): Promise<AccountSummary> {
-	// Single round trip: ensure the period exists, read it back, and compute every
-	// aggregate, all in one D1 batch. Statements run sequentially in a transaction,
-	// so the aggregates (which reference the period via subquery) see the inserted
-	// row. This is the most-hit path, so it sits at the one-round-trip floor.
+	// Two statements only: upsert the period, then ONE read that computes every
+	// figure via scalar subqueries. D1 runs batch statements sequentially server
+	// side, so statement count, not row count, is the cost driver here (Delhi
+	// worker, Singapore storage). Collapsing 8 reads to 1 is the win.
 	const { start, end } = computePeriod(cadence, new Date());
 	const to = nextDay(end);
 	const days_remaining = daysUntil(end);
 
-	const [, periodR, aggR, accR, visitsR, openR, reserveR, oblR] = await db.batch([
-		db
+	type SummaryRow = ReconciliationPeriod & {
+		income: number;
+		expense: number;
+		balance_paise: number;
+		harbour_visits: number;
+		open_periods: number;
+		daily_reserve_paise: number;
+		locked_obligations_paise: number;
+	};
+
+	// One read-only SELECT computes everything. Reads are far cheaper than the
+	// write-commit latency D1 charges for a batch containing an INSERT. The period
+	// row already exists on every load except the first of a new cycle, so we only
+	// pay the write cost once per cycle (handled in the fallback below).
+	const summarySql = `SELECT
+		   rp.*,
+		   (SELECT COALESCE(SUM(CASE WHEN amount_paise > 0 THEN amount_paise ELSE 0 END), 0)
+		      FROM transactions
+		      WHERE account_id = ?1 AND deleted_at IS NULL AND occurred_at >= ?2 AND occurred_at < ?3) AS income,
+		   (SELECT COALESCE(SUM(CASE WHEN amount_paise < 0 THEN amount_paise ELSE 0 END), 0)
+		      FROM transactions
+		      WHERE account_id = ?1 AND deleted_at IS NULL AND occurred_at >= ?2 AND occurred_at < ?3) AS expense,
+		   (SELECT balance_paise FROM accounts WHERE id = ?1) AS balance_paise,
+		   (SELECT COUNT(*) FROM reconciliation_periods WHERE account_id = ?1 AND harboured_at IS NOT NULL) AS harbour_visits,
+		   (SELECT COUNT(*) FROM reconciliation_periods WHERE account_id = ?1 AND harboured_at IS NULL) AS open_periods,
+		   (SELECT COALESCE(SUM(daily_reserve_paise), 0) FROM categories
+		      WHERE user_id = (SELECT user_id FROM accounts WHERE id = ?1) AND deleted_at IS NULL) AS daily_reserve_paise,
+		   (SELECT COALESCE(SUM(o.amount_paise), 0) FROM obligations o
+		      WHERE o.user_id = (SELECT user_id FROM accounts WHERE id = ?1) AND o.is_active = 1 AND o.deleted_at IS NULL
+		        AND NOT EXISTS (SELECT 1 FROM obligation_settlements s WHERE s.obligation_id = o.id AND s.period_id = rp.id)) AS locked_obligations_paise
+		 FROM reconciliation_periods rp
+		 WHERE rp.account_id = ?1 AND rp.period_start = ?4`;
+
+	// Bind order: ?1 account_id, ?2 window-from (period_start), ?3 window-to, ?4 period_start.
+	let row = await db.prepare(summarySql).bind(account_id, start, to, start).first<SummaryRow>();
+
+	// First load of a new cycle: the period does not exist yet. Create it, re-read.
+	if (!row) {
+		await db
 			.prepare(
 				`INSERT OR IGNORE INTO reconciliation_periods
 				   (account_id, period_start, period_end, cadence, opening_balance_paise)
 				 VALUES (?, ?, ?, ?, (SELECT balance_paise FROM accounts WHERE id = ?))`
 			)
-			.bind(account_id, start, end, cadence, account_id),
-		db
-			.prepare('SELECT * FROM reconciliation_periods WHERE account_id = ? AND period_start = ?')
-			.bind(account_id, start),
-		db
-			.prepare(
-				`SELECT
-				   COALESCE(SUM(CASE WHEN amount_paise > 0 THEN amount_paise ELSE 0 END), 0) AS income,
-				   COALESCE(SUM(CASE WHEN amount_paise < 0 THEN amount_paise ELSE 0 END), 0) AS expense
-				 FROM transactions
-				 WHERE account_id = ? AND deleted_at IS NULL
-				   AND occurred_at >= ? AND occurred_at < ?`
-			)
-			.bind(account_id, start, to),
-		db.prepare('SELECT balance_paise FROM accounts WHERE id = ?').bind(account_id),
-		db
-			.prepare(
-				'SELECT COUNT(*) AS c FROM reconciliation_periods WHERE account_id = ? AND harboured_at IS NOT NULL'
-			)
-			.bind(account_id),
-		db
-			.prepare(
-				'SELECT COUNT(*) AS c FROM reconciliation_periods WHERE account_id = ? AND harboured_at IS NULL'
-			)
-			.bind(account_id),
-		db
-			.prepare(
-				'SELECT COALESCE(SUM(daily_reserve_paise), 0) AS r FROM categories WHERE user_id = (SELECT user_id FROM accounts WHERE id = ?) AND deleted_at IS NULL'
-			)
-			.bind(account_id),
-		db
-			.prepare(
-				`SELECT COALESCE(SUM(o.amount_paise), 0) AS due
-				 FROM obligations o
-				 WHERE o.user_id = (SELECT user_id FROM accounts WHERE id = ?) AND o.is_active = 1 AND o.deleted_at IS NULL
-				   AND NOT EXISTS (
-				     SELECT 1 FROM obligation_settlements s
-				     WHERE s.obligation_id = o.id
-				       AND s.period_id = (SELECT id FROM reconciliation_periods WHERE account_id = ? AND period_start = ?)
-				   )`
-			)
-			.bind(account_id, account_id, start)
-	]);
+			.bind(account_id, start, end, cadence, account_id)
+			.run();
+		row = await db.prepare(summarySql).bind(account_id, start, to, start).first<SummaryRow>();
+	}
+	if (!row) throw new Error('getAccountSummary: period upsert returned no row');
 
-	const period = periodR.results?.[0] as ReconciliationPeriod | undefined;
-	if (!period) throw new Error('getAccountSummary: period upsert returned no row');
+	const period: ReconciliationPeriod = {
+		id: row.id,
+		account_id: row.account_id,
+		period_start: row.period_start,
+		period_end: row.period_end,
+		cadence: row.cadence,
+		opening_balance_paise: row.opening_balance_paise,
+		closing_balance_paise: row.closing_balance_paise,
+		harboured_at: row.harboured_at
+	};
 
-	const agg = aggR.results?.[0] as { income: number; expense: number } | undefined;
-	const income = agg?.income ?? 0;
-	const expense = agg?.expense ?? 0; // negative or zero
-	const remaining = period.opening_balance_paise + income + expense;
-
-	const balance_paise = (accR.results?.[0] as { balance_paise: number } | undefined)?.balance_paise ?? 0;
-	const harbour_visits = (visitsR.results?.[0] as { c: number } | undefined)?.c ?? 0;
-	const open_periods = (openR.results?.[0] as { c: number } | undefined)?.c ?? 0;
-	const daily_reserve_paise = (reserveR.results?.[0] as { r: number } | undefined)?.r ?? 0;
-	const locked_obligations_paise = (oblR.results?.[0] as { due: number } | undefined)?.due ?? 0;
+	const remaining = period.opening_balance_paise + row.income + row.expense;
+	const balance_paise = row.balance_paise ?? 0;
+	const harbour_visits = row.harbour_visits ?? 0;
+	const open_periods = row.open_periods ?? 0;
+	const daily_reserve_paise = row.daily_reserve_paise ?? 0;
+	const locked_obligations_paise = row.locked_obligations_paise ?? 0;
 
 	const locked_reserve_paise = daily_reserve_paise * days_remaining;
 	const safe_to_spend_paise = remaining - locked_obligations_paise - locked_reserve_paise;
