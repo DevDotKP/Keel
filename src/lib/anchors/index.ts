@@ -224,3 +224,13 @@ export function parse(transcript: string, knownCategories: string[] = []): Ancho
 		raw_transcript: transcript
 	};
 }
+
+/**
+ * Quick category hint for typed descriptions — no amount or date parsing.
+ * Returns the category_hint string from the lexicon, or null if no match.
+ * Used by the add-transaction sheet to auto-fill category as the user types.
+ */
+export function matchCategory(text: string): string | null {
+	if (!text || text.length < 3) return null;
+	return matchLexicon(text.toLowerCase().trim())?.categoryHint ?? null;
+}

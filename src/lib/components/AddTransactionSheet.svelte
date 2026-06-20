@@ -4,7 +4,7 @@
 	import { parseToPaise, formatPaise } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
-	import { parse } from '$lib/anchors';
+	import { parse, matchCategory } from '$lib/anchors';
 	import type { TransactionDraft, Category, Transaction } from '$lib/types';
 
 	interface Props {
@@ -31,6 +31,7 @@
 
 	// Voice metadata: held between capture and submit for logging.
 	let pendingVoice = $state<{ raw_transcript: string; parsed_json: string } | null>(null);
+	let categoryManuallySet = $state(false);
 
 	const speechSupported = isSpeechSupported();
 
@@ -190,6 +191,7 @@
 		entryKind = 'expense';
 		amountRaw = '';
 		categoryId = '';
+		categoryManuallySet = false;
 		description = '';
 		note = '';
 		showNote = false;
@@ -198,6 +200,15 @@
 		pendingVoice = null;
 	}
 
+	// ── Auto-categorize typed description (new entries only) ─────────────────
+	$effect(() => {
+		if (editingTx || categoryManuallySet || !description) return;
+		const hint = matchCategory(description);
+		if (!hint) return;
+		const match = pickableCategories.find((c) => c.name.toLowerCase() === hint.toLowerCase());
+		if (match && match.id !== categoryId) categoryId = match.id;
+	});
+
 	// ── Prefill from editingTx when the sheet opens for an edit ─────────────
 	$effect(() => {
 		if (!open) { reset(); return; }
@@ -205,6 +216,7 @@
 		entryKind = editingTx.amount_paise >= 0 ? 'income' : 'expense';
 		amountRaw = (Math.abs(editingTx.amount_paise) / 100).toString();
 		categoryId = editingTx.category_id;
+		categoryManuallySet = true;
 		description = editingTx.description;
 		note = editingTx.note ?? '';
 		showNote = !!(editingTx.note);
@@ -347,7 +359,7 @@
 			<!-- Category: only those matching the chosen kind. Kind sets the sign. -->
 			<div class="field">
 				<label for="category">Category</label>
-				<select id="category" bind:value={categoryId}>
+				<select id="category" bind:value={categoryId} onchange={() => (categoryManuallySet = true)}>
 					<option value="">{entryKind === 'income' ? 'Income (uncategorised)' : 'Uncategorized'}</option>
 					{#each pickableCategories as cat}
 						<option value={cat.id}>{cat.name}</option>
