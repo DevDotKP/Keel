@@ -5,6 +5,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
+	import { enqueueTransaction } from '$lib/utils/offline-queue';
 	import type { PageData } from './$types';
 	import type { TransactionDraft, Transaction, ReconciliationPeriod, RunwaySummary } from '$lib/types';
 
@@ -62,22 +63,29 @@
 			});
 			if (!res.ok) throw new Error('Update failed');
 			editingTx = null;
+			await invalidateAll();
 		} else {
+			const payload = {
+				category_id: draft.category_id || undefined,
+				amount_paise: draft.amount_paise,
+				description: draft.description,
+				note: draft.note,
+				occurred_at: draft.occurred_at,
+				source: 'tap'
+			};
+			if (!navigator.onLine) {
+				// Queue for later; the OfflineBanner flushes on reconnect.
+				await enqueueTransaction(payload);
+				return;
+			}
 			const res = await fetch('/api/transactions', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					category_id: draft.category_id || undefined,
-					amount_paise: draft.amount_paise,
-					description: draft.description,
-					note: draft.note,
-					occurred_at: draft.occurred_at,
-					source: 'tap'
-				})
+				body: JSON.stringify(payload)
 			});
 			if (!res.ok) throw new Error('Save failed');
+			await invalidateAll();
 		}
-		await invalidateAll();
 	}
 
 	async function handleDelete(id: string): Promise<void> {
