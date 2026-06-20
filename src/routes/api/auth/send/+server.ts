@@ -12,8 +12,7 @@ export const POST: RequestHandler = async ({ platform, request, url }) => {
 	if (!body.success) throw error(400, 'Valid email required');
 
 	const db = getDb(platform);
-	const baseUrl =
-		platform?.env?.MAGIC_LINK_BASE_URL ?? (dev ? url.origin : 'https://keel.pages.dev');
+	const baseUrl = platform?.env?.MAGIC_LINK_BASE_URL ?? url.origin;
 
 	const result = await issueMagicLink(db, body.data.email, {
 		baseUrl,
