@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse, matchCategory } from './index';
+import { toIstIso } from '$lib/utils/date';
 
 /**
  * Unit tests for the Hinglish anchor engine.
@@ -194,7 +195,7 @@ describe('parse: description assembly', () => {
 describe('parse: date extraction', () => {
 	it('extracts "today" as today\'s date', () => {
 		const result = parse('swiggy 200 rs today');
-		const today = new Date().toISOString().slice(0, 10);
+		const today = toIstIso(new Date()).slice(0, 10);
 		expect(result.draft.occurred_at?.slice(0, 10)).toBe(today);
 	});
 
@@ -202,19 +203,19 @@ describe('parse: date extraction', () => {
 		const result = parse('uber 300 rs yesterday');
 		const yesterday = new Date();
 		yesterday.setDate(yesterday.getDate() - 1);
-		const expectedDate = yesterday.toISOString().slice(0, 10);
+		const expectedDate = toIstIso(yesterday).slice(0, 10);
 		expect(result.draft.occurred_at?.slice(0, 10)).toBe(expectedDate);
 	});
 
 	it('extracts "aaj" as today (Hindi)', () => {
 		const result = parse('aaj swiggy 150 rs');
-		const today = new Date().toISOString().slice(0, 10);
+		const today = toIstIso(new Date()).slice(0, 10);
 		expect(result.draft.occurred_at?.slice(0, 10)).toBe(today);
 	});
 
 	it('defaults to today when no date keyword is present', () => {
 		const result = parse('swiggy 200 rs');
-		const today = new Date().toISOString().slice(0, 10);
+		const today = toIstIso(new Date()).slice(0, 10);
 		// Should default to now (today)
 		expect(result.draft.occurred_at?.slice(0, 10)).toBe(today);
 	});

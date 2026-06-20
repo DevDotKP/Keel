@@ -1,9 +1,9 @@
 import type { ReconciliationPeriod, AccountSummary, HarbourCadence, RunwaySummary } from '$lib/types';
 
 // ── Date helpers (local, not UTC, so period boundaries match the user's day) ───
-// Note: occurred_at is stored as a UTC ISO datetime; near-midnight entries can
-// land in an adjacent period by the tz offset. Acceptable for now.
-// TODO(sonnet): store/compare occurred_at in the user's local day for exactness.
+// occurred_at is stored with IST offset (+05:30) so the date portion of the
+// ISO string matches the user's calendar day. Period boundaries are YYYY-MM-DD
+// strings; D1's lexicographic comparison is therefore exact for IST users.
 
 function ymdLocal(d: Date): string {
 	const y = d.getFullYear();

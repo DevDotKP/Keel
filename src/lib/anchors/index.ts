@@ -4,7 +4,7 @@
 import Fuse from 'fuse.js';
 import type { TransactionDraft } from '$lib/types';
 import { HINGLISH_LEXICON, HINDI_NUMERALS } from './lexicon';
-import { nowIso } from '$lib/utils/date';
+import { nowIso, toIstIso } from '$lib/utils/date';
 
 export interface AnchorParseResult {
 	draft: TransactionDraft; // category_id is null here — caller resolves via category_hint
@@ -118,7 +118,7 @@ function extractDate(text: string): { isoDate: string; consumedText: string } | 
 				date = new Date();
 				date.setDate(date.getDate() - days);
 			}
-			return { isoDate: date.toISOString(), consumedText: phrase };
+			return { isoDate: toIstIso(date), consumedText: phrase };
 		}
 	}
 	return null;
