@@ -12,6 +12,18 @@ export const POST: RequestHandler = async ({ platform, request, url }) => {
 	if (!body.success) throw error(400, 'Valid email required');
 
 	const db = getDb(platform);
+
+	// Rate limit: max 3 magic-link requests per email per 10 minutes.
+	const existing = await db
+		.prepare(
+			`SELECT COUNT(*) AS n FROM magic_link_tokens
+			 WHERE user_id = (SELECT id FROM users WHERE email = ? LIMIT 1)
+			   AND created_at > datetime('now', '-10 minutes')`
+		)
+		.bind(body.data.email)
+		.first<{ n: number }>();
+	if ((existing?.n ?? 0) >= 3) throw error(429, 'Too many requests. Wait a few minutes.');
+
 	const baseUrl = platform?.env?.MAGIC_LINK_BASE_URL ?? url.origin;
 
 	const result = await issueMagicLink(db, body.data.email, {
