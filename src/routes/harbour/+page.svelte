@@ -50,6 +50,11 @@
 	<header class="page-header">
 		<h1 class="section-head">Harbour</h1>
 		<p class="page-sub">{periodRange()}</p>
+		{#if data.harbourVisits > 0}
+			<p class="visits-badge" aria-label="{data.harbourVisits} harbour visits">
+				{data.harbourVisits} {data.harbourVisits === 1 ? 'visit' : 'visits'}
+			</p>
+		{/if}
 	</header>
 
 	<section class="estimate">
@@ -159,6 +164,19 @@
 	.page-sub {
 		color: var(--color-text-muted);
 		font-size: 0.9375rem;
+	}
+
+	/* Harbour visit count: a warm total, never a streak. */
+	.visits-badge {
+		display: inline-flex;
+		align-self: flex-start;
+		padding: 2px var(--space-3);
+		border-radius: var(--radius-full);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.estimate {

@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 
 	const { account, cadence } = await resolveAccountAndCadence(rdb, locals.userId);
 	if (!account) {
-		return { period: null, estimatePaise: 0, transactions: [], categories: [], openPeriods: 0 };
+		return { period: null, estimatePaise: 0, transactions: [], categories: [], openPeriods: 0, harbourVisits: 0 };
 	}
 
 	const summary = await getAccountSummary(db, account.id, cadence, rdb);
@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		estimatePaise: summary.remaining_paise,
 		transactions,
 		categories,
-		openPeriods: summary.open_periods
+		openPeriods: summary.open_periods,
+		harbourVisits: summary.harbour_visits
 	};
 };
