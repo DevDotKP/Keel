@@ -239,7 +239,10 @@
 
 		<!-- Recent transactions -->
 		<section class="ledger-section">
-			<h2 class="section-head">Recent</h2>
+			<div class="ledger-header">
+				<h2 class="section-head">Recent</h2>
+				<a href="/transactions" class="see-all-link">See all</a>
+			</div>
 
 			{#if transactions.length === 0}
 				<EmptyState heading="No entries yet" body="Add your first expense below." />
@@ -781,6 +784,22 @@
 
 	.retry-btn:hover {
 		border-color: var(--color-text-subtle);
+		color: var(--color-text);
+	}
+
+	.ledger-header {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+	}
+
+	.see-all-link {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		text-decoration: none;
+	}
+
+	.see-all-link:hover {
 		color: var(--color-text);
 	}
 </style>

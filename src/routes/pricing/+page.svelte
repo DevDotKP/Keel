@@ -16,8 +16,8 @@
 	     when payments land. In MVP this page is informational only. -->
 	<div class="price-card">
 		<p class="price-label">Lifetime access</p>
-		<p class="price-amount money-hero">Rs 999</p>
-		<p class="price-note">One payment. No recurring charges.</p>
+		<p class="price-amount money-hero">₹599</p>
+		<p class="price-note">One payment after a 14-day free trial. No recurring charges.</p>
 		<button class="primary-btn" disabled>Coming soon</button>
 	</div>
 
