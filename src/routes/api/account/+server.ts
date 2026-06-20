@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ platform, locals }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
 
-	const { account, cadence, harbourDay } = await resolveAccountAndCadence(db, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(db, locals.userId, locals.householdId ?? locals.userId!);
 	if (!account) return json(null, { status: 404 });
 
 	const summary = await getAccountSummary(db, account.id, cadence, harbourDay);

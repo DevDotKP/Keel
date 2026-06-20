@@ -67,6 +67,34 @@
 		await fetch('/api/auth/signout', { method: 'POST' });
 		location.href = '/auth';
 	}
+
+	// Household invite
+	let inviteEmail = $state('');
+	let inviteRole = $state<'admin' | 'member'>('member');
+	let inviteBusy = $state(false);
+	let inviteResult = $state<{ invite_url: string } | null>(null);
+	let inviteError = $state<string | null>(null);
+
+	async function sendInvite() {
+		inviteBusy = true;
+		inviteError = null;
+		inviteResult = null;
+		const res = await fetch('/api/household', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ email: inviteEmail, role: inviteRole })
+		});
+		inviteBusy = false;
+		if (res.ok) {
+			const data = await res.json() as { invite_url: string };
+			inviteResult = data;
+			inviteEmail = '';
+			await invalidateAll();
+		} else {
+			const body = await res.json().catch(() => ({})) as { message?: string };
+			inviteError = body.message ?? 'Could not send invite';
+		}
+	}
 </script>
 
 <svelte:head>
@@ -173,6 +201,59 @@
 			</button>
 		</section>
 	{/if}
+
+	<!-- Household -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Household</h2>
+
+		{#if data.members.length > 0}
+			<ul class="member-list">
+				{#each data.members as m}
+					<li class="member-row">
+						<span class="member-email">{m.email}</span>
+						<span class="member-role">{m.role}</span>
+						{#if m.user_id === data.currentUserId}
+							<span class="member-you">you</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		{#if data.pendingInvites.length > 0}
+			<p class="settings-hint">Pending: {data.pendingInvites.map(i => i.email).join(', ')}</p>
+		{/if}
+
+		<!-- Invite form: only for admins -->
+		{#if data.members.find(m => m.user_id === data.currentUserId)?.role === 'admin'}
+			<div class="invite-row">
+				<input
+					type="email"
+					placeholder="Email to invite"
+					bind:value={inviteEmail}
+					class="invite-input"
+					disabled={inviteBusy}
+				/>
+				<select bind:value={inviteRole} class="invite-role" disabled={inviteBusy}>
+					<option value="member">Member</option>
+					<option value="admin">Admin</option>
+				</select>
+				<button class="secondary-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
+					{inviteBusy ? 'Sending…' : 'Invite'}
+				</button>
+			</div>
+			{#if inviteError}
+				<p class="error" role="alert">{inviteError}</p>
+			{/if}
+			{#if inviteResult}
+				<p class="invite-link-hint">
+					Share this link with {inviteEmail || 'the invitee'}:
+					<br />
+					<code class="invite-link">{inviteResult.invite_url}</code>
+				</p>
+			{/if}
+		{/if}
+	</section>
 
 	<!-- Export -->
 	<section class="settings-section">
@@ -413,5 +494,93 @@
 		font-size: 0.8125rem;
 		color: var(--color-text-subtle);
 		margin-top: calc(var(--space-2) * -0.5);
+	}
+
+	.member-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.member-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) 0;
+		border-bottom: 1px solid var(--color-border);
+		font-size: 0.9375rem;
+	}
+
+	.member-row:last-child { border-bottom: none; }
+
+	.member-email {
+		flex: 1;
+		color: var(--color-text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.member-role {
+		flex: none;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--color-text-subtle);
+	}
+
+	.member-you {
+		flex: none;
+		font-size: 0.75rem;
+		color: var(--color-text-muted);
+		font-style: italic;
+	}
+
+	.invite-row {
+		display: flex;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+
+	.invite-input {
+		flex: 1;
+		min-width: 160px;
+		height: 40px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 0.9375rem;
+		color: var(--color-text);
+	}
+
+	.invite-input:focus { outline: none; border-color: var(--color-gold); }
+
+	.invite-role {
+		height: 40px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 0.9375rem;
+		color: var(--color-text);
+	}
+
+	.invite-link-hint {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		line-height: 1.6;
+	}
+
+	.invite-link {
+		display: inline-block;
+		font-size: 0.8125rem;
+		background: var(--color-surface-subtle);
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		word-break: break-all;
+		color: var(--color-text);
+		margin-top: var(--space-1);
 	}
 </style>

@@ -18,13 +18,14 @@ export const PATCH: RequestHandler = async ({ platform, locals, params, request 
 	const db = getDb(platform);
 	const parsed = PatchSchema.safeParse(await request.json());
 	if (!parsed.success) throw error(400, parsed.error.message);
-	const account = await getDefaultAccount(db, locals.userId);
+	const hid = locals.householdId ?? locals.userId!;
+	const account = await getDefaultAccount(db, hid);
 	if (!account) throw error(409, 'No account for user');
 
 	// Resolve sign from category kind (same logic as POST).
 	const cat = await db
-		.prepare('SELECT kind FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
-		.bind(parsed.data.category_id, locals.userId)
+		.prepare('SELECT kind FROM categories WHERE id = ? AND household_id = ? AND deleted_at IS NULL')
+		.bind(parsed.data.category_id, hid)
 		.first<{ kind: string }>();
 	if (!cat) throw error(400, 'Unknown category');
 	const amount_paise = cat.kind === 'income' ? parsed.data.amount_paise : -parsed.data.amount_paise;

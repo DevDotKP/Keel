@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	return {
 		summary: getAccountSummary(db, account.id, cadence, harbourDay, rdb),
 		transactions: listTransactions(rdb, { account_id: account.id, limit: 20 }),
-		categories: listCategories(rdb, locals.userId),
+		categories: listCategories(rdb, locals.householdId ?? locals.userId!),
 		runway: getRunway(rdb, account.id)
 	};
 };

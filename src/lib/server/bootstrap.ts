@@ -22,8 +22,14 @@ export async function ensureUserSetup(
 	userId: string,
 	email: string
 ): Promise<void> {
+	// householdId = userId for personal setups (migration convention).
+	const householdId = userId;
+
 	await db.batch([
 		db.prepare('INSERT OR IGNORE INTO users (id, email) VALUES (?, ?)').bind(userId, email),
+		// Personal household: id = userId so account/category queries work without a join.
+		db.prepare("INSERT OR IGNORE INTO households (id, name, created_by) VALUES (?, 'Personal', ?)").bind(householdId, userId),
+		db.prepare("INSERT OR IGNORE INTO household_members (household_id, user_id, role) VALUES (?, ?, 'admin')").bind(householdId, userId),
 		// India-first default cadence: monthly (salary and rent cycles).
 		db
 			.prepare("INSERT OR IGNORE INTO settings (user_id, harbour_cadence) VALUES (?, 'monthly')")
@@ -33,32 +39,28 @@ export async function ensureUserSetup(
 				"INSERT OR IGNORE INTO entitlements (user_id, status, provider) VALUES (?, 'trialing', 'local')"
 			)
 			.bind(userId),
-		// Uncategorized: calm gold dot (expense fallback). Income: muted teal
-		// (income fallback). Both undeletable (is_system = 1).
+		// Uncategorized and Income: system categories, undeletable.
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Uncategorized', '#E0A82E', 1, 0, 'expense')"
+				"INSERT OR IGNORE INTO categories (user_id, household_id, name, color, is_system, sort_order, kind) VALUES (?, ?, 'Uncategorized', '#E0A82E', 1, 0, 'expense')"
 			)
-			.bind(userId),
+			.bind(userId, householdId),
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Income', '#2F7E72', 1, 1, 'income')"
+				"INSERT OR IGNORE INTO categories (user_id, household_id, name, color, is_system, sort_order, kind) VALUES (?, ?, 'Income', '#2F7E72', 1, 1, 'income')"
 			)
-			.bind(userId),
-		// Salary: the default income category users start with; deletable, addable.
+			.bind(userId, householdId),
 		db
 			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind) VALUES (?, 'Salary', '#2F7E72', 0, 2, 'income')"
+				"INSERT OR IGNORE INTO categories (user_id, household_id, name, color, is_system, sort_order, kind) VALUES (?, ?, 'Salary', '#2F7E72', 0, 2, 'income')"
 			)
-			.bind(userId),
-		// Default spending categories so a new user has a usable picker on day one.
-		// All deletable; users add their own. India-first common set.
+			.bind(userId, householdId),
 		...DEFAULT_SPENDING_CATEGORIES.map((c, i) =>
 			db
 				.prepare(
-					"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, kind, bucket, daily_reserve_paise) VALUES (?, ?, ?, 0, ?, 'expense', ?, 0)"
+					"INSERT OR IGNORE INTO categories (user_id, household_id, name, color, is_system, sort_order, kind, bucket, daily_reserve_paise) VALUES (?, ?, ?, ?, 0, ?, 'expense', ?, 0)"
 				)
-				.bind(userId, c.name, c.color, 10 + i, c.bucket)
+				.bind(userId, householdId, c.name, c.color, 10 + i, c.bucket)
 		)
 	]);
 
@@ -69,8 +71,8 @@ export async function ensureUserSetup(
 		.first<{ id: string }>();
 	if (!account) {
 		await db
-			.prepare("INSERT INTO accounts (user_id, name, balance_paise) VALUES (?, 'Spending', 0)")
-			.bind(userId)
+			.prepare("INSERT INTO accounts (user_id, household_id, name, balance_paise) VALUES (?, ?, 'Spending', 0)")
+			.bind(userId, householdId)
 			.run();
 	}
 }

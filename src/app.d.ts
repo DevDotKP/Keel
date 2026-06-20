@@ -24,6 +24,8 @@ declare global {
 		interface Locals {
 			// Set by the auth hook after validating the session cookie.
 			userId: string | null;
+			// Resolved household for the session user (personal household id = user id).
+			householdId: string | null;
 		}
 
 		interface Error {

@@ -18,8 +18,9 @@ export const PATCH: RequestHandler = async ({ platform, locals, params, request 
 	const body = PatchSchema.safeParse(await request.json().catch(() => null));
 	if (!body.success) throw error(400, 'Invalid payload');
 
+	const hid = locals.householdId ?? locals.userId!;
 	try {
-		const updated = await updateCategory(db, params.id, locals.userId, body.data);
+		const updated = await updateCategory(db, params.id, hid, body.data);
 		return json(updated);
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Update failed';
@@ -32,8 +33,9 @@ export const DELETE: RequestHandler = async ({ platform, locals, params }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
 
+	const hid = locals.householdId ?? locals.userId!;
 	try {
-		await deleteCategory(db, params.id, locals.userId);
+		await deleteCategory(db, params.id, hid);
 		return new Response(null, { status: 204 });
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : 'Delete failed';

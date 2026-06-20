@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 
-	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId, locals.householdId ?? locals.userId!);
 	if (!account) return { insights: null };
 
 	return {

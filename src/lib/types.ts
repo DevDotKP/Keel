@@ -15,6 +15,34 @@ export interface User {
 	created_at: string;
 }
 
+export interface Household {
+	id: string;
+	name: string;
+	created_by: string;
+	created_at: string;
+}
+
+export interface HouseholdMember {
+	id: string;
+	household_id: string;
+	user_id: string;
+	role: 'admin' | 'member';
+	joined_at: string;
+	email?: string; // joined from users table
+}
+
+export interface HouseholdInvite {
+	id: string;
+	household_id: string;
+	email: string;
+	token: string;
+	invited_by: string;
+	role: 'admin' | 'member';
+	expires_at: string;
+	accepted_at: string | null;
+	created_at: string;
+}
+
 export interface Entitlement {
 	user_id: string;
 	status: EntitlementStatus;
@@ -101,6 +129,7 @@ export interface Transaction {
 	note: string; // optional free-text context, separate from description
 	occurred_at: string; // ISO datetime, user-supplied
 	entered_at: string;
+	entered_by: string | null; // user_id of who logged this entry
 	source: TransactionSource;
 	is_uncategorized_fallback: 0 | 1;
 	deleted_at: string | null;
@@ -126,6 +155,7 @@ export interface NewTransaction {
 	note?: string;
 	occurred_at: string;
 	source: TransactionSource;
+	entered_by?: string | null;
 }
 
 /** Prefill state shared between voice and tap paths. */
@@ -139,6 +169,7 @@ export interface TransactionDraft {
 
 export interface NewCategory {
 	user_id: string;
+	household_id: string;
 	name: string;
 	color: string;
 	parent_id?: string | null;

@@ -17,7 +17,7 @@ const NewTransactionSchema = z.object({
 export const GET: RequestHandler = async ({ platform, locals, url }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
-	const account = await getDefaultAccount(db, locals.userId);
+	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) return json([]);
 	const limit = Number(url.searchParams.get('limit')) || 50;
 	const period_id = url.searchParams.get('period_id') ?? undefined;
@@ -31,32 +31,32 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 	const parsed = NewTransactionSchema.safeParse(await request.json());
 	if (!parsed.success) throw error(400, parsed.error.message);
 
-	const account = await getDefaultAccount(db, locals.userId);
+	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) throw error(409, 'No account for user');
 
 	// Resolve category: the given one, else the Uncategorized system category.
 	let categoryId = parsed.data.category_id;
 	let categoryKind: string;
+	const hid = locals.householdId ?? locals.userId!;
 	if (categoryId) {
 		const cat = await db
-			.prepare('SELECT kind FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
-			.bind(categoryId, locals.userId)
+			.prepare('SELECT kind FROM categories WHERE id = ? AND household_id = ? AND deleted_at IS NULL')
+			.bind(categoryId, hid)
 			.first<{ kind: string }>();
 		if (!cat) throw error(400, 'Unknown category');
 		categoryKind = cat.kind;
 	} else {
 		const uncat = await db
 			.prepare(
-				"SELECT id FROM categories WHERE user_id = ? AND name = 'Uncategorized' AND deleted_at IS NULL"
+				"SELECT id FROM categories WHERE household_id = ? AND name = 'Uncategorized' AND deleted_at IS NULL"
 			)
-			.bind(locals.userId)
+			.bind(hid)
 			.first<{ id: string }>();
 		if (!uncat) throw error(500, 'Uncategorized category missing');
 		categoryId = uncat.id;
 		categoryKind = 'expense';
 	}
 
-	// Income categories are positive; everything else is an expense (negative).
 	const magnitude = Math.abs(parsed.data.amount_paise);
 	const amount_paise = categoryKind === 'income' ? magnitude : -magnitude;
 
@@ -67,7 +67,8 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		description: parsed.data.description,
 		note: parsed.data.note,
 		occurred_at: parsed.data.occurred_at,
-		source: parsed.data.source
+		source: parsed.data.source,
+		entered_by: locals.userId
 	});
 	return json(tx, { status: 201 });
 };

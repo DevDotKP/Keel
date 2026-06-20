@@ -3,12 +3,12 @@ import type { Category, CategoryTree, NewCategory, CategoryBucket } from '$lib/t
 /**
  * List all non-deleted categories for a user, sorted by sort_order then name.
  */
-export async function listCategories(db: D1Database, user_id: string): Promise<Category[]> {
+export async function listCategories(db: D1Database, household_id: string): Promise<Category[]> {
 	const { results } = await db
 		.prepare(
-			'SELECT * FROM categories WHERE user_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, name ASC'
+			'SELECT * FROM categories WHERE household_id = ? AND deleted_at IS NULL ORDER BY sort_order ASC, name ASC'
 		)
-		.bind(user_id)
+		.bind(household_id)
 		.all<Category>();
 	return results ?? [];
 }
@@ -16,8 +16,8 @@ export async function listCategories(db: D1Database, user_id: string): Promise<C
 /**
  * List categories as a two-level tree (top-level categories with their children).
  */
-export async function listCategoryTree(db: D1Database, user_id: string): Promise<CategoryTree[]> {
-	const all = await listCategories(db, user_id);
+export async function listCategoryTree(db: D1Database, household_id: string): Promise<CategoryTree[]> {
+	const all = await listCategories(db, household_id);
 	const tops = all.filter((c) => !c.parent_id);
 	const byParent = new Map<string, Category[]>();
 	for (const c of all) {
@@ -38,8 +38,8 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 	// Enforce single-level nesting: a parent must itself be top-level.
 	if (cat.parent_id) {
 		const parent = await db
-			.prepare('SELECT parent_id FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
-			.bind(cat.parent_id, cat.user_id)
+			.prepare('SELECT parent_id FROM categories WHERE id = ? AND household_id = ? AND deleted_at IS NULL')
+			.bind(cat.parent_id, cat.household_id)
 			.first<{ parent_id: string | null }>();
 		if (!parent) throw new Error('Parent category not found');
 		if (parent.parent_id) throw new Error('Categories can only nest one level deep');
@@ -48,11 +48,12 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 	const result = await db
 		.prepare(
 			`INSERT INTO categories
-			   (user_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise, kind, budget_paise)
-			 VALUES (?, ?, ?, 0, 999, ?, ?, ?, ?, ?) RETURNING *`
+			   (user_id, household_id, name, color, is_system, sort_order, parent_id, bucket, daily_reserve_paise, kind, budget_paise)
+			 VALUES (?, ?, ?, ?, 0, 999, ?, ?, ?, ?, ?) RETURNING *`
 		)
 		.bind(
 			cat.user_id,
+			cat.household_id,
 			cat.name,
 			cat.color,
 			cat.parent_id ?? null,
@@ -74,7 +75,7 @@ export async function createCategory(db: D1Database, cat: NewCategory): Promise<
 export async function updateCategory(
 	db: D1Database,
 	id: string,
-	user_id: string,
+	household_id: string,
 	fields: {
 		bucket?: CategoryBucket;
 		daily_reserve_paise?: number;
@@ -107,10 +108,10 @@ export async function updateCategory(
 	}
 	if (sets.length === 0) throw new Error('No fields to update');
 
-	binds.push(id, user_id);
+	binds.push(id, household_id);
 	const result = await db
 		.prepare(
-			`UPDATE categories SET ${sets.join(', ')} WHERE id = ? AND user_id = ? AND deleted_at IS NULL RETURNING *`
+			`UPDATE categories SET ${sets.join(', ')} WHERE id = ? AND household_id = ? AND deleted_at IS NULL RETURNING *`
 		)
 		.bind(...binds)
 		.first<Category>();
@@ -122,22 +123,21 @@ export async function updateCategory(
 /**
  * Soft-delete a category. Refuses to delete system categories.
  */
-export async function deleteCategory(db: D1Database, id: string, user_id: string): Promise<void> {
+export async function deleteCategory(db: D1Database, id: string, household_id: string): Promise<void> {
 	const cat = await db
 		.prepare(
-			'SELECT is_system FROM categories WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1'
+			'SELECT is_system FROM categories WHERE id = ? AND household_id = ? AND deleted_at IS NULL LIMIT 1'
 		)
-		.bind(id, user_id)
+		.bind(id, household_id)
 		.first<{ is_system: 0 | 1 }>();
 
 	if (!cat) throw new Error('Category not found');
 	if (cat.is_system) throw new Error('Cannot delete system category');
 
-	// Soft-delete the category and any subcategories under it, in one batch.
 	await db.batch([
 		db.prepare("UPDATE categories SET deleted_at = datetime('now') WHERE id = ?").bind(id),
 		db
-			.prepare("UPDATE categories SET deleted_at = datetime('now') WHERE parent_id = ? AND user_id = ?")
-			.bind(id, user_id)
+			.prepare("UPDATE categories SET deleted_at = datetime('now') WHERE parent_id = ? AND household_id = ?")
+			.bind(id, household_id)
 	]);
 }

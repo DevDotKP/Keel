@@ -33,6 +33,20 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	event.locals.userId = userId;
 
+	// Resolve the household for this user. Personal household id = user id (migration convention).
+	// Falls back to userId so the app works even before ensureUserSetup creates the membership row.
+	let householdId: string | null = null;
+	if (userId && event.platform?.env?.DB) {
+		const hm = await getReadDb(event.platform)
+			.prepare('SELECT household_id FROM household_members WHERE user_id = ? LIMIT 1')
+			.bind(userId)
+			.first<{ household_id: string }>();
+		householdId = hm?.household_id ?? userId;
+	} else if (userId) {
+		householdId = userId;
+	}
+	event.locals.householdId = householdId;
+
 	const response = await resolve(event);
 
 	// Security headers on every response.

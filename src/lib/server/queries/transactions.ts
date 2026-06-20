@@ -59,8 +59,8 @@ export async function insertTransaction(db: D1Database, tx: NewTransaction): Pro
 	const row = await db
 		.prepare(
 			`INSERT INTO transactions
-			   (account_id, category_id, period_id, amount_paise, description, note, occurred_at, source, is_uncategorized_fallback)
-			 VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 0)
+			   (account_id, category_id, period_id, amount_paise, description, note, occurred_at, source, entered_by, is_uncategorized_fallback)
+			 VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 0)
 			 RETURNING *`
 		)
 		.bind(
@@ -70,7 +70,8 @@ export async function insertTransaction(db: D1Database, tx: NewTransaction): Pro
 			tx.description,
 			tx.note ?? '',
 			tx.occurred_at,
-			tx.source
+			tx.source,
+			tx.entered_by ?? null
 		)
 		.first<Transaction>();
 	if (!row) throw new Error('insertTransaction: insert returned no row');
