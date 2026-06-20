@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { getDb } from '$lib/server/db';
+import { getDb, getReadDb } from '$lib/server/db';
 import { resolveAccountAndCadence } from '$lib/server/context';
 import { getAccountSummary } from '$lib/server/queries/periods';
 import { listTransactions } from '$lib/server/queries/transactions';
@@ -9,13 +9,14 @@ import { listCategories } from '$lib/server/queries/categories';
 export const load: PageServerLoad = async ({ platform, locals }) => {
 	if (!locals.userId) redirect(302, '/auth');
 	const db = getDb(platform);
+	const rdb = getReadDb(platform);
 
-	const { account, cadence } = await resolveAccountAndCadence(db, locals.userId);
+	const { account, cadence } = await resolveAccountAndCadence(rdb, locals.userId);
 	if (!account) {
 		return { period: null, estimatePaise: 0, transactions: [], categories: [], openPeriods: 0 };
 	}
 
-	const summary = await getAccountSummary(db, account.id, cadence);
+	const summary = await getAccountSummary(db, account.id, cadence, rdb);
 	const period = summary.current_period;
 
 	// Exclusive upper bound: day after period_end.
@@ -24,13 +25,13 @@ export const load: PageServerLoad = async ({ platform, locals }) => {
 	const toStr = to.toISOString().slice(0, 10);
 
 	const [transactions, categories] = await Promise.all([
-		listTransactions(db, {
+		listTransactions(rdb, {
 			account_id: account.id,
 			from: period.period_start,
 			to: toStr,
 			limit: 200
 		}),
-		listCategories(db, locals.userId)
+		listCategories(rdb, locals.userId)
 	]);
 
 	return {

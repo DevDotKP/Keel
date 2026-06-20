@@ -10,14 +10,16 @@ export async function getBudgetOverview(
 	db: D1Database,
 	account_id: string,
 	user_id: string,
-	cadence: HarbourCadence
+	cadence: HarbourCadence,
+	rdb?: D1Database
 ): Promise<BudgetOverview> {
+	const readDb = rdb ?? db;
 	const period = await getOrCreateCurrentPeriod(db, account_id, cadence);
 	const from = period.period_start;
 	const to = nextDay(period.period_end);
 
-	// Spend-by-category and the overall target in a single round trip.
-	const [catRes, settingsRes] = await db.batch([
+	// Spend-by-category and the overall target in a single round trip via replica.
+	const [catRes, settingsRes] = await readDb.batch([
 		db
 			.prepare(
 				`SELECT c.id AS category_id, c.name, c.color, c.budget_paise,

@@ -1,6 +1,6 @@
 import type { Account, HarbourCadence } from '$lib/types';
 
-/** Resolve the user's default account and harbour cadence in one batch round trip. */
+/** Resolve account + cadence in one batch. Pass rdb to serve from the nearest replica. */
 export async function resolveAccountAndCadence(
 	db: D1Database,
 	userId: string

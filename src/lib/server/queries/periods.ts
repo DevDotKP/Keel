@@ -180,12 +180,13 @@ export async function harbourPeriod(
 export async function getAccountSummary(
 	db: D1Database,
 	account_id: string,
-	cadence: HarbourCadence
+	cadence: HarbourCadence,
+	rdb?: D1Database
 ): Promise<AccountSummary> {
-	// Two statements only: upsert the period, then ONE read that computes every
-	// figure via scalar subqueries. D1 runs batch statements sequentially server
-	// side, so statement count, not row count, is the cost driver here (Delhi
-	// worker, Singapore storage). Collapsing 8 reads to 1 is the win.
+	// Hot path: one read-only SELECT via the nearest replica (rdb). Cold path
+	// (first load of a new cycle): INSERT on the primary (db) then re-read from
+	// the primary for consistency. After that, every load in the cycle is replica-served.
+	const readDb = rdb ?? db;
 	const { start, end } = computePeriod(cadence, new Date());
 	const to = nextDay(end);
 	const days_remaining = daysUntil(end);
@@ -224,9 +225,10 @@ export async function getAccountSummary(
 		 WHERE rp.account_id = ?1 AND rp.period_start = ?4`;
 
 	// Bind order: ?1 account_id, ?2 window-from (period_start), ?3 window-to, ?4 period_start.
-	let row = await db.prepare(summarySql).bind(account_id, start, to, start).first<SummaryRow>();
+	// Read from replica on the hot path; primary on the cold write path for consistency.
+	let row = await readDb.prepare(summarySql).bind(account_id, start, to, start).first<SummaryRow>();
 
-	// First load of a new cycle: the period does not exist yet. Create it, re-read.
+	// First load of a new cycle: the period does not exist yet. Create it on primary, re-read.
 	if (!row) {
 		await db
 			.prepare(
