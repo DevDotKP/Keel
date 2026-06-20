@@ -13,7 +13,8 @@ const DEFAULT_SPENDING_CATEGORIES: Array<{ name: string; color: string; bucket: 
 	{ name: 'Shopping', color: '#8B6DBF', bucket: 'flexible' },
 	{ name: 'Health', color: '#2F7E72', bucket: 'flexible' },
 	{ name: 'Entertainment', color: '#E07B54', bucket: 'flexible' },
-	{ name: 'Rent', color: '#374151', bucket: 'committed' }
+	{ name: 'Rent', color: '#374151', bucket: 'committed' },
+	{ name: 'Investments', color: '#1B5E8B', bucket: 'committed' }
 ];
 
 export async function ensureUserSetup(

@@ -82,6 +82,16 @@ export const HINGLISH_LEXICON: LexiconEntry[] = [
 	{ patterns: ['youtube premium', 'youtube'], category_hint: 'Entertainment' },
 	{ patterns: ['movie', 'pvr', 'inox', 'bookmyshow', 'film', 'cinema'], category_hint: 'Entertainment' },
 	{ patterns: ['game', 'gaming', 'steam', 'playstation', 'xbox'], category_hint: 'Entertainment' },
+
+	// ── Investments ──────────────────────────────────────────────────────────────
+	{ patterns: ['zerodha'], category_hint: 'Investments', description_hint: 'Zerodha' },
+	{ patterns: ['groww'], category_hint: 'Investments', description_hint: 'Groww' },
+	{ patterns: ['upstox'], category_hint: 'Investments', description_hint: 'Upstox' },
+	{ patterns: ['kuvera', 'coin by zerodha', 'paytm money'], category_hint: 'Investments' },
+	{ patterns: ['sip', 'mutual fund', 'mf invest', 'lumpsum'], category_hint: 'Investments', description_hint: 'Mutual fund' },
+	{ patterns: ['fd ', 'fixed deposit'], category_hint: 'Investments', description_hint: 'Fixed deposit' },
+	{ patterns: ['ppf', 'nps', 'elss', 'epf', 'provident fund'], category_hint: 'Investments' },
+	{ patterns: ['stocks', 'shares', 'equity', 'invest'], category_hint: 'Investments' },
 ];
 
 // Hindi numerals (spoken) to digit strings.
