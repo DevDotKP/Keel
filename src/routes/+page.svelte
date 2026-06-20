@@ -264,6 +264,26 @@
 		gap: var(--space-6);
 	}
 
+	@media (min-width: 768px) {
+		.dashboard {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			grid-template-rows: auto;
+			align-items: start;
+			gap: var(--space-6);
+			max-width: 900px;
+			padding: var(--space-8);
+		}
+
+		/* Left column: hero, breakdown, harbour nudge */
+		.hero     { grid-column: 1; grid-row: 1; }
+		.breakdown { grid-column: 1; grid-row: 2; }
+		.harbour-nudge { grid-column: 1; grid-row: 3; }
+
+		/* Right column: ledger */
+		.ledger-section { grid-column: 2; grid-row: 1 / span 3; }
+	}
+
 	.hero {
 		display: flex;
 		flex-direction: column;

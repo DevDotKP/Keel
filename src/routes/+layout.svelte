@@ -54,4 +54,16 @@
 		min-height: 100dvh;
 		max-width: 100%;
 	}
+
+	@media (min-width: 768px) {
+		.main {
+			margin-left: var(--sidebar-width);
+			margin-right: auto;
+			min-height: 100dvh;
+		}
+
+		.main.full-height {
+			margin-left: 0;
+		}
+	}
 </style>

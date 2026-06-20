@@ -72,8 +72,10 @@
   --duration-slow:   220ms;
   --ease-out:        cubic-bezier(0, 0, 0.2, 1);
 
-  /* Bottom nav height (reserved so content never hides behind it) */
+  /* Bottom nav height (reserved so content never hides behind it on mobile) */
   --nav-height: 64px;
+  /* Sidebar width on desktop ≥768px */
+  --sidebar-width: 224px;
 
   /* Z-index layers */
   --z-base:    0;
