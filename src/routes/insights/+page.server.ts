@@ -2,7 +2,7 @@ import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { getDb, getReadDb } from '$lib/server/db';
 import { resolveAccountAndCadence } from '$lib/server/context';
-import { getBudgetOverview } from '$lib/server/queries/budgets';
+import { getInsightsData } from '$lib/server/queries/insights';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
@@ -11,8 +11,9 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const rdb = getReadDb(platform);
 
 	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId);
-	if (!account) return { overview: null };
+	if (!account) return { insights: null };
 
-	const overview = await getBudgetOverview(db, account.id, locals.userId, cadence, harbourDay, rdb);
-	return { overview };
+	return {
+		insights: getInsightsData(db, account.id, locals.userId, cadence, harbourDay, rdb)
+	};
 };
