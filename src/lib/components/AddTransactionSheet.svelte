@@ -197,6 +197,14 @@
 		pendingVoice = null;
 	}
 
+	// ── Body scroll lock ───────────────────────────────────────────────────
+	// Prevent the page behind the sheet from scrolling while it's open.
+	$effect(() => {
+		if (typeof document === 'undefined') return;
+		document.body.style.overflow = open ? 'hidden' : '';
+		return () => { document.body.style.overflow = ''; };
+	});
+
 	// ── Focus trap ─────────────────────────────────────────────────────────
 	const FOCUSABLE =
 		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';

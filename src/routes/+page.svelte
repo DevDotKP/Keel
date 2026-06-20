@@ -182,6 +182,9 @@
 								{/if}
 								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
 							</span>
+							{#if tx.note}
+								<span class="ledger-note">{tx.note}</span>
+							{/if}
 						</span>
 						<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
 							{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
@@ -477,6 +480,14 @@
 
 	.ledger-cat {
 		color: var(--color-text-muted);
+	}
+
+	.ledger-note {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		margin-top: 2px;
+		font-style: italic;
 	}
 
 	.meta-sep {

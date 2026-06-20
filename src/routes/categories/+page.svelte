@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Trash2 } from 'lucide-svelte';
+	import { Trash2, ArrowLeft } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -111,6 +111,9 @@
 
 <div class="categories-page">
 	<header class="page-header">
+		<a href="/settings" class="back-btn" aria-label="Back to settings">
+			<ArrowLeft size={20} aria-hidden="true" />
+		</a>
 		<h1 class="section-head">Categories</h1>
 		<p class="page-sub">
 			Mark essentials as committed and set a daily reserve. Keel locks that money before you spend.
@@ -310,6 +313,16 @@
 		gap: var(--space-6);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
 	}
+
+	.back-btn {
+		display: inline-flex;
+		align-items: center;
+		color: var(--color-text-muted);
+		text-decoration: none;
+		min-height: var(--tap-target);
+		margin-left: calc(-1 * var(--space-1));
+	}
+	.back-btn:hover { color: var(--color-text); }
 
 	.page-header {
 		display: flex;
