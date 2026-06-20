@@ -190,6 +190,50 @@
 								{/each}
 							</ul>
 						</section>
+
+						<!-- Drift trend: "your picture is getting clearer" -->
+						{@const driftData = [...insights.recent_periods].reverse()}
+						{@const maxDrift = Math.max(...driftData.map(p => p.drift_paise), 1)}
+						{@const hasAnyDrift = driftData.some(p => p.drift_paise > 0)}
+						{@const latestDrift = insights.recent_periods[0]?.drift_paise ?? 0}
+						{@const prevDrift = insights.recent_periods[1]?.drift_paise ?? 0}
+						{@const improving = insights.recent_periods.length >= 2 && latestDrift < prevDrift}
+						{#if insights.recent_periods.length >= 2}
+							<section class="drift-trend" aria-label="Tracking quality trend">
+								<div class="drift-head">
+									<h2 class="group-head">Tracking quality</h2>
+									{#if improving}
+										<span class="drift-badge drift-badge--improving">Getting clearer</span>
+									{:else if latestDrift === 0}
+										<span class="drift-badge drift-badge--perfect">Spot on</span>
+									{/if}
+								</div>
+								<p class="drift-sub">
+									{#if !hasAnyDrift}
+										No drift in any recent period. Perfect tracking.
+									{:else if improving}
+										Your harbour adjustments are shrinking. The picture is getting clearer.
+									{:else}
+										Harbour adjustment per period. Smaller is better.
+									{/if}
+								</p>
+								<div class="drift-chart" aria-hidden="true">
+									{#each driftData as p (p.period_start)}
+										{@const barH = p.drift_paise === 0 ? 2 : Math.max(4, Math.round((p.drift_paise / maxDrift) * 48))}
+										<div class="drift-col">
+											<div class="drift-bar-wrap">
+												<div
+													class="drift-bar"
+													class:drift-bar--zero={p.drift_paise === 0}
+													style="height:{barH}px"
+												></div>
+											</div>
+											<span class="drift-label">{formatDisplayDate(p.period_end).slice(0, 6)}</span>
+										</div>
+									{/each}
+								</div>
+							</section>
+						{/if}
 					{/if}
 				</div>
 
@@ -661,6 +705,89 @@
 	}
 
 	.history-row:last-child { border-bottom: none; }
+
+	/* Drift trend chart */
+	.drift-trend {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-5);
+		background: var(--color-surface-subtle);
+		border-radius: var(--radius-md);
+	}
+
+	.drift-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.drift-badge {
+		font-size: 0.75rem;
+		font-weight: 600;
+		padding: 2px var(--space-2);
+		border-radius: var(--radius-full);
+	}
+
+	.drift-badge--improving {
+		background: color-mix(in srgb, var(--color-positive) 15%, transparent);
+		color: var(--color-positive);
+	}
+
+	.drift-badge--perfect {
+		background: color-mix(in srgb, var(--color-gold) 15%, transparent);
+		color: var(--color-gold);
+	}
+
+	.drift-sub {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		line-height: 1.5;
+	}
+
+	.drift-chart {
+		display: flex;
+		align-items: flex-end;
+		gap: var(--space-2);
+		height: 64px;
+	}
+
+	.drift-col {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-1);
+		height: 100%;
+		justify-content: flex-end;
+	}
+
+	.drift-bar-wrap {
+		flex: 1;
+		display: flex;
+		align-items: flex-end;
+		width: 100%;
+	}
+
+	.drift-bar {
+		width: 100%;
+		background: var(--color-gold);
+		border-radius: 2px 2px 0 0;
+		opacity: 0.7;
+		transition: height 300ms ease-out;
+	}
+
+	.drift-bar--zero {
+		background: var(--color-positive);
+		opacity: 0.5;
+	}
+
+	.drift-label {
+		font-size: 0.6875rem;
+		color: var(--color-text-subtle);
+		white-space: nowrap;
+	}
 
 	.history-range {
 		font-size: 0.875rem;

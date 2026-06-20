@@ -17,6 +17,8 @@ export interface InsightPeriodRow {
 	total_expense_paise: number;
 	uncategorized_paise: number;
 	harboured_at: string;
+	/** Harbour adjustment amount (abs paise). Zero = perfect tracking for this period. */
+	drift_paise: number;
 }
 
 export interface InsightsData {
@@ -74,21 +76,26 @@ export async function getInsightsData(
 			.prepare('SELECT cycle_budget_paise FROM settings WHERE user_id = ?')
 			.bind(user_id),
 
-		// Last 3 completed periods with expense and uncategorized totals.
+		// Last 5 completed periods with expense, uncategorized, and drift totals.
+		// drift_paise: the harbour adjustment amount (the gap between Keel's estimate
+		// and the actual balance typed by the user). Zero means perfect tracking.
 		db
 			.prepare(
 				`SELECT rp.period_start, rp.period_end, rp.harboured_at,
 				        COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN -t.amount_paise ELSE 0 END), 0) AS total_expense_paise,
 				        COALESCE(SUM(CASE WHEN t.amount_paise < 0
 				          AND (t.is_uncategorized_fallback = 1 OR c.name = 'Uncategorized')
-				          THEN -t.amount_paise ELSE 0 END), 0) AS uncategorized_paise
+				          THEN -t.amount_paise ELSE 0 END), 0) AS uncategorized_paise,
+				        COALESCE(ABS(SUM(CASE WHEN t.is_uncategorized_fallback = 1
+				          AND t.description = 'Harbour adjustment'
+				          THEN t.amount_paise ELSE 0 END)), 0) AS drift_paise
 				 FROM reconciliation_periods rp
 				 LEFT JOIN transactions t ON t.period_id = rp.id AND t.deleted_at IS NULL
 				 LEFT JOIN categories c ON c.id = t.category_id
 				 WHERE rp.account_id = ? AND rp.harboured_at IS NOT NULL
 				 GROUP BY rp.id
 				 ORDER BY rp.period_start DESC
-				 LIMIT 3`
+				 LIMIT 5`
 			)
 			.bind(account_id)
 	]);
