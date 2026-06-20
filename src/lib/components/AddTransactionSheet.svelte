@@ -224,10 +224,28 @@
 	});
 
 	// ── Body scroll lock ───────────────────────────────────────────────────
+	// overflow:hidden alone doesn't prevent background scroll on iOS Safari.
+	// position:fixed + saved top offset is the only reliable cross-platform fix.
+	let _scrollY = 0;
 	$effect(() => {
 		if (typeof document === 'undefined') return;
-		document.body.style.overflow = open ? 'hidden' : '';
-		return () => { document.body.style.overflow = ''; };
+		if (open) {
+			_scrollY = window.scrollY;
+			document.body.style.position = 'fixed';
+			document.body.style.top = `-${_scrollY}px`;
+			document.body.style.width = '100%';
+		} else {
+			document.body.style.position = '';
+			document.body.style.top = '';
+			document.body.style.width = '';
+			window.scrollTo(0, _scrollY);
+		}
+		return () => {
+			document.body.style.position = '';
+			document.body.style.top = '';
+			document.body.style.width = '';
+			window.scrollTo(0, _scrollY);
+		};
 	});
 
 	// ── Focus trap ─────────────────────────────────────────────────────────
@@ -439,6 +457,8 @@
 		animation: slide-up var(--duration-normal) var(--ease-out);
 		max-height: 90dvh;
 		overflow-y: auto;
+		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.sheet-header {

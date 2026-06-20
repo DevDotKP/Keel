@@ -69,163 +69,168 @@
 				</p>
 			</header>
 
-			<!-- Cycle target: optional spending goal, inline edit -->
-			<section class="target-card" aria-label="Cycle spending target">
-				<div class="target-head">
-					{#if editingTarget}
-						<span class="target-edit-row">
-							<span class="currency-hint" aria-hidden="true">₹</span>
-							<input
-								type="text"
-								inputmode="decimal"
-								class="target-input money"
-								bind:value={targetValue}
-								placeholder="spending target"
-								aria-label="Overall cycle spending target"
-							/>
-							<button class="save-btn" onclick={saveTarget} disabled={busy}>Save</button>
-							<button class="cancel-btn" onclick={() => (editingTarget = false)}>Cancel</button>
-						</span>
-					{:else}
-						<button
-							class="target-total"
-							onclick={() => {
-								targetValue = insights.cycle_budget_paise
-									? (insights.cycle_budget_paise / 100).toString()
-									: '';
-								editingTarget = true;
-							}}
-							aria-label="Edit cycle spending target"
-						>
-							<span class="total-number money">{formatPaiseLedger(total)}</span>
-							{#if insights.cycle_budget_paise > 0}
-								<span class="total-sub">of {formatPaiseLedger(insights.cycle_budget_paise)} target</span>
+			<div class="insights-grid">
+				<!-- Left column: summary cards -->
+				<div class="insights-col">
+					<!-- Cycle target: optional spending goal, inline edit -->
+					<section class="target-card" aria-label="Cycle spending target">
+						<div class="target-head">
+							{#if editingTarget}
+								<span class="target-edit-row">
+									<span class="currency-hint" aria-hidden="true">₹</span>
+									<input
+										type="text"
+										inputmode="decimal"
+										class="target-input money"
+										bind:value={targetValue}
+										placeholder="spending target"
+										aria-label="Overall cycle spending target"
+									/>
+									<button class="save-btn" onclick={saveTarget} disabled={busy}>Save</button>
+									<button class="cancel-btn" onclick={() => (editingTarget = false)}>Cancel</button>
+								</span>
 							{:else}
-								<span class="total-sub total-sub--set">Set a cycle target</span>
+								<button
+									class="target-total"
+									onclick={() => {
+										targetValue = insights.cycle_budget_paise
+											? (insights.cycle_budget_paise / 100).toString()
+											: '';
+										editingTarget = true;
+									}}
+									aria-label="Edit cycle spending target"
+								>
+									<span class="total-number money">{formatPaiseLedger(total)}</span>
+									{#if insights.cycle_budget_paise > 0}
+										<span class="total-sub">of {formatPaiseLedger(insights.cycle_budget_paise)} target</span>
+									{:else}
+										<span class="total-sub total-sub--set">Set a cycle target</span>
+									{/if}
+								</button>
 							{/if}
-						</button>
+						</div>
+						{#if insights.cycle_budget_paise > 0}
+							{@const over = total > insights.cycle_budget_paise}
+							<div class="prog-track" aria-hidden="true">
+								<div
+									class="prog-fill"
+									class:prog-fill--over={over}
+									style="width:{Math.min(100, pct(total, insights.cycle_budget_paise))}%"
+								></div>
+							</div>
+							{#if over}
+								<p class="over-note">{formatPaiseLedger(total - insights.cycle_budget_paise)} over target this cycle.</p>
+							{/if}
+						{/if}
+					</section>
+
+					<!-- Committed / flexible split -->
+					{#if insights.committed_paise + insights.flexible_paise > 0}
+						<section class="split-card" aria-label="Committed and flexible spend">
+							<div class="split-labels">
+								<span class="split-col">
+									<span class="split-kind">Committed</span>
+									<span class="split-amount money">{formatPaiseLedger(insights.committed_paise)}</span>
+									<span class="split-pct">{committedPct}%</span>
+								</span>
+								<span class="split-col split-col--right">
+									<span class="split-kind">Flexible</span>
+									<span class="split-amount money">{formatPaiseLedger(insights.flexible_paise)}</span>
+									<span class="split-pct">{flexiblePct}%</span>
+								</span>
+							</div>
+							<div class="split-bar" aria-hidden="true">
+								{#if committedPct > 0}
+									<span class="split-seg split-seg--committed" style="width:{committedPct}%"></span>
+								{/if}
+								{#if flexiblePct > 0}
+									<span class="split-seg split-seg--flexible" style="width:{flexiblePct}%"></span>
+								{/if}
+								{#if uncatPct > 0}
+									<span class="split-seg split-seg--uncat" style="width:{uncatPct}%"></span>
+								{/if}
+							</div>
+						</section>
+					{/if}
+
+					<!-- Data quality signal -->
+					{#if uncatPct > 0}
+						<section class="quality-card" aria-label="Data quality">
+							<p class="quality-line">
+								{#if uncatPct >= 25}
+									{uncatPct}% of this period is uncategorized. Come to harbour to sort it.
+								{:else}
+									{uncatPct}% uncategorized this period.
+								{/if}
+							</p>
+							{#if uncatPct >= 10}
+								<a href="/harbour" class="quality-link">Come to harbour</a>
+							{/if}
+						</section>
+					{/if}
+
+					<!-- Recent periods -->
+					{#if insights.recent_periods.length > 0}
+						<section class="history-section" aria-label="Recent periods">
+							<h2 class="group-head">Recent periods</h2>
+							<ul class="history-list">
+								{#each insights.recent_periods as p (p.period_start)}
+									{@const ratio = pct(p.uncategorized_paise, p.total_expense_paise)}
+									<li class="history-row">
+										<span class="history-range">
+											{formatDisplayDate(p.period_start)} to {formatDisplayDate(p.period_end)}
+										</span>
+										<span class="history-right">
+											<span class="history-amount money">{formatPaiseLedger(p.total_expense_paise)}</span>
+											{#if ratio > 0}
+												<span class="history-uncat">{ratio}% uncat</span>
+											{/if}
+										</span>
+									</li>
+								{/each}
+							</ul>
+						</section>
 					{/if}
 				</div>
-				{#if insights.cycle_budget_paise > 0}
-					{@const over = total > insights.cycle_budget_paise}
-					<div class="prog-track" aria-hidden="true">
-						<div
-							class="prog-fill"
-							class:prog-fill--over={over}
-							style="width:{Math.min(100, pct(total, insights.cycle_budget_paise))}%"
-						></div>
-					</div>
-					{#if over}
-						<p class="over-note">{formatPaiseLedger(total - insights.cycle_budget_paise)} over target this cycle.</p>
-					{/if}
-				{/if}
-			</section>
 
-			<!-- Committed / flexible split -->
-			{#if insights.committed_paise + insights.flexible_paise > 0}
-				<section class="split-card" aria-label="Committed and flexible spend">
-					<div class="split-labels">
-						<span class="split-col">
-							<span class="split-kind">Committed</span>
-							<span class="split-amount money">{formatPaiseLedger(insights.committed_paise)}</span>
-							<span class="split-pct">{committedPct}%</span>
-						</span>
-						<span class="split-col split-col--right">
-							<span class="split-kind">Flexible</span>
-							<span class="split-amount money">{formatPaiseLedger(insights.flexible_paise)}</span>
-							<span class="split-pct">{flexiblePct}%</span>
-						</span>
-					</div>
-					<div class="split-bar" aria-hidden="true">
-						{#if committedPct > 0}
-							<span class="split-seg split-seg--committed" style="width:{committedPct}%"></span>
-						{/if}
-						{#if flexiblePct > 0}
-							<span class="split-seg split-seg--flexible" style="width:{flexiblePct}%"></span>
-						{/if}
-						{#if uncatPct > 0}
-							<span class="split-seg split-seg--uncat" style="width:{uncatPct}%"></span>
-						{/if}
-					</div>
-				</section>
-			{/if}
-
-			<!-- By category -->
-			<section class="cat-section" aria-label="Spend by category">
-				<h2 class="group-head">By category</h2>
-				<ul class="cat-list">
-					{#each insights.by_category as c (c.category_id)}
-						{@const isUncat = c.is_system === 1 && c.name === 'Uncategorized'}
-						{@const barWidth = pct(c.spent_paise, total)}
-						<li class="cat-row">
-							<span class="cat-dot" style="background:{c.color}" aria-hidden="true"></span>
-							<span class="cat-main">
-								<span class="cat-name-row">
-									<span class="cat-name">{c.name}</span>
-									{#if !isUncat}
-										<span class="bucket-chip bucket-chip--{c.bucket}">{c.bucket}</span>
-									{:else}
-										<span class="bucket-chip bucket-chip--uncat">uncategorized</span>
-									{/if}
-								</span>
-								{#if c.budget_paise > 0}
-									{@const budgetOver = c.spent_paise > c.budget_paise}
-									<span class="budget-track" aria-label="{pct(c.spent_paise, c.budget_paise)}% of budget">
-										<span
-											class="budget-fill"
-											class:budget-fill--over={budgetOver}
-											style="width:{Math.min(100, pct(c.spent_paise, c.budget_paise))}%"
-										></span>
+				<!-- Right column: category breakdown -->
+				<section class="cat-section" aria-label="Spend by category">
+					<h2 class="group-head">By category</h2>
+					<ul class="cat-list">
+						{#each insights.by_category as c (c.category_id)}
+							{@const isUncat = c.is_system === 1 && c.name === 'Uncategorized'}
+							{@const barWidth = pct(c.spent_paise, total)}
+							<li class="cat-row">
+								<span class="cat-dot" style="background:{c.color}" aria-hidden="true"></span>
+								<span class="cat-main">
+									<span class="cat-name-row">
+										<span class="cat-name">{c.name}</span>
+										{#if !isUncat}
+											<span class="bucket-chip bucket-chip--{c.bucket}">{c.bucket}</span>
+										{:else}
+											<span class="bucket-chip bucket-chip--uncat">uncategorized</span>
+										{/if}
 									</span>
-								{/if}
-							</span>
-							<span class="cat-right">
-								<span class="cat-amount money">{formatPaiseLedger(c.spent_paise)}</span>
-								<span class="cat-pct">{barWidth}%</span>
-							</span>
-						</li>
-					{/each}
-				</ul>
-			</section>
-
-			<!-- Data quality signal -->
-			{#if uncatPct > 0}
-				<section class="quality-card" aria-label="Data quality">
-					<p class="quality-line">
-						{#if uncatPct >= 25}
-							{uncatPct}% of this period is uncategorized. Come to harbour to sort it.
-						{:else}
-							{uncatPct}% uncategorized this period.
-						{/if}
-					</p>
-					{#if uncatPct >= 10}
-						<a href="/harbour" class="quality-link">Come to harbour</a>
-					{/if}
-				</section>
-			{/if}
-
-			<!-- Recent periods -->
-			{#if insights.recent_periods.length > 0}
-				<section class="history-section" aria-label="Recent periods">
-					<h2 class="group-head">Recent periods</h2>
-					<ul class="history-list">
-						{#each insights.recent_periods as p (p.period_start)}
-							{@const ratio = pct(p.uncategorized_paise, p.total_expense_paise)}
-							<li class="history-row">
-								<span class="history-range">
-									{formatDisplayDate(p.period_start)} to {formatDisplayDate(p.period_end)}
-								</span>
-								<span class="history-right">
-									<span class="history-amount money">{formatPaiseLedger(p.total_expense_paise)}</span>
-									{#if ratio > 0}
-										<span class="history-uncat">{ratio}% uncat</span>
+									{#if c.budget_paise > 0}
+										{@const budgetOver = c.spent_paise > c.budget_paise}
+										<span class="budget-track" aria-label="{pct(c.spent_paise, c.budget_paise)}% of budget">
+											<span
+												class="budget-fill"
+												class:budget-fill--over={budgetOver}
+												style="width:{Math.min(100, pct(c.spent_paise, c.budget_paise))}%"
+											></span>
+										</span>
 									{/if}
+								</span>
+								<span class="cat-right">
+									<span class="cat-amount money">{formatPaiseLedger(c.spent_paise)}</span>
+									<span class="cat-pct">{barWidth}%</span>
 								</span>
 							</li>
 						{/each}
 					</ul>
 				</section>
-			{/if}
+			</div>
 		</div>
 	{/if}
 {:catch}
@@ -245,6 +250,37 @@
 		flex-direction: column;
 		gap: var(--space-6);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
+	}
+
+	/* Two-column layout on desktop */
+	.insights-grid {
+		display: contents; /* mobile: sections flow naturally into flex column */
+	}
+
+	.insights-col {
+		display: contents;
+	}
+
+	@media (min-width: 768px) {
+		.insights-page {
+			padding: var(--space-8);
+			padding-bottom: var(--space-8);
+			gap: var(--space-6);
+		}
+
+		.insights-grid {
+			display: grid;
+			grid-template-columns: 300px 1fr;
+			gap: var(--space-8);
+			align-items: start;
+		}
+
+		.insights-col {
+			display: flex;
+			flex-direction: column;
+			gap: var(--space-6);
+		}
+
 	}
 
 	.page-header {

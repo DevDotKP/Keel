@@ -64,6 +64,7 @@
 
 	@media (min-width: 768px) {
 		.main {
+			max-width: min(960px, calc(100vw - var(--sidebar-width)));
 			margin-left: var(--sidebar-width);
 			margin-right: auto;
 			min-height: 100dvh;
@@ -71,6 +72,7 @@
 
 		.main.full-height {
 			margin-left: 0;
+			max-width: 100%;
 		}
 	}
 </style>
