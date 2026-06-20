@@ -23,6 +23,7 @@
 			class="nav-item"
 			class:active={page.url.pathname === href}
 			aria-current={page.url.pathname === href ? 'page' : undefined}
+			data-sveltekit-preload-data="viewport"
 		>
 			<Icon size={22} aria-hidden="true" />
 			<span class="nav-label">{label}</span>

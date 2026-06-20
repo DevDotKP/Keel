@@ -16,6 +16,16 @@
 	let enteredPaise = $derived(parseToPaise(balanceInput));
 	let drift = $derived(enteredPaise !== null ? enteredPaise - data.estimatePaise : null);
 
+	function handleBalanceInput(e: Event) {
+		const raw = (e.currentTarget as HTMLInputElement).value.replace(/[^\d.]/g, '');
+		if (!raw) { balanceInput = ''; return; }
+		const hasTrailingDot = raw.endsWith('.');
+		const num = parseFloat(raw);
+		if (isNaN(num)) { balanceInput = raw; return; }
+		const grouped = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(num);
+		balanceInput = hasTrailingDot ? grouped + '.' : grouped;
+	}
+
 	function periodRange(): string {
 		if (!data.period) return '';
 		return `${formatDisplayDate(data.period.period_start)} to ${formatDisplayDate(data.period.period_end)}`;
@@ -104,7 +114,8 @@
 				type="text"
 				inputmode="decimal"
 				placeholder="0"
-				bind:value={balanceInput}
+				value={balanceInput}
+				oninput={handleBalanceInput}
 				class="balance-input money"
 				aria-label="Actual balance in rupees"
 			/>
