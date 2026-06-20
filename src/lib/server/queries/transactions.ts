@@ -78,6 +78,40 @@ export async function insertTransaction(db: D1Database, tx: NewTransaction): Pro
 }
 
 /**
+ * Update editable fields on a transaction. Verifies it belongs to account_id.
+ * amount_paise must already have the correct sign (negative = expense, positive = income).
+ */
+export async function updateTransaction(
+	db: D1Database,
+	id: string,
+	account_id: string,
+	fields: {
+		amount_paise: number;
+		category_id: string;
+		description: string;
+		note: string;
+		occurred_at: string;
+	}
+): Promise<void> {
+	await db
+		.prepare(
+			`UPDATE transactions
+			 SET amount_paise = ?, category_id = ?, description = ?, note = ?, occurred_at = ?
+			 WHERE id = ? AND account_id = ? AND deleted_at IS NULL`
+		)
+		.bind(
+			fields.amount_paise,
+			fields.category_id,
+			fields.description,
+			fields.note,
+			fields.occurred_at,
+			id,
+			account_id
+		)
+		.run();
+}
+
+/**
  * Soft-delete a transaction by id. Verifies it belongs to account_id first.
  */
 export async function softDeleteTransaction(

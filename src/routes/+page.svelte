@@ -6,31 +6,48 @@
 	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
 	import type { PageData } from './$types';
-	import type { TransactionDraft, ReconciliationPeriod } from '$lib/types';
+	import type { TransactionDraft, Transaction, ReconciliationPeriod } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
+	let editingTx = $state<Transaction | null>(null);
 
 	function periodRange(p: ReconciliationPeriod): string {
 		return `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`;
 	}
 
 	async function handleSubmit(draft: Required<TransactionDraft>): Promise<void> {
-		const res = await fetch('/api/transactions', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({
-				category_id: draft.category_id || undefined,
-				amount_paise: draft.amount_paise,
-				description: draft.description,
-				note: draft.note,
-				occurred_at: draft.occurred_at,
-				source: 'tap'
-			})
-		});
-		if (!res.ok) throw new Error('Save failed');
+		if (editingTx) {
+			const res = await fetch(`/api/transactions/${editingTx.id}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					amount_paise: Math.abs(draft.amount_paise!),
+					category_id: draft.category_id,
+					description: draft.description,
+					note: draft.note,
+					occurred_at: draft.occurred_at
+				})
+			});
+			if (!res.ok) throw new Error('Update failed');
+			editingTx = null;
+		} else {
+			const res = await fetch('/api/transactions', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					category_id: draft.category_id || undefined,
+					amount_paise: draft.amount_paise,
+					description: draft.description,
+					note: draft.note,
+					occurred_at: draft.occurred_at,
+					source: 'tap'
+				})
+			});
+			if (!res.ok) throw new Error('Save failed');
+		}
 		await invalidateAll();
 	}
 
@@ -179,25 +196,31 @@
 						{@const income = tx.amount_paise >= 0}
 						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
 						<li class="ledger-row">
-							<span class="ledger-main">
-								<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
-								<span class="ledger-meta">
-									{#if uncategorized}
-										<span class="uncat-dot" aria-hidden="true"></span>
+							<button
+								class="row-tap"
+								onclick={() => { editingTx = tx; sheetOpen = true; }}
+								aria-label="Edit {tx.description || 'entry'}"
+							>
+								<span class="ledger-main">
+									<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
+									<span class="ledger-meta">
+										{#if uncategorized}
+											<span class="uncat-dot" aria-hidden="true"></span>
+										{/if}
+										{#if tx.description}
+											<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
+											<span class="meta-sep" aria-hidden="true">·</span>
+										{/if}
+										<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+									</span>
+									{#if tx.note}
+										<span class="ledger-note">{tx.note}</span>
 									{/if}
-									{#if tx.description}
-										<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
-										<span class="meta-sep" aria-hidden="true">·</span>
-									{/if}
-									<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
 								</span>
-								{#if tx.note}
-									<span class="ledger-note">{tx.note}</span>
-								{/if}
-							</span>
-							<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
-								{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
-							</span>
+								<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
+									{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
+								</span>
+							</button>
 							<button
 								class="row-delete"
 								onclick={() => handleDelete(tx.id)}
@@ -220,7 +243,8 @@
 	<AddTransactionSheet
 		open={sheetOpen}
 		{categories}
-		onclose={() => (sheetOpen = false)}
+		{editingTx}
+		onclose={() => { sheetOpen = false; editingTx = null; }}
 		onsubmit={handleSubmit}
 	/>
 {:catch}
@@ -460,6 +484,22 @@
 		gap: var(--space-3);
 		padding: var(--space-2) 0;
 		border-bottom: 1px solid var(--color-border);
+	}
+
+	/* Tappable area spanning description + amount. Invisible button wrapper. */
+	.row-tap {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		flex: 1;
+		min-width: 0;
+		background: none;
+		border: none;
+		padding: 0;
+		text-align: left;
+		cursor: pointer;
+		color: inherit;
+		font: inherit;
 	}
 
 	.ledger-main {

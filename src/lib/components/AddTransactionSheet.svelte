@@ -5,16 +5,17 @@
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
 	import { parse } from '$lib/anchors';
-	import type { TransactionDraft, Category } from '$lib/types';
+	import type { TransactionDraft, Category, Transaction } from '$lib/types';
 
 	interface Props {
 		open: boolean;
 		categories: Category[];
 		onclose: () => void;
 		onsubmit: (draft: Required<TransactionDraft>) => Promise<void>;
+		editingTx?: Transaction | null;
 	}
 
-	let { open, categories, onclose, onsubmit }: Props = $props();
+	let { open, categories, onclose, onsubmit, editingTx = null }: Props = $props();
 
 	// ── Local state ────────────────────────────────────────────────────────
 	let entryKind = $state<'expense' | 'income'>('expense'); // expense or income
@@ -197,8 +198,20 @@
 		pendingVoice = null;
 	}
 
+	// ── Prefill from editingTx when the sheet opens for an edit ─────────────
+	$effect(() => {
+		if (!open) { reset(); return; }
+		if (!editingTx) return;
+		entryKind = editingTx.amount_paise >= 0 ? 'income' : 'expense';
+		amountRaw = (Math.abs(editingTx.amount_paise) / 100).toString();
+		categoryId = editingTx.category_id;
+		description = editingTx.description;
+		note = editingTx.note ?? '';
+		showNote = !!(editingTx.note);
+		occurredAt = editingTx.occurred_at.slice(0, 10);
+	});
+
 	// ── Body scroll lock ───────────────────────────────────────────────────
-	// Prevent the page behind the sheet from scrolling while it's open.
 	$effect(() => {
 		if (typeof document === 'undefined') return;
 		document.body.style.overflow = open ? 'hidden' : '';
@@ -259,7 +272,7 @@
 		use:focusTrap
 	>
 		<div class="sheet-header">
-			<span class="sheet-title">Add {entryKind === 'income' ? 'income' : 'expense'}</span>
+			<span class="sheet-title">{editingTx ? 'Edit' : 'Add'} {entryKind === 'income' ? 'income' : 'expense'}</span>
 			<button class="icon-btn" onclick={onclose} aria-label="Close">
 				<X size={20} />
 			</button>
@@ -303,7 +316,7 @@
 						autocomplete="off"
 						required
 					/>
-					{#if speechSupported && !listening}
+					{#if speechSupported && !listening && !editingTx}
 						<button
 							type="button"
 							class="icon-btn voice-btn"
@@ -386,7 +399,7 @@
 				{#if submitting}
 					<Spinner size={18} label="Saving" />
 				{:else}
-					Save
+					{editingTx ? 'Save changes' : 'Save'}
 				{/if}
 			</button>
 		</form>
