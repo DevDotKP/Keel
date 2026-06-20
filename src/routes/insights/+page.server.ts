@@ -4,8 +4,9 @@ import { getDb, getReadDb } from '$lib/server/db';
 import { resolveAccountAndCadence } from '$lib/server/context';
 import { getBudgetOverview } from '$lib/server/queries/budgets';
 
-export const load: PageServerLoad = async ({ platform, locals }) => {
+export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
+	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 

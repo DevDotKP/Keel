@@ -6,8 +6,9 @@ import { getAccountSummary } from '$lib/server/queries/periods';
 import { listTransactions } from '$lib/server/queries/transactions';
 import { listCategories } from '$lib/server/queries/categories';
 
-export const load: PageServerLoad = async ({ platform, locals }) => {
+export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
+	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 

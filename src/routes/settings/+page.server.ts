@@ -3,8 +3,9 @@ import { redirect } from '@sveltejs/kit';
 import { getReadDb } from '$lib/server/db';
 import type { Settings, User } from '$lib/types';
 
-export const load: PageServerLoad = async ({ platform, locals }) => {
+export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
+	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
 	const rdb = getReadDb(platform);
 
 	const [settings, user] = await Promise.all([

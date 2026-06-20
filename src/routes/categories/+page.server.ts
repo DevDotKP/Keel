@@ -3,8 +3,9 @@ import { redirect } from '@sveltejs/kit';
 import { getReadDb } from '$lib/server/db';
 import { listCategories, listCategoryTree } from '$lib/server/queries/categories';
 
-export const load: PageServerLoad = async ({ platform, locals }) => {
+export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
+	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
 	const rdb = getReadDb(platform);
 	const [tree, categories] = await Promise.all([
 		listCategoryTree(rdb, locals.userId),
