@@ -326,6 +326,8 @@
 						<Square size={16} fill="currentColor" />
 						Stop recording
 					</button>
+				{:else if amountPaise && amountPaise > 0}
+					<p class="amount-formatted" aria-live="polite">{formatPaise(amountPaise)}</p>
 				{/if}
 			</div>
 
@@ -533,6 +535,13 @@
 	.amount-input:focus {
 		outline: none;
 		border-bottom-color: var(--color-gold);
+	}
+
+	.amount-formatted {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		margin-top: var(--space-1);
+		font-variant-numeric: tabular-nums lining-nums;
 	}
 
 	.stop-btn {

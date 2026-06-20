@@ -13,21 +13,10 @@
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
 
-	// Lookup category metadata (colour, name) by id for ledger rows.
-	let catById = $derived(new Map(data.categories.map((c) => [c.id, c])));
-
-	// The essentials the reserve is made of: committed categories with a daily rate.
-	let reservedEssentials = $derived(
-		data.categories
-			.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
-			.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)
-	);
-
 	function periodRange(p: ReconciliationPeriod): string {
 		return `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`;
 	}
 
-	// POST the draft, then refresh page data so the ledger and hero update.
 	async function handleSubmit(draft: Required<TransactionDraft>): Promise<void> {
 		const res = await fetch('/api/transactions', {
 			method: 'POST',
@@ -55,165 +44,193 @@
 	<title>Dashboard - Keel</title>
 </svelte:head>
 
-<div class="dashboard">
-	<!-- Hero: what is actually safe to spend, after obligations and essentials -->
-	<section class="hero" aria-label="Safe to spend">
-		<p class="hero-label">Safe to spend</p>
-		<p
-			class="money-hero"
-			class:over-committed={(data.summary?.safe_to_spend_paise ?? 0) < 0}
-			aria-live="polite"
-			aria-atomic="true"
-		>
-			{formatPaise(data.summary?.safe_to_spend_paise ?? 0)}
-		</p>
-		<p class="hero-sub">
-			{#if data.summary}
-				{#if data.summary.safe_to_spend_paise < 0}
-					Your commitments run ahead of your balance this period.
-				{:else}
-					Free to spend before your next harbour · {periodRange(data.summary.current_period)}
-				{/if}
-			{/if}
-		</p>
-	</section>
-
-	<!-- The breakdown: how safe-to-spend is derived. Calm, never scolding. -->
-	{#if data.summary && (data.summary.locked_obligations_paise > 0 || data.summary.locked_reserve_paise > 0)}
-		<section class="breakdown" aria-label="How safe to spend is calculated">
-			<div class="breakdown-row">
-				<span class="breakdown-label">Remaining this period</span>
-				<span class="money breakdown-amount">{formatPaiseLedger(data.summary.remaining_paise)}</span>
-			</div>
-			{#if data.summary.locked_obligations_paise > 0}
-				<div class="breakdown-row">
-					<span class="breakdown-label">Obligations still due</span>
-					<span class="money breakdown-amount muted"
-						>−{formatPaiseLedger(data.summary.locked_obligations_paise)}</span
-					>
-				</div>
-			{/if}
-			{#if data.summary.locked_reserve_paise > 0}
-				<div class="breakdown-row">
-					<button
-						class="breakdown-label breakdown-toggle"
-						class:open={essentialsOpen}
-						onclick={() => (essentialsOpen = !essentialsOpen)}
-						aria-expanded={essentialsOpen}
-						aria-controls="essentials-list"
-						disabled={reservedEssentials.length === 0}
-					>
-						<span class="toggle-head">
-							Reserved for essentials
-							{#if reservedEssentials.length > 0}
-								<span class="toggle-chevron" aria-hidden="true">
-									{#if essentialsOpen}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
-								</span>
-							{/if}
-						</span>
-						<span class="breakdown-note">
-							{formatPaise(data.summary.daily_reserve_paise)}/day for
-							{data.summary.days_remaining}
-							{data.summary.days_remaining === 1 ? 'day' : 'days'} left this cycle
-						</span>
-					</button>
-					<span class="money breakdown-amount muted"
-						>−{formatPaiseLedger(data.summary.locked_reserve_paise)}</span
-					>
-				</div>
-				{#if essentialsOpen && reservedEssentials.length > 0}
-					<ul class="essentials-list" id="essentials-list">
-						{#each reservedEssentials as ess (ess.id)}
-							<li class="essential-row">
-								<span class="essential-name">{ess.name}</span>
-								<span class="money essential-amount"
-									>{formatPaise(ess.daily_reserve_paise)}/day</span
-								>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			{/if}
-			<div class="breakdown-row breakdown-total">
-				<span class="breakdown-label">Safe to spend</span>
-				<span class="money breakdown-amount total-amount"
-					>{formatPaiseLedger(data.summary.safe_to_spend_paise)}</span
-				>
-			</div>
+{#await Promise.all([data.summary, data.transactions, data.categories])}
+	<div class="dashboard">
+		<section class="hero" aria-hidden="true">
+			<div class="skel skel-label"></div>
+			<div class="skel skel-hero"></div>
+			<div class="skel skel-sub"></div>
 		</section>
-	{/if}
+		<section class="ledger-section">
+			<div class="skel skel-section-head"></div>
+			{#each [1, 2, 3] as _}
+				<div class="skel skel-ledger-row"></div>
+			{/each}
+		</section>
+	</div>
+{:then [summary, transactions, categories]}
+	{@const catById = new Map(categories.map((c) => [c.id, c]))}
+	{@const reservedEssentials = categories
+		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
+		.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)}
 
-	<!-- Harbour open-loop pull (Zeigarnik, not guilt). Shown once there is something to settle. -->
-	{#if data.transactions.length > 0}
-		<a href="/harbour" class="harbour-nudge" aria-label="Come to harbour, about two minutes">
-			<span class="harbour-disc" aria-hidden="true">
-				<Anchor size={18} />
-			</span>
-			<span class="harbour-text">
-				<span class="harbour-title">Come to harbour</span>
-				<span class="harbour-sub">Settle this cycle · about 2 min</span>
-			</span>
-			<ChevronRight class="harbour-chevron" size={20} aria-hidden="true" />
-		</a>
-	{/if}
+	<div class="dashboard">
+		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
+		<section class="hero" aria-label="Safe to spend">
+			<p class="hero-label">Safe to spend</p>
+			<p
+				class="money-hero"
+				class:over-committed={(summary?.safe_to_spend_paise ?? 0) < 0}
+				aria-live="polite"
+				aria-atomic="true"
+			>
+				{formatPaise(summary?.safe_to_spend_paise ?? 0)}
+			</p>
+			<p class="hero-sub">
+				{#if summary}
+					{#if summary.safe_to_spend_paise < 0}
+						Your commitments run ahead of your balance this period.
+					{:else}
+						Free to spend before your next harbour · {periodRange(summary.current_period)}
+					{/if}
+				{/if}
+			</p>
+		</section>
 
-	<!-- Recent transactions -->
-	<section class="ledger-section">
-		<h2 class="section-head">Recent</h2>
-
-		{#if data.transactions.length === 0}
-			<EmptyState heading="No entries yet" body="Add your first expense below." />
-		{:else}
-			<ul class="ledger">
-				{#each data.transactions as tx (tx.id)}
-					{@const cat = catById.get(tx.category_id)}
-					{@const income = tx.amount_paise >= 0}
-					{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-					<li class="ledger-row">
-						<span class="ledger-main">
-							<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
-							<span class="ledger-meta">
-								{#if uncategorized}
-									<span class="uncat-dot" aria-hidden="true"></span>
-								{/if}
-								{#if tx.description}
-									<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
-									<span class="meta-sep" aria-hidden="true">·</span>
-								{/if}
-								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
-							</span>
-							{#if tx.note}
-								<span class="ledger-note">{tx.note}</span>
-							{/if}
-						</span>
-						<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
-							{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
-						</span>
-						<button
-							class="row-delete"
-							onclick={() => handleDelete(tx.id)}
-							aria-label="Delete {tx.description || 'entry'}"
+		<!-- The breakdown: how safe-to-spend is derived. Calm, never scolding. -->
+		{#if summary && (summary.locked_obligations_paise > 0 || summary.locked_reserve_paise > 0)}
+			<section class="breakdown" aria-label="How safe to spend is calculated">
+				<div class="breakdown-row">
+					<span class="breakdown-label">Remaining this period</span>
+					<span class="money breakdown-amount">{formatPaiseLedger(summary.remaining_paise)}</span>
+				</div>
+				{#if summary.locked_obligations_paise > 0}
+					<div class="breakdown-row">
+						<span class="breakdown-label">Obligations still due</span>
+						<span class="money breakdown-amount muted"
+							>−{formatPaiseLedger(summary.locked_obligations_paise)}</span
 						>
-							<Trash2 size={16} aria-hidden="true" />
+					</div>
+				{/if}
+				{#if summary.locked_reserve_paise > 0}
+					<div class="breakdown-row">
+						<button
+							class="breakdown-label breakdown-toggle"
+							class:open={essentialsOpen}
+							onclick={() => (essentialsOpen = !essentialsOpen)}
+							aria-expanded={essentialsOpen}
+							aria-controls="essentials-list"
+							disabled={reservedEssentials.length === 0}
+						>
+							<span class="toggle-head">
+								Reserved for essentials
+								{#if reservedEssentials.length > 0}
+									<span class="toggle-chevron" aria-hidden="true">
+										{#if essentialsOpen}<ChevronDown size={14} />{:else}<ChevronRight size={14} />{/if}
+									</span>
+								{/if}
+							</span>
+							<span class="breakdown-note">
+								{formatPaise(summary.daily_reserve_paise)}/day for
+								{summary.days_remaining}
+								{summary.days_remaining === 1 ? 'day' : 'days'} left this cycle
+							</span>
 						</button>
-					</li>
-				{/each}
-			</ul>
+						<span class="money breakdown-amount muted"
+							>−{formatPaiseLedger(summary.locked_reserve_paise)}</span
+						>
+					</div>
+					{#if essentialsOpen && reservedEssentials.length > 0}
+						<ul class="essentials-list" id="essentials-list">
+							{#each reservedEssentials as ess (ess.id)}
+								<li class="essential-row">
+									<span class="essential-name">{ess.name}</span>
+									<span class="money essential-amount"
+										>{formatPaise(ess.daily_reserve_paise)}/day</span
+									>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{/if}
+				<div class="breakdown-row breakdown-total">
+					<span class="breakdown-label">Safe to spend</span>
+					<span class="money breakdown-amount total-amount"
+						>{formatPaiseLedger(summary.safe_to_spend_paise)}</span
+					>
+				</div>
+			</section>
 		{/if}
-	</section>
 
-	<!-- FAB: add transaction -->
-	<button class="fab" onclick={() => (sheetOpen = true)} aria-label="Add expense">
-		<Plus size={24} aria-hidden="true" />
-	</button>
-</div>
+		<!-- Harbour open-loop pull (Zeigarnik, not guilt). Shown once there is something to settle. -->
+		{#if transactions.length > 0}
+			<a href="/harbour" class="harbour-nudge" aria-label="Come to harbour, about two minutes">
+				<span class="harbour-disc" aria-hidden="true">
+					<Anchor size={18} />
+				</span>
+				<span class="harbour-text">
+					<span class="harbour-title">Come to harbour</span>
+					<span class="harbour-sub">Settle this cycle · about 2 min</span>
+				</span>
+				<ChevronRight class="harbour-chevron" size={20} aria-hidden="true" />
+			</a>
+		{/if}
 
-<AddTransactionSheet
-	open={sheetOpen}
-	categories={data.categories ?? []}
-	onclose={() => (sheetOpen = false)}
-	onsubmit={handleSubmit}
-/>
+		<!-- Recent transactions -->
+		<section class="ledger-section">
+			<h2 class="section-head">Recent</h2>
+
+			{#if transactions.length === 0}
+				<EmptyState heading="No entries yet" body="Add your first expense below." />
+			{:else}
+				<ul class="ledger">
+					{#each transactions as tx (tx.id)}
+						{@const cat = catById.get(tx.category_id)}
+						{@const income = tx.amount_paise >= 0}
+						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
+						<li class="ledger-row">
+							<span class="ledger-main">
+								<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
+								<span class="ledger-meta">
+									{#if uncategorized}
+										<span class="uncat-dot" aria-hidden="true"></span>
+									{/if}
+									{#if tx.description}
+										<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
+										<span class="meta-sep" aria-hidden="true">·</span>
+									{/if}
+									<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+								</span>
+								{#if tx.note}
+									<span class="ledger-note">{tx.note}</span>
+								{/if}
+							</span>
+							<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
+								{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
+							</span>
+							<button
+								class="row-delete"
+								onclick={() => handleDelete(tx.id)}
+								aria-label="Delete {tx.description || 'entry'}"
+							>
+								<Trash2 size={16} aria-hidden="true" />
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+
+		<!-- FAB: add transaction -->
+		<button class="fab" onclick={() => (sheetOpen = true)} aria-label="Add expense">
+			<Plus size={24} aria-hidden="true" />
+		</button>
+	</div>
+
+	<AddTransactionSheet
+		open={sheetOpen}
+		{categories}
+		onclose={() => (sheetOpen = false)}
+		onsubmit={handleSubmit}
+	/>
+{:catch}
+	<div class="dashboard">
+		<p class="load-error">
+			Couldn't load your data.
+			<button class="retry-btn" onclick={() => invalidateAll()}>Retry</button>
+		</p>
+	</div>
+{/await}
 
 <style>
 	.dashboard {
@@ -551,5 +568,70 @@
 	.fab:active {
 		transform: scale(0.95);
 		box-shadow: 0 2px 8px rgba(224, 168, 46, 0.25);
+	}
+
+	/* Skeleton loading state */
+	.skel {
+		background: var(--color-surface-subtle);
+		border-radius: var(--radius-sm);
+		animation: skel-pulse 1.4s ease-in-out infinite;
+	}
+
+	@keyframes skel-pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
+	}
+
+	.skel-label {
+		height: 14px;
+		width: 100px;
+		margin-bottom: var(--space-2);
+	}
+
+	.skel-hero {
+		height: 48px;
+		width: 180px;
+		margin-bottom: var(--space-2);
+	}
+
+	.skel-sub {
+		height: 14px;
+		width: 240px;
+	}
+
+	.skel-section-head {
+		height: 18px;
+		width: 80px;
+	}
+
+	.skel-ledger-row {
+		height: 48px;
+		width: 100%;
+		margin-top: var(--space-2);
+	}
+
+	/* Error state */
+	.load-error {
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-6) 0;
+	}
+
+	.retry-btn {
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-3);
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		cursor: pointer;
+	}
+
+	.retry-btn:hover {
+		border-color: var(--color-text-subtle);
+		color: var(--color-text);
 	}
 </style>

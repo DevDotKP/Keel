@@ -23,16 +23,15 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	]);
 
 	const account = (accountRes.results?.[0] as Account) ?? null;
-	if (!account) return { summary: null, transactions: [], categories: [] };
+	if (!account) return { summary: null, transactions: Promise.resolve([]), categories: Promise.resolve([]) };
 	const cadence =
 		((settingsRes.results?.[0] as { harbour_cadence: HarbourCadence })?.harbour_cadence) ??
 		'monthly';
 
-	const [summary, transactions, categories] = await Promise.all([
-		getAccountSummary(db, account.id, cadence, rdb),
-		listTransactions(rdb, { account_id: account.id, limit: 20 }),
-		listCategories(rdb, locals.userId)
-	]);
-
-	return { summary, transactions, categories };
+	// Return promises — the page shell renders immediately while D1 responds.
+	return {
+		summary: getAccountSummary(db, account.id, cadence, rdb),
+		transactions: listTransactions(rdb, { account_id: account.id, limit: 20 }),
+		categories: listCategories(rdb, locals.userId)
+	};
 };

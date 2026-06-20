@@ -1,18 +1,21 @@
 <script lang="ts">
 	import '../app.css';
-	import { page } from '$app/state';
+	import { page, navigating } from '$app/state';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
 
 	let { children } = $props();
 
-	// Auth pages don't use the app chrome.
 	const showChrome = $derived(!page.url.pathname.startsWith('/auth'));
 </script>
 
 <svelte:head>
 	<title>Keel</title>
 </svelte:head>
+
+{#if navigating.to}
+	<div class="nav-bar" aria-hidden="true"></div>
+{/if}
 
 <OfflineBanner />
 
@@ -25,6 +28,22 @@
 {/if}
 
 <style>
+	.nav-bar {
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 2px;
+		background: var(--color-gold);
+		z-index: 9999;
+		animation: nav-advance 2s ease-out forwards;
+	}
+
+	@keyframes nav-advance {
+		0%   { width: 0%;  opacity: 1; }
+		60%  { width: 75%; opacity: 1; }
+		100% { width: 90%; opacity: 0.9; }
+	}
+
 	.main {
 		max-width: 480px;
 		margin: 0 auto;
