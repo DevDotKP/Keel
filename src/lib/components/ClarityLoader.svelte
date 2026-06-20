@@ -5,6 +5,7 @@
 	// Gate off before any user other than the developer touches the app.
 	$effect(() => {
 		if (!import.meta.env.PROD) return;
+		if (localStorage.getItem('keel-no-clarity') === '1') return;
 
 		const CLARITY_ID = 'x9n1z284jh';
 

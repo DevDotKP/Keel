@@ -6,6 +6,7 @@ declare global {
 		RESEND_API_KEY?: string;
 		MAGIC_LINK_BASE_URL?: string;
 		MAGIC_LINK_FROM_EMAIL?: string;
+		OPT_OUT_TOKEN?: string;
 		// TEMPORARY closed-testing escape hatch. When 'true', the send endpoint
 		// returns the sign-in link directly (no email needed). Anyone who knows an
 		// email can then log in as them, so keep this OFF for any real launch.

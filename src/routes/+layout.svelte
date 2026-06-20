@@ -7,7 +7,9 @@
 
 	let { children } = $props();
 
-	const showChrome = $derived(!page.url.pathname.startsWith('/auth'));
+	const showChrome = $derived(
+		!page.url.pathname.startsWith('/auth') && !page.url.pathname.startsWith('/opt-out')
+	);
 </script>
 
 <svelte:head>
