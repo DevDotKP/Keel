@@ -3,6 +3,7 @@
 	import { page, navigating } from '$app/state';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
+	import ClarityLoader from '$lib/components/ClarityLoader.svelte';
 
 	let { children } = $props();
 
@@ -25,6 +26,7 @@
 
 {#if showChrome}
 	<BottomNav />
+	<ClarityLoader />
 {/if}
 
 <style>
