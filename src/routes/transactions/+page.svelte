@@ -87,6 +87,9 @@
 				{@const cat = catById.get(tx.category_id)}
 				{@const income = tx.amount_paise >= 0}
 				{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
+				{@const addedByOther = tx.entered_by && tx.entered_by !== data.currentUserId}
+				{@const byEmail = addedByOther ? (data.memberEmails[tx.entered_by!] ?? '') : ''}
+				{@const byLabel = byEmail ? byEmail.split('@')[0] : ''}
 				<li class="ledger-row">
 					<button
 						class="row-tap"
@@ -104,6 +107,10 @@
 									<span class="meta-sep" aria-hidden="true">·</span>
 								{/if}
 								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+								{#if addedByOther && byLabel}
+									<span class="meta-sep" aria-hidden="true">·</span>
+									<span class="ledger-by" title="Added by {byEmail}">by {byLabel}</span>
+								{/if}
 								{#if tx.note}
 									<span class="meta-sep" aria-hidden="true">·</span>
 									<span class="ledger-note-inline">{tx.note}</span>
@@ -265,6 +272,11 @@
 
 	.ledger-cat { color: var(--color-text-muted); }
 	.meta-sep   { color: var(--color-text-subtle); }
+
+	.ledger-by {
+		color: var(--color-text-subtle);
+		font-size: 0.75rem;
+	}
 
 	.ledger-note-inline {
 		color: var(--color-text-subtle);
