@@ -16,48 +16,31 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 	// Realistic opening balance: Rs 50,000.
 	await db.prepare('UPDATE accounts SET balance_paise = 5000000 WHERE id = ?').bind(account.id).run();
 
-	// Food is committed with a Rs 120/day reserve so the "safe to spend" view has
-	// something to lock. Transport committed at Rs 50/day. Others flexible.
-	await db.batch([
-		db
-			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, bucket, daily_reserve_paise) VALUES (?, 'Food', '#C2683C', 0, 2, 'committed', 12000)"
-			)
-			.bind(userId),
-		db
-			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order, bucket, daily_reserve_paise) VALUES (?, 'Transport', '#1B3A66', 0, 3, 'committed', 5000)"
-			)
-			.bind(userId),
-		db
-			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Groceries', '#2F7E72', 0, 4)"
-			)
-			.bind(userId),
-		db
-			.prepare(
-				"INSERT OR IGNORE INTO categories (user_id, name, color, is_system, sort_order) VALUES (?, 'Bills', '#7C756A', 0, 5)"
-			)
-			.bind(userId)
-	]);
-
+	// Categories now come from bootstrap (Food & Dining, Groceries, Transport,
+	// Bills & Utilities, ...). Add daily reserves to a couple so "safe to spend"
+	// has something to lock during dev preview.
 	const { results } = await db
 		.prepare('SELECT id, name FROM categories WHERE user_id = ? AND deleted_at IS NULL')
 		.bind(userId)
 		.all<{ id: string; name: string }>();
 	const catId = (name: string) => results.find((c) => c.name === name)?.id ?? null;
 
+	await db.batch([
+		db.prepare('UPDATE categories SET daily_reserve_paise = 12000 WHERE id = ?').bind(catId('Food & Dining')),
+		db.prepare('UPDATE categories SET daily_reserve_paise = 5000 WHERE id = ?').bind(catId('Transport'))
+	]);
+
 	// A rent obligation: due once per period, unpaid so it shows as locked.
 	await db
 		.prepare(
 			"INSERT INTO obligations (user_id, name, amount_paise, category_id, cadence) VALUES (?, 'Rent', 1500000, ?, 'monthly')"
 		)
-		.bind(userId, catId('Bills'))
+		.bind(userId, catId('Bills & Utilities'))
 		.run();
 
 	// Sample budgets so Insights has soft caps to show (Food intentionally tight).
 	await db.batch([
-		db.prepare('UPDATE categories SET budget_paise = 400000 WHERE id = ?').bind(catId('Food')),
+		db.prepare('UPDATE categories SET budget_paise = 400000 WHERE id = ?').bind(catId('Food & Dining')),
 		db.prepare('UPDATE categories SET budget_paise = 500000 WHERE id = ?').bind(catId('Groceries')),
 		db.prepare("UPDATE settings SET cycle_budget_paise = 3000000 WHERE user_id = ?").bind(userId)
 	]);
@@ -73,10 +56,10 @@ export async function seedDevSampleData(db: D1Database, userId: string): Promise
 	const samples: Array<[string | null, number, string, number]> = [
 		[catId('Salary'), 8500000, 'Salary credit', 3],
 		[catId('Transport'), -12000, 'Auto to office', 0],
-		[catId('Food'), -38000, 'Swiggy dinner', 0],
+		[catId('Food & Dining'), -38000, 'Swiggy dinner', 0],
 		[catId('Groceries'), -145000, 'BigBasket weekly', 1],
-		[catId('Food'), -9000, 'Chai and snacks', 1],
-		[catId('Bills'), -89900, 'Jio recharge', 2],
+		[catId('Food & Dining'), -9000, 'Chai and snacks', 1],
+		[catId('Bills & Utilities'), -89900, 'Jio recharge', 2],
 		[catId('Uncategorized'), -25000, 'Cash spends', 2]
 	];
 

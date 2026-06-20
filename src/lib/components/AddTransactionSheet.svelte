@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Mic, X } from 'lucide-svelte';
+	import { Mic, Square, X } from 'lucide-svelte';
 	import Spinner from './Spinner.svelte';
 	import { parseToPaise, formatPaise } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
@@ -66,12 +66,25 @@
 	}
 
 	// ── Voice capture ──────────────────────────────────────────────────────
+	let voiceAbort: AbortController | null = null;
+
+	// Tapping the mic while listening stops capture and uses whatever was heard.
+	function stopVoice() {
+		voiceAbort?.abort();
+	}
+
 	async function handleVoice() {
+		// If already listening, the button acts as a stop control.
+		if (listening) {
+			stopVoice();
+			return;
+		}
 		error = null;
 		listening = true;
+		voiceAbort = new AbortController();
 
 		try {
-			const capture = await captureOnce();
+			const capture = await captureOnce({ signal: voiceAbort.signal });
 			const categoryNames = categories.map((c) => c.name);
 			const result = parse(capture.transcript, categoryNames);
 
@@ -99,13 +112,20 @@
 			};
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : 'Voice capture failed';
-			error = msg === 'not-allowed'
-				? 'Microphone access denied. Allow it in your browser settings.'
-				: msg === 'No speech detected'
-					? 'No speech detected. Try again.'
-					: 'Voice capture failed. Type instead.';
+			// A manual stop with nothing captured is silent, not an error.
+			if (msg === 'cancelled') {
+				// no-op
+			} else {
+				error =
+					msg === 'not-allowed'
+						? 'Microphone access denied. Allow it in your browser settings.'
+						: msg === 'No speech detected'
+							? 'No speech detected. Try again.'
+							: 'Voice capture failed. Type instead.';
+			}
 		} finally {
 			listening = false;
+			voiceAbort = null;
 		}
 	}
 
@@ -281,11 +301,11 @@
 							class="icon-btn voice-btn"
 							class:listening
 							onclick={handleVoice}
-							aria-label={listening ? 'Listening...' : 'Add by voice'}
-							disabled={submitting || listening}
+							aria-label={listening ? 'Stop listening' : 'Add by voice'}
+							disabled={submitting}
 						>
 							{#if listening}
-								<Spinner size={20} label="Listening" />
+								<Square size={18} fill="currentColor" />
 							{:else}
 								<Mic size={20} />
 							{/if}
@@ -293,7 +313,7 @@
 					{/if}
 				</div>
 				{#if listening}
-					<p class="listening-hint" aria-live="polite">Listening… speak your expense</p>
+					<p class="listening-hint" aria-live="polite">Listening… tap stop when done</p>
 				{/if}
 			</div>
 

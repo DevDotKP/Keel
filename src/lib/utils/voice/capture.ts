@@ -7,8 +7,9 @@ export interface CaptureResult {
 }
 
 // How long to keep listening after the user stops talking, and a hard ceiling.
-const SILENCE_MS = 3500;
-const MAX_MS = 20_000;
+// Kept short so capture ends promptly; the user can also stop manually.
+const SILENCE_MS = 1800;
+const MAX_MS = 12_000;
 
 /** True when Web Speech API is available (Android/Chrome; false on iOS Safari). */
 export function isSpeechSupported(): boolean {
@@ -23,7 +24,7 @@ export function isSpeechSupported(): boolean {
  * (or MAX_MS total), so a normal sentence with mid-thought pauses is not cut off.
  * Rejects on recognition error or if the Speech API is unavailable.
  */
-export function captureOnce(): Promise<CaptureResult> {
+export function captureOnce(options: { signal?: AbortSignal } = {}): Promise<CaptureResult> {
 	if (!isSpeechSupported()) {
 		return Promise.reject(new Error('Speech API not available on this device'));
 	}
@@ -47,9 +48,25 @@ export function captureOnce(): Promise<CaptureResult> {
 		let hardCap: ReturnType<typeof setTimeout> | undefined;
 		let stopping = false; // true once we asked it to stop, so onerror ignores 'aborted'
 
+		// Manual stop: the user tapped the stop control. Finalize with whatever we
+		// have so far (onend resolves it).
+		function onAbort() {
+			stopping = true;
+			try {
+				rec.stop();
+			} catch {
+				/* ignore */
+			}
+		}
+		if (options.signal) {
+			if (options.signal.aborted) onAbort();
+			else options.signal.addEventListener('abort', onAbort, { once: true });
+		}
+
 		function clearTimers() {
 			if (silenceTimer) clearTimeout(silenceTimer);
 			if (hardCap) clearTimeout(hardCap);
+			options.signal?.removeEventListener('abort', onAbort);
 		}
 
 		// Stop after a pause; onend then resolves with what we have.
@@ -100,6 +117,8 @@ export function captureOnce(): Promise<CaptureResult> {
 			const text = finalTranscript.trim();
 			finish(() => {
 				if (text) resolve({ transcript: text.toLowerCase(), confidence: bestConfidence || 1 });
+				// User-initiated stop with nothing captured: a silent cancel, not an error.
+				else if (options.signal?.aborted) reject(new Error('cancelled'));
 				else reject(new Error('No speech detected'));
 			});
 		};
