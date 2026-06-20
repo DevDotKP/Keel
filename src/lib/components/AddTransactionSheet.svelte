@@ -295,25 +295,29 @@
 						autocomplete="off"
 						required
 					/>
-					{#if speechSupported}
+					{#if speechSupported && !listening}
 						<button
 							type="button"
 							class="icon-btn voice-btn"
-							class:listening
 							onclick={handleVoice}
-							aria-label={listening ? 'Stop listening' : 'Add by voice'}
+							aria-label="Add by voice"
 							disabled={submitting}
 						>
-							{#if listening}
-								<Square size={18} fill="currentColor" />
-							{:else}
-								<Mic size={20} />
-							{/if}
+							<Mic size={20} />
 						</button>
 					{/if}
 				</div>
 				{#if listening}
-					<p class="listening-hint" aria-live="polite">Listening… tap stop when done</p>
+					<button
+						type="button"
+						class="stop-btn"
+						onclick={stopVoice}
+						aria-label="Stop recording"
+						aria-live="polite"
+					>
+						<Square size={16} fill="currentColor" />
+						Stop recording
+					</button>
 				{/if}
 			</div>
 
@@ -523,10 +527,27 @@
 		border-bottom-color: var(--color-gold);
 	}
 
-	.listening-hint {
-		font-size: 0.8125rem;
-		color: var(--color-text-muted);
-		padding-top: var(--space-1);
+	.stop-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		width: 100%;
+		height: 48px;
+		margin-top: var(--space-2);
+		background: var(--color-clay);
+		color: #fff;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		animation: pulse 1.2s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50%       { opacity: 0.75; }
 	}
 
 	.icon-btn {
@@ -545,8 +566,6 @@
 	}
 
 	.icon-btn:hover { color: var(--color-text); }
-
-	.voice-btn.listening { color: var(--color-clay); }
 
 	.submit-btn {
 		display: flex;
