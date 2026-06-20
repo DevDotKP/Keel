@@ -2,6 +2,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
+	import { installPrompt } from '$lib/stores/install';
 
 	let { data }: { data: PageData } = $props();
 
@@ -153,6 +154,25 @@
 			</a>
 		</nav>
 	</section>
+
+	<!-- Install: shown only when the browser signals the app is installable -->
+	{#if $installPrompt}
+		<section class="settings-section">
+			<h2 class="settings-section-head">App</h2>
+			<p class="settings-hint">Add Keel to your home screen for faster access and offline use.</p>
+			<button
+				class="secondary-btn"
+				onclick={async () => {
+					const prompt = $installPrompt;
+					if (!prompt) return;
+					await prompt.prompt();
+					installPrompt.set(null);
+				}}
+			>
+				Add to home screen
+			</button>
+		</section>
+	{/if}
 
 	<!-- Export -->
 	<section class="settings-section">

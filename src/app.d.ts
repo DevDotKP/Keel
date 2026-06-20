@@ -34,11 +34,11 @@ declare global {
 }
 
 // BeforeInstallPromptEvent is not in the standard TS DOM lib.
-interface BeforeInstallPromptEvent extends Event {
-	prompt(): Promise<void>;
-	userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
 declare global {
+	interface BeforeInstallPromptEvent extends Event {
+		prompt(): Promise<void>;
+		userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+	}
 	interface WindowEventMap {
 		beforeinstallprompt: BeforeInstallPromptEvent;
 	}

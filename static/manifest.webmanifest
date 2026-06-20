@@ -1,0 +1,27 @@
+{
+  "name": "Keel",
+  "short_name": "Keel",
+  "description": "A forgiving expense tracker. Track money left, come to harbour weekly.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C2340",
+  "theme_color": "#0C2340",
+  "lang": "en-IN",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["finance", "productivity"]
+}

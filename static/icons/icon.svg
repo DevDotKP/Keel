@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Navy background — rx=96 gives standard app-icon radius -->
+  <rect width="512" height="512" rx="96" fill="#0C2340"/>
+  <!-- Anchor in gold. Stroked, Lucide-style. Geometry fits the maskable safe area. -->
+  <g fill="none" stroke="#E0A82E" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Ring at top -->
+    <circle cx="256" cy="160" r="36"/>
+    <!-- Shaft -->
+    <line x1="256" y1="196" x2="256" y2="390"/>
+    <!-- Stock (crossbar) -->
+    <line x1="120" y1="264" x2="392" y2="264"/>
+    <!-- Left fluke -->
+    <path d="M 120 264 Q 120 390 256 390"/>
+    <!-- Right fluke -->
+    <path d="M 392 264 Q 392 390 256 390"/>
+  </g>
+</svg>

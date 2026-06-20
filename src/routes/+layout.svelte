@@ -4,6 +4,7 @@
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
 	import ClarityLoader from '$lib/components/ClarityLoader.svelte';
+	import InstallPrompt from '$lib/components/InstallPrompt.svelte';
 
 	let { children } = $props();
 
@@ -25,6 +26,8 @@
 <main class="main" class:full-height={!showChrome}>
 	{@render children()}
 </main>
+
+<InstallPrompt />
 
 {#if showChrome}
 	<BottomNav />
