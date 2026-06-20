@@ -97,7 +97,8 @@ export async function updateTransaction(
 	await db
 		.prepare(
 			`UPDATE transactions
-			 SET amount_paise = ?, category_id = ?, description = ?, note = ?, occurred_at = ?
+			 SET amount_paise = ?, category_id = ?, description = ?, note = ?, occurred_at = ?,
+			     updated_at = datetime('now')
 			 WHERE id = ? AND account_id = ? AND deleted_at IS NULL`
 		)
 		.bind(

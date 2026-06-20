@@ -90,6 +90,7 @@
 				{@const addedByOther = tx.entered_by && tx.entered_by !== data.currentUserId}
 				{@const byEmail = addedByOther ? (data.memberEmails[tx.entered_by!] ?? '') : ''}
 				{@const byLabel = byEmail ? byEmail.split('@')[0] : ''}
+				{@const wasEdited = tx.updated_at && tx.entered_at && (new Date(tx.updated_at).getTime() - new Date(tx.entered_at).getTime()) > 60_000}
 				<li class="ledger-row">
 					<button
 						class="row-tap"
@@ -110,6 +111,10 @@
 								{#if addedByOther && byLabel}
 									<span class="meta-sep" aria-hidden="true">·</span>
 									<span class="ledger-by" title="Added by {byEmail}">by {byLabel}</span>
+								{/if}
+								{#if wasEdited}
+									<span class="meta-sep" aria-hidden="true">·</span>
+									<span class="ledger-edited">edited</span>
 								{/if}
 								{#if tx.note}
 									<span class="meta-sep" aria-hidden="true">·</span>
@@ -276,6 +281,12 @@
 	.ledger-by {
 		color: var(--color-text-subtle);
 		font-size: 0.75rem;
+	}
+
+	.ledger-edited {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		font-style: italic;
 	}
 
 	.ledger-note-inline {

@@ -129,6 +129,7 @@ export interface Transaction {
 	note: string; // optional free-text context, separate from description
 	occurred_at: string; // ISO datetime, user-supplied
 	entered_at: string;
+	updated_at: string; // updated on edit; matches entered_at on first insert
 	entered_by: string | null; // user_id of who logged this entry
 	source: TransactionSource;
 	is_uncategorized_fallback: 0 | 1;
