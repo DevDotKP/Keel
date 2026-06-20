@@ -4,14 +4,11 @@
 
 <div class="legal-page">
 	<h1>Contact</h1>
-	<p class="last-updated">Last updated: June 2026</p>
-
-	<!-- TODO(haiku): replace placeholder email with a real support address
-	     once the Annapurna Labs domain is live. -->
+	<p class="last-updated">Operated by Annapurna Labs.</p>
 
 	<h2>Annapurna Labs</h2>
 	<p>
-		For support, billing questions, data deletion requests, or anything else,
+		For support, billing questions, refund requests, data deletion, or anything else,
 		email us at:
 	</p>
 	<p>
@@ -19,11 +16,21 @@
 	</p>
 
 	<p>
-		We aim to respond within 2 business days. For refund requests, please
-		include your order reference.
+		We aim to respond within 2 business days. For refund requests, include your
+		registered email address and your Razorpay order reference. For data deletion
+		requests, include your registered email address and we will complete the deletion
+		within 7 business days.
 	</p>
 
-	<p>Operated by Annapurna Labs. © 2026 Annapurna Labs. All rights reserved.</p>
+	<h2>Grievance Officer</h2>
+	<p>
+		In accordance with the Information Technology (Intermediary Guidelines and Digital
+		Media Ethics Code) Rules, 2021, the designated Grievance Officer for Keel can be
+		reached at the email address above. Grievances will be acknowledged within 24 hours
+		and resolved within 15 days of receipt.
+	</p>
+
+	<p>&copy; 2026 Annapurna Labs. All rights reserved.</p>
 </div>
 
 <style>
