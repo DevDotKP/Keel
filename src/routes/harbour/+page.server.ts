@@ -12,12 +12,12 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 
-	const { account, cadence } = await resolveAccountAndCadence(rdb, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId);
 	if (!account) {
 		return { period: null, estimatePaise: 0, transactions: [], categories: [], openPeriods: 0, harbourVisits: 0 };
 	}
 
-	const summary = await getAccountSummary(db, account.id, cadence, rdb);
+	const summary = await getAccountSummary(db, account.id, cadence, harbourDay, rdb);
 	const period = summary.current_period;
 
 	// Exclusive upper bound: day after period_end.

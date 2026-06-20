@@ -15,9 +15,9 @@ export const POST: RequestHandler = async ({ platform, locals, params, request }
 	const body = Schema.safeParse(await request.json().catch(() => null));
 	if (!body.success) throw error(400, 'Invalid payload');
 
-	const { account, cadence } = await resolveAccountAndCadence(db, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(db, locals.userId);
 	if (!account) throw error(409, 'No account for user');
-	const period = await getOrCreateCurrentPeriod(db, account.id, cadence);
+	const period = await getOrCreateCurrentPeriod(db, account.id, cadence, harbourDay);
 
 	try {
 		if (body.data.paid) {

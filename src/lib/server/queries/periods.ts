@@ -28,10 +28,30 @@ export function nextDay(ymd: string): string {
 	return ymdLocal(d);
 }
 
-function computePeriod(cadence: HarbourCadence, now: Date): { start: string; end: string } {
+function computePeriod(
+	cadence: HarbourCadence,
+	harbourDay: string,
+	now: Date
+): { start: string; end: string } {
 	if (cadence === 'monthly') {
+		const dayNum = parseInt(harbourDay, 10);
+		if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 28) {
+			// Payday-aligned: period runs from payday to (payday-1) of the following month.
+			const year = now.getFullYear();
+			const month = now.getMonth();
+			const today = now.getDate();
+			// If today is before this month's payday, we're still in last month's period.
+			const startMonth = today < dayNum ? month - 1 : month;
+			const startYear = startMonth < 0 ? year - 1 : year;
+			const normalizedStartMonth = startMonth < 0 ? 11 : startMonth;
+			const start = new Date(startYear, normalizedStartMonth, dayNum);
+			// new Date(y, m+1, dayNum-1): when dayNum=1 this yields last day of startMonth.
+			const end = new Date(startYear, normalizedStartMonth + 1, dayNum - 1);
+			return { start: ymdLocal(start), end: ymdLocal(end) };
+		}
+		// Default: calendar month (1st to last day).
 		const start = new Date(now.getFullYear(), now.getMonth(), 1);
-		const end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // last day of month
+		const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 		return { start: ymdLocal(start), end: ymdLocal(end) };
 	}
 	const blockDays = cadence === 'fortnightly' ? 14 : 7;
@@ -54,9 +74,10 @@ function computePeriod(cadence: HarbourCadence, now: Date): { start: string; end
 export async function getOrCreateCurrentPeriod(
 	db: D1Database,
 	account_id: string,
-	cadence: HarbourCadence
+	cadence: HarbourCadence,
+	harbourDay = 'sunday'
 ): Promise<ReconciliationPeriod> {
-	const { start, end } = computePeriod(cadence, new Date());
+	const { start, end } = computePeriod(cadence, harbourDay, new Date());
 
 	// One round trip: insert-if-absent (opening pulled from the account inline),
 	// then read the row back. D1 batch runs these as a sequential transaction.
@@ -181,13 +202,25 @@ export async function getAccountSummary(
 	db: D1Database,
 	account_id: string,
 	cadence: HarbourCadence,
+	rdbOrHarbourDay?: D1Database | string,
 	rdb?: D1Database
 ): Promise<AccountSummary> {
-	// Hot path: one read-only SELECT via the nearest replica (rdb). Cold path
-	// (first load of a new cycle): INSERT on the primary (db) then re-read from
-	// the primary for consistency. After that, every load in the cycle is replica-served.
-	const readDb = rdb ?? db;
-	const { start, end } = computePeriod(cadence, new Date());
+	// Overloaded signature for backward compat:
+	//   getAccountSummary(db, account_id, cadence, rdb?)            — legacy
+	//   getAccountSummary(db, account_id, cadence, harbourDay, rdb?) — new
+	let harbourDay = 'sunday';
+	let readDbArg: D1Database | undefined;
+	if (typeof rdbOrHarbourDay === 'string') {
+		harbourDay = rdbOrHarbourDay;
+		readDbArg = rdb;
+	} else {
+		readDbArg = rdbOrHarbourDay;
+	}
+
+	// Hot path: one read-only SELECT via the nearest replica. Cold path
+	// (first load of a new cycle): INSERT on the primary then re-read from it.
+	const readDb = readDbArg ?? db;
+	const { start, end } = computePeriod(cadence, harbourDay, new Date());
 	const to = nextDay(end);
 	const days_remaining = daysUntil(end);
 

@@ -8,37 +8,63 @@
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 
-	async function handleCadenceChange(cadence: string) {
+	// Derived: show payday input only when cadence is monthly and harbour_day looks numeric.
+	let currentCadence = $derived(data.settings?.harbour_cadence ?? 'monthly');
+	let currentHarbourDay = $derived(data.settings?.harbour_day ?? 'sunday');
+	let paydayAligned = $derived(
+		currentCadence === 'monthly' && /^\d+$/.test(currentHarbourDay)
+	);
+	let paydayDayValue = $derived(paydayAligned ? currentHarbourDay : '');
+
+	async function patch(fields: Record<string, unknown>) {
 		saving = true;
 		error = null;
 		const res = await fetch('/api/settings', {
 			method: 'PATCH',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ harbour_cadence: cadence })
+			body: JSON.stringify(fields)
 		});
 		saving = false;
-		if (!res.ok) {
-			error = 'Could not save. Try again.';
+		if (!res.ok) error = 'Could not save. Try again.';
+		else await invalidateAll();
+	}
+
+	async function handleCadenceChange(cadence: string) {
+		// When switching away from monthly, clear any payday alignment.
+		if (cadence !== 'monthly') {
+			await patch({ harbour_cadence: cadence, harbour_day: 'sunday' });
+		} else {
+			await patch({ harbour_cadence: cadence });
 		}
 	}
 
-	async function handleNotifyTimeChange(time: string) {
-		saving = true;
-		error = null;
-		const res = await fetch('/api/settings', {
-			method: 'PATCH',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ harbour_notify_at: time })
-		});
-		saving = false;
-		if (!res.ok) {
-			error = 'Could not save. Try again.';
+	async function handlePaydayToggle(checked: boolean) {
+		if (checked) {
+			await patch({ harbour_day: '25' });
+		} else {
+			await patch({ harbour_day: 'sunday' });
 		}
+	}
+
+	async function handlePaydayDayChange(day: string) {
+		const n = parseInt(day, 10);
+		if (isNaN(n) || n < 1 || n > 28) return;
+		await patch({ harbour_day: String(n) });
+	}
+
+	async function handleNotifyTimeChange(time: string) {
+		await patch({ harbour_notify_at: time });
+	}
+
+	function ordinal(n: number): string {
+		const s = ['th', 'st', 'nd', 'rd'];
+		const v = n % 100;
+		return s[(v - 20) % 10] ?? s[v] ?? s[0];
 	}
 
 	async function handleSignOut() {
 		await fetch('/api/auth/signout', { method: 'POST' });
-		await invalidateAll();
+		location.href = '/auth';
 	}
 </script>
 
@@ -53,10 +79,10 @@
 	<section class="settings-section">
 		<h2 class="settings-section-head">Harbour</h2>
 		<div class="field">
-			<label for="cadence">How often do you want to harbour?</label>
+			<label for="cadence">How often</label>
 			<select
 				id="cadence"
-				value={data.settings?.harbour_cadence ?? 'monthly'}
+				value={currentCadence}
 				onchange={(e) => handleCadenceChange(e.currentTarget.value)}
 				disabled={saving}
 			>
@@ -65,8 +91,38 @@
 				<option value="monthly">Monthly</option>
 			</select>
 		</div>
+
+		{#if currentCadence === 'monthly'}
+			<label class="toggle-row">
+				<input
+					type="checkbox"
+					class="toggle-check"
+					checked={paydayAligned}
+					onchange={(e) => handlePaydayToggle(e.currentTarget.checked)}
+					disabled={saving}
+				/>
+				<span class="toggle-label">Start periods on my payday</span>
+			</label>
+			{#if paydayAligned}
+				<div class="field">
+					<label for="payday-day">Payday — day of month</label>
+					<select
+						id="payday-day"
+						value={paydayDayValue}
+						onchange={(e) => handlePaydayDayChange(e.currentTarget.value)}
+						disabled={saving}
+					>
+						{#each Array.from({ length: 28 }, (_, i) => i + 1) as day}
+							<option value={String(day)}>{day}</option>
+						{/each}
+					</select>
+					<p class="field-hint">Periods run from the {paydayDayValue}{ordinal(Number(paydayDayValue))} to the day before your next payday.</p>
+				</div>
+			{/if}
+		{/if}
+
 		<div class="field">
-			<label for="notify-time">Notify me at</label>
+			<label for="notify-time">Remind me at</label>
 			<input
 				id="notify-time"
 				type="time"
@@ -310,5 +366,32 @@
 	.copyright {
 		color: var(--color-text-subtle);
 		font-size: 0.8125rem;
+	}
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		cursor: pointer;
+		min-height: var(--tap-target);
+	}
+
+	.toggle-check {
+		width: 18px;
+		height: 18px;
+		flex: none;
+		accent-color: var(--color-gold);
+		cursor: pointer;
+	}
+
+	.toggle-label {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+	}
+
+	.field-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		margin-top: calc(var(--space-2) * -0.5);
 	}
 </style>

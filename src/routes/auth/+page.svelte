@@ -1,18 +1,19 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	const { error: urlError } = data;
 
 	type AuthState = 'idle' | 'submitting' | 'sent';
 
-	const initialError =
-		urlError === 'invalid' ? 'Link expired or already used. Request a new one.' : null;
-
 	let authState = $state<AuthState>('idle');
 	let email = $state('');
-	let formError = $state<string | null>(initialError);
+	let formError = $state<string | null>(
+		untrack(() => data.error) === 'invalid'
+			? 'Link expired or already used. Request a new one.'
+			: null
+	);
 	// The verify token, when the server reveals it (dev, or closed-testing flag).
 	let devToken = $state<string | null>(null);
 

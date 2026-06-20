@@ -16,6 +16,87 @@ import { describe, it, expect } from 'vitest';
  * 5. freshStart option seals all older open periods in one action
  */
 
+// ── Payday-aligned period computation ─────────────────────────────────────────
+// Tests the period boundary logic for monthly cadence with a numeric harbour_day.
+// Logic: if today >= payday → period started this month; otherwise started last month.
+// Period end = payday - 1 of the month after period_start.
+
+function computePaydayPeriod(
+	paydayOfMonth: number,
+	now: Date
+): { start: string; end: string } {
+	function ymd(d: Date): string {
+		const y = d.getFullYear();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${y}-${m}-${day}`;
+	}
+	const year = now.getFullYear();
+	const month = now.getMonth();
+	const today = now.getDate();
+	const startMonth = today < paydayOfMonth ? month - 1 : month;
+	const startYear = startMonth < 0 ? year - 1 : year;
+	const normalizedStartMonth = startMonth < 0 ? 11 : startMonth;
+	const start = new Date(startYear, normalizedStartMonth, paydayOfMonth);
+	const end = new Date(startYear, normalizedStartMonth + 1, paydayOfMonth - 1);
+	return { start: ymd(start), end: ymd(end) };
+}
+
+describe('payday-aligned period computation', () => {
+	it('starts period on payday when today is on payday', () => {
+		const { start, end } = computePaydayPeriod(25, new Date(2026, 5, 25)); // June 25
+		expect(start).toBe('2026-06-25');
+		expect(end).toBe('2026-07-24');
+	});
+
+	it('starts period on payday when today is after payday', () => {
+		const { start, end } = computePaydayPeriod(25, new Date(2026, 5, 30)); // June 30
+		expect(start).toBe('2026-06-25');
+		expect(end).toBe('2026-07-24');
+	});
+
+	it('starts period on previous month payday when today is before payday', () => {
+		const { start, end } = computePaydayPeriod(25, new Date(2026, 5, 20)); // June 20
+		expect(start).toBe('2026-05-25');
+		expect(end).toBe('2026-06-24');
+	});
+
+	it('handles year boundary (payday Jan 1 → period Dec to Dec)', () => {
+		// Today: Jan 5, payday 25 → last month's period Dec 25 → Jan 24
+		const { start, end } = computePaydayPeriod(25, new Date(2026, 0, 5)); // Jan 5
+		expect(start).toBe('2025-12-25');
+		expect(end).toBe('2026-01-24');
+	});
+
+	it('handles payday = 1 (calendar month)', () => {
+		// payday 1 = first of month = standard calendar month
+		// end = new Date(y, m+1, 0) = last day of start month
+		const { start, end } = computePaydayPeriod(1, new Date(2026, 5, 15)); // June 15, payday 1
+		expect(start).toBe('2026-06-01');
+		expect(end).toBe('2026-06-30'); // last day of June
+	});
+
+	it('handles payday 28 (avoids Feb 29 edge case)', () => {
+		const { start, end } = computePaydayPeriod(28, new Date(2026, 0, 29)); // Jan 29, after payday
+		expect(start).toBe('2026-01-28');
+		expect(end).toBe('2026-02-27');
+	});
+
+	it('period start and end are always a consecutive date range', () => {
+		// For any payday, end should be exactly one day before the next period start
+		const { start, end } = computePaydayPeriod(15, new Date(2026, 2, 20)); // March 20
+		// period: Mar 15 → Apr 14
+		expect(start).toBe('2026-03-15');
+		expect(end).toBe('2026-04-14');
+		// Check day count (Mar 15 to Apr 14 inclusive = 31 days)
+		const days =
+			(new Date('2026-04-14').getTime() - new Date('2026-03-15').getTime()) /
+				86_400_000 +
+			1;
+		expect(days).toBe(31);
+	});
+});
+
 describe('harbourPeriod drift mechanism', () => {
 	describe('drift calculation', () => {
 		it('computes drift as: real_balance - (opening + net_transactions)', () => {

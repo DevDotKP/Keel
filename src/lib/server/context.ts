@@ -1,23 +1,27 @@
 import type { Account, HarbourCadence } from '$lib/types';
 
-/** Resolve account + cadence in one batch. Pass rdb to serve from the nearest replica. */
+/** Resolve account + cadence + harbour_day in one batch. Pass rdb to serve from the nearest replica. */
 export async function resolveAccountAndCadence(
 	db: D1Database,
 	userId: string
-): Promise<{ account: Account | null; cadence: HarbourCadence }> {
-	const [accountRes, settingsRes] = await db.batch<Account | { harbour_cadence: HarbourCadence }>(
-		[
-			db
-				.prepare(
-					'SELECT * FROM accounts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1'
-				)
-				.bind(userId),
-			db.prepare('SELECT harbour_cadence FROM settings WHERE user_id = ?').bind(userId)
-		]
-	);
+): Promise<{ account: Account | null; cadence: HarbourCadence; harbourDay: string }> {
+	const [accountRes, settingsRes] = await db.batch<
+		Account | { harbour_cadence: HarbourCadence; harbour_day: string }
+	>([
+		db
+			.prepare(
+				'SELECT * FROM accounts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1'
+			)
+			.bind(userId),
+		db
+			.prepare('SELECT harbour_cadence, harbour_day FROM settings WHERE user_id = ?')
+			.bind(userId)
+	]);
 	const account = (accountRes.results?.[0] as Account) ?? null;
-	const cadence =
-		((settingsRes.results?.[0] as { harbour_cadence: HarbourCadence })?.harbour_cadence) ??
-		'monthly';
-	return { account, cadence };
+	const row = settingsRes.results?.[0] as
+		| { harbour_cadence: HarbourCadence; harbour_day: string }
+		| undefined;
+	const cadence = row?.harbour_cadence ?? 'monthly';
+	const harbourDay = row?.harbour_day ?? 'sunday';
+	return { account, cadence, harbourDay };
 }

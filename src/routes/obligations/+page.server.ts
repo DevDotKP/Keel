@@ -12,10 +12,10 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 
-	const { account, cadence } = await resolveAccountAndCadence(rdb, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId);
 	if (!account) return { obligations: [], categories: [] };
 
-	const period = await getOrCreateCurrentPeriod(db, account.id, cadence);
+	const period = await getOrCreateCurrentPeriod(db, account.id, cadence, harbourDay);
 	const [obligations, categories] = await Promise.all([
 		listObligations(rdb, locals.userId, period.id),
 		listCategories(rdb, locals.userId)

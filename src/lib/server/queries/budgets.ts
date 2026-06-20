@@ -11,10 +11,19 @@ export async function getBudgetOverview(
 	account_id: string,
 	user_id: string,
 	cadence: HarbourCadence,
+	harbourDayOrRdb?: string | D1Database,
 	rdb?: D1Database
 ): Promise<BudgetOverview> {
-	const readDb = rdb ?? db;
-	const period = await getOrCreateCurrentPeriod(db, account_id, cadence);
+	let harbourDay = 'sunday';
+	let readDbArg: D1Database | undefined;
+	if (typeof harbourDayOrRdb === 'string') {
+		harbourDay = harbourDayOrRdb;
+		readDbArg = rdb;
+	} else {
+		readDbArg = harbourDayOrRdb;
+	}
+	const readDb = readDbArg ?? db;
+	const period = await getOrCreateCurrentPeriod(db, account_id, cadence, harbourDay);
 	const from = period.period_start;
 	const to = nextDay(period.period_end);
 

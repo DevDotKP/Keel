@@ -10,9 +10,9 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 
-	const { account, cadence } = await resolveAccountAndCadence(rdb, locals.userId);
+	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId);
 	if (!account) return { overview: null };
 
-	const overview = await getBudgetOverview(db, account.id, locals.userId, cadence, rdb);
+	const overview = await getBudgetOverview(db, account.id, locals.userId, cadence, harbourDay, rdb);
 	return { overview };
 };

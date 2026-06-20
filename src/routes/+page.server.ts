@@ -12,25 +12,31 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 
-	// Read account + cadence from replica in one batch.
-	const [accountRes, settingsRes] = await rdb.batch<Account | { harbour_cadence: HarbourCadence }>([
+	// Read account + cadence + harbourDay from replica in one batch.
+	const [accountRes, settingsRes] = await rdb.batch<
+		Account | { harbour_cadence: HarbourCadence; harbour_day: string }
+	>([
 		db
 			.prepare(
 				'SELECT * FROM accounts WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1'
 			)
 			.bind(locals.userId),
-		db.prepare('SELECT harbour_cadence FROM settings WHERE user_id = ?').bind(locals.userId)
+		db
+			.prepare('SELECT harbour_cadence, harbour_day FROM settings WHERE user_id = ?')
+			.bind(locals.userId)
 	]);
 
 	const account = (accountRes.results?.[0] as Account) ?? null;
 	if (!account) return { summary: null, transactions: Promise.resolve([]), categories: Promise.resolve([]) };
-	const cadence =
-		((settingsRes.results?.[0] as { harbour_cadence: HarbourCadence })?.harbour_cadence) ??
-		'monthly';
+	const settingsRow = settingsRes.results?.[0] as
+		| { harbour_cadence: HarbourCadence; harbour_day: string }
+		| undefined;
+	const cadence = settingsRow?.harbour_cadence ?? 'monthly';
+	const harbourDay = settingsRow?.harbour_day ?? 'sunday';
 
 	// Return promises — the page shell renders immediately while D1 responds.
 	return {
-		summary: getAccountSummary(db, account.id, cadence, rdb),
+		summary: getAccountSummary(db, account.id, cadence, harbourDay, rdb),
 		transactions: listTransactions(rdb, { account_id: account.id, limit: 20 }),
 		categories: listCategories(rdb, locals.userId)
 	};
