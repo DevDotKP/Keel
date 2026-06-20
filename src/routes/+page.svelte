@@ -6,7 +6,36 @@
 	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
 	import type { PageData } from './$types';
-	import type { TransactionDraft, Transaction, ReconciliationPeriod } from '$lib/types';
+	import type { TransactionDraft, Transaction, ReconciliationPeriod, RunwaySummary } from '$lib/types';
+
+	function runwayDays(r: RunwaySummary): { low: number; high: number } | null {
+		const values = [r.days_30, r.days_7].filter((v): v is number => v !== null);
+		if (values.length === 0) return null;
+		return { low: Math.min(...values), high: Math.max(...values) };
+	}
+
+	function formatRunwayDays(n: number): string {
+		if (n >= 365) return '1yr+';
+		if (n >= 180) return '6mo+';
+		if (n >= 90) return '3mo+';
+		return `${n}`;
+	}
+
+	function runwayLabel(r: RunwaySummary): string {
+		const range = runwayDays(r);
+		if (!range) return '';
+		const { low, high } = range;
+		if (high - low <= 5) return `~${formatRunwayDays(low)} days`;
+		return `${formatRunwayDays(low)}–${formatRunwayDays(high)} days`;
+	}
+
+	function runwayExtra(r: RunwaySummary): number | null {
+		const range = runwayDays(r);
+		if (!range) return null;
+		if (r.days_committed === null) return null;
+		const extra = r.days_committed - range.low;
+		return extra > 1 ? extra : null;
+	}
 
 	let { data }: { data: PageData } = $props();
 
@@ -61,13 +90,17 @@
 	<title>Dashboard - Keel</title>
 </svelte:head>
 
-{#await Promise.all([data.summary, data.transactions, data.categories])}
+{#await Promise.all([data.summary, data.transactions, data.categories, data.runway])}
 	<div class="dashboard">
 		<section class="hero" aria-hidden="true">
 			<div class="skel skel-label"></div>
 			<div class="skel skel-hero"></div>
 			<div class="skel skel-sub"></div>
 		</section>
+		<div class="runway-card" aria-hidden="true">
+			<div class="skel skel-label" style="width:60px"></div>
+			<div class="skel" style="height:28px;width:120px;margin-top:4px"></div>
+		</div>
 		<section class="ledger-section">
 			<div class="skel skel-section-head"></div>
 			{#each [1, 2, 3] as _}
@@ -75,7 +108,7 @@
 			{/each}
 		</section>
 	</div>
-{:then [summary, transactions, categories]}
+{:then [summary, transactions, categories, runway]}
 	{@const catById = new Map(categories.map((c) => [c.id, c]))}
 	{@const reservedEssentials = categories
 		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
@@ -166,6 +199,19 @@
 						>{formatPaiseLedger(summary.safe_to_spend_paise)}</span
 					>
 				</div>
+			</section>
+		{/if}
+
+		<!-- Runway: balance ÷ trailing burn, forward-looking safety signal (not guilt). -->
+		{#if runway?.has_data}
+			{@const label = runwayLabel(runway!)}
+			{@const extra = runwayExtra(runway!)}
+			<section class="runway-card" aria-label="Runway estimate">
+				<p class="runway-label">Runway</p>
+				<p class="runway-days">{label}</p>
+				{#if extra !== null}
+					<p class="runway-extra">+{formatRunwayDays(extra)} days if you cut discretionary</p>
+				{/if}
 			</section>
 		{/if}
 
@@ -275,13 +321,14 @@
 			padding: var(--space-8);
 		}
 
-		/* Left column: hero, breakdown, harbour nudge */
-		.hero     { grid-column: 1; grid-row: 1; }
-		.breakdown { grid-column: 1; grid-row: 2; }
-		.harbour-nudge { grid-column: 1; grid-row: 3; }
+		/* Left column: hero, breakdown, runway, harbour nudge */
+		.hero          { grid-column: 1; grid-row: 1; }
+		.breakdown     { grid-column: 1; grid-row: 2; }
+		.runway-card   { grid-column: 1; grid-row: 3; }
+		.harbour-nudge { grid-column: 1; grid-row: 4; }
 
 		/* Right column: ledger */
-		.ledger-section { grid-column: 2; grid-row: 1 / span 3; }
+		.ledger-section { grid-column: 2; grid-row: 1 / span 4; }
 	}
 
 	.hero {
@@ -424,6 +471,40 @@
 		font-size: 1.375rem;
 		font-weight: 700;
 		color: var(--color-text);
+	}
+
+	/* Runway: compact forward signal. Calm, not loud. */
+	.runway-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.runway-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-subtle);
+	}
+
+	.runway-days {
+		font-family: var(--font-display);
+		font-size: 1.75rem;
+		font-weight: 700;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums lining-nums;
+		line-height: 1.1;
+	}
+
+	.runway-extra {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		margin-top: var(--space-1);
 	}
 
 	/* Harbour: the open-loop invitation. Icon disc, two lines, chevron. Not gold. */

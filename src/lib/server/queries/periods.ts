@@ -1,4 +1,4 @@
-import type { ReconciliationPeriod, AccountSummary, HarbourCadence } from '$lib/types';
+import type { ReconciliationPeriod, AccountSummary, HarbourCadence, RunwaySummary } from '$lib/types';
 
 // ── Date helpers (local, not UTC, so period boundaries match the user's day) ───
 // Note: occurred_at is stored as a UTC ISO datetime; near-midnight entries can
@@ -307,6 +307,67 @@ export async function getAccountSummary(
 		locked_reserve_paise,
 		daily_reserve_paise,
 		days_remaining
+	};
+}
+
+/**
+ * Runway: how many days the current balance lasts at the trailing burn rate.
+ * Two windows (30-day and 7-day) bound the estimate. A committed-only 30-day
+ * figure powers the "cut discretionary: +X days" secondary line.
+ */
+export async function getRunway(db: D1Database, account_id: string): Promise<RunwaySummary> {
+	type RunwayRow = {
+		balance_paise: number;
+		spend_30d: number;
+		spend_7d: number;
+		committed_spend_30d: number;
+	};
+
+	const row = await db
+		.prepare(
+			`SELECT
+			   (SELECT balance_paise FROM accounts WHERE id = ?1) AS balance_paise,
+			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
+			      FROM transactions t
+			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
+			        AND t.occurred_at >= datetime('now', '-30 days')) AS spend_30d,
+			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
+			      FROM transactions t
+			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
+			        AND t.occurred_at >= datetime('now', '-7 days')) AS spend_7d,
+			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
+			      FROM transactions t
+			      JOIN categories c ON c.id = t.category_id
+			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
+			        AND c.bucket = 'committed'
+			        AND t.occurred_at >= datetime('now', '-30 days')) AS committed_spend_30d`
+		)
+		.bind(account_id)
+		.first<RunwayRow>();
+
+	const balance = row?.balance_paise ?? 0;
+	const spend30 = row?.spend_30d ?? 0;
+	const spend7 = row?.spend_7d ?? 0;
+	const committed30 = row?.committed_spend_30d ?? 0;
+
+	const daily30 = spend30 / 30;
+	const daily7 = spend7 / 7;
+	const dailyCommitted = committed30 / 30;
+
+	const runway = (bal: number, daily: number): number | null => {
+		if (daily <= 0) return null;
+		return bal <= 0 ? 0 : Math.min(Math.floor(bal / daily), 9999);
+	};
+
+	return {
+		balance_paise: balance,
+		days_30: runway(balance, daily30),
+		daily_burn_30_paise: Math.round(daily30),
+		days_7: runway(balance, daily7),
+		daily_burn_7_paise: Math.round(daily7),
+		days_committed: runway(balance, dailyCommitted),
+		daily_burn_committed_paise: Math.round(dailyCommitted),
+		has_data: spend30 > 0 || spend7 > 0
 	};
 }
 

@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { getDb, getReadDb } from '$lib/server/db';
-import { getAccountSummary } from '$lib/server/queries/periods';
+import { getAccountSummary, getRunway } from '$lib/server/queries/periods';
 import { listTransactions } from '$lib/server/queries/transactions';
 import { listCategories } from '$lib/server/queries/categories';
 import type { Account, HarbourCadence } from '$lib/types';
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	]);
 
 	const account = (accountRes.results?.[0] as Account) ?? null;
-	if (!account) return { summary: null, transactions: Promise.resolve([]), categories: Promise.resolve([]) };
+	if (!account) return { summary: null, transactions: Promise.resolve([]), categories: Promise.resolve([]), runway: Promise.resolve(null) };
 	const settingsRow = settingsRes.results?.[0] as
 		| { harbour_cadence: HarbourCadence; harbour_day: string }
 		| undefined;
@@ -38,6 +38,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	return {
 		summary: getAccountSummary(db, account.id, cadence, harbourDay, rdb),
 		transactions: listTransactions(rdb, { account_id: account.id, limit: 20 }),
-		categories: listCategories(rdb, locals.userId)
+		categories: listCategories(rdb, locals.userId),
+		runway: getRunway(rdb, account.id)
 	};
 };

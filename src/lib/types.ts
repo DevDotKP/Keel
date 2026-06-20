@@ -208,3 +208,17 @@ export interface BudgetOverview {
 	cycle_budget_paise: number; // overall target (0 = none)
 	period: ReconciliationPeriod;
 }
+
+export interface RunwaySummary {
+	balance_paise: number;
+	// Trailing 30-day window (more stable estimate)
+	days_30: number | null; // null = no spend yet
+	daily_burn_30_paise: number;
+	// Trailing 7-day window (recent pace)
+	days_7: number | null;
+	daily_burn_7_paise: number;
+	// Committed-only burn (30-day): flexible spend removed
+	days_committed: number | null;
+	daily_burn_committed_paise: number;
+	has_data: boolean; // false until the user has logged anything
+}
