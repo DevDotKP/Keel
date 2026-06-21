@@ -90,13 +90,20 @@ export function captureOnce(options: { signal?: AbortSignal } = {}): Promise<Cap
 		}
 
 		rec.onresult = (event: SpeechRecognitionEvent) => {
-			for (let i = event.resultIndex; i < event.results.length; i++) {
+			// Recompute the full final transcript from all results on each event.
+			// Chrome can redeliver the same final segment across multiple onresult
+			// events; accumulating with += duplicated it (the "logged thrice" bug).
+			let assembled = '';
+			let conf = 0;
+			for (let i = 0; i < event.results.length; i++) {
 				const res = event.results[i];
 				if (res.isFinal) {
-					finalTranscript += res[0].transcript;
-					bestConfidence = Math.max(bestConfidence, res[0].confidence ?? 0);
+					assembled += res[0].transcript;
+					conf = Math.max(conf, res[0].confidence ?? 0);
 				}
 			}
+			finalTranscript = assembled;
+			bestConfidence = conf;
 			armSilence(); // reset the pause countdown while speech keeps arriving
 		};
 
