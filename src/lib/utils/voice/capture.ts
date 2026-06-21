@@ -7,8 +7,8 @@ export interface CaptureResult {
 }
 
 // How long to keep listening after the user stops talking, and a hard ceiling.
-// Kept short so capture ends promptly; the user can also stop manually.
-const SILENCE_MS = 5_000;
+// Short so capture ends promptly once speech stops; the user can also stop manually.
+const SILENCE_MS = 2_500;
 const MAX_MS = 30_000;
 
 /** True when Web Speech API is available (Android/Chrome; false on iOS Safari). */

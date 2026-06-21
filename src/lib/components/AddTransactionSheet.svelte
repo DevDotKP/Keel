@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Mic, Square, X } from 'lucide-svelte';
 	import Spinner from './Spinner.svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaise } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
@@ -33,6 +34,11 @@
 	let pendingVoice = $state<{ raw_transcript: string; parsed_json: string } | null>(null);
 	let categoryManuallySet = $state(false);
 
+	// Inline category creation from the picker.
+	let showNewCategory = $state(false);
+	let newCatName = $state('');
+	let creatingCat = $state(false);
+
 	const speechSupported = isSpeechSupported();
 
 	// Derived: parsed paise from the amount field
@@ -53,6 +59,45 @@
 		entryKind = kind;
 		const stillValid = categories.find((c) => c.id === categoryId && c.kind === kind);
 		if (!stillValid) categoryId = '';
+	}
+
+	function onCategoryChange(e: Event) {
+		const v = (e.currentTarget as HTMLSelectElement).value;
+		if (v === '__new__') {
+			showNewCategory = true;
+			categoryId = '';
+			return;
+		}
+		categoryManuallySet = true;
+	}
+
+	function cancelNewCategory() {
+		showNewCategory = false;
+		newCatName = '';
+	}
+
+	// Create a category inline and select it, without leaving the sheet.
+	async function createCategoryInline() {
+		const name = newCatName.trim();
+		if (!name) return;
+		creatingCat = true;
+		error = null;
+		const res = await fetch('/api/categories', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ name, color: '#6B7280', kind: entryKind, bucket: 'flexible' })
+		});
+		creatingCat = false;
+		if (!res.ok) {
+			error = res.status === 409 ? 'That category already exists' : 'Could not create category';
+			return;
+		}
+		const created = (await res.json()) as { id: string };
+		await invalidateAll();
+		categoryId = created.id;
+		categoryManuallySet = true;
+		showNewCategory = false;
+		newCatName = '';
 	}
 
 	// ── Prefill from a draft (called after voice parse) ────────────────────
@@ -377,12 +422,33 @@
 			<!-- Category: only those matching the chosen kind. Kind sets the sign. -->
 			<div class="field">
 				<label for="category">Category</label>
-				<select id="category" bind:value={categoryId} onchange={() => (categoryManuallySet = true)}>
+				<select id="category" bind:value={categoryId} onchange={onCategoryChange}>
 					<option value="">{entryKind === 'income' ? 'Income (uncategorised)' : 'Uncategorized'}</option>
 					{#each pickableCategories as cat}
 						<option value={cat.id}>{cat.name}</option>
 					{/each}
+					<option value="__new__">+ New category</option>
 				</select>
+				{#if showNewCategory}
+					<div class="new-cat-row">
+						<input
+							type="text"
+							class="new-cat-input"
+							placeholder="New category name"
+							bind:value={newCatName}
+							maxlength="50"
+						/>
+						<button
+							type="button"
+							class="new-cat-add"
+							onclick={createCategoryInline}
+							disabled={creatingCat || !newCatName.trim()}
+						>
+							{#if creatingCat}<Spinner size={14} label="Creating" />{:else}Add{/if}
+						</button>
+						<button type="button" class="new-cat-cancel" onclick={cancelNewCategory}>Cancel</button>
+					</div>
+				{/if}
 			</div>
 
 			<!-- Description -->
@@ -665,6 +731,64 @@
 		clip: rect(0,0,0,0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	.new-cat-row {
+		display: flex;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+
+	.new-cat-input {
+		flex: 1;
+		min-width: 0;
+		height: 44px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+	}
+
+	.new-cat-input:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	/* Secondary, not gold: Save stays the one primary action in the sheet. */
+	.new-cat-add {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 44px;
+		min-width: 56px;
+		padding: 0 var(--space-4);
+		background: var(--color-surface-subtle);
+		color: var(--color-text);
+		font-weight: 600;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.new-cat-add:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.new-cat-cancel {
+		flex: none;
+		height: 44px;
+		padding: 0 var(--space-3);
+		background: none;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text-muted);
+		cursor: pointer;
+		font-family: inherit;
 	}
 
 	@keyframes fade-in {
