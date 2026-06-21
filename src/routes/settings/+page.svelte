@@ -246,11 +246,20 @@
 				<p class="error" role="alert">{inviteError}</p>
 			{/if}
 			{#if inviteResult}
+				{@const fullLink = `${window.location.origin}${inviteResult.invite_url}`}
 				<p class="invite-link-hint">
 					Share this link with {inviteEmail || 'the invitee'}:
-					<br />
-					<code class="invite-link">{inviteResult.invite_url}</code>
 				</p>
+				<div class="invite-link-row">
+					<code class="invite-link">{fullLink}</code>
+					<button
+						class="copy-btn"
+						onclick={() => navigator.clipboard.writeText(fullLink)}
+						aria-label="Copy invite link"
+					>
+						Copy
+					</button>
+				</div>
 			{/if}
 		{/if}
 	</section>
@@ -573,14 +582,43 @@
 		line-height: 1.6;
 	}
 
+	.invite-link-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
+	}
+
 	.invite-link {
-		display: inline-block;
+		flex: 1;
+		min-width: 0;
+		display: block;
 		font-size: 0.8125rem;
 		background: var(--color-surface-subtle);
-		padding: var(--space-1) var(--space-2);
+		padding: var(--space-2) var(--space-3);
 		border-radius: var(--radius-sm);
 		word-break: break-all;
 		color: var(--color-text);
-		margin-top: var(--space-1);
+		border: 1px solid var(--color-border);
+	}
+
+	.copy-btn {
+		flex: none;
+		height: 36px;
+		padding: 0 var(--space-3);
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		cursor: pointer;
+		font-family: inherit;
+		white-space: nowrap;
+	}
+
+	.copy-btn:hover {
+		color: var(--color-text);
+		border-color: var(--color-text-subtle);
 	}
 </style>
