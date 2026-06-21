@@ -2,13 +2,15 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { getDb } from '$lib/server/db';
+import { INDIAN_STATES } from '$lib/holidays';
 import type { Settings } from '$lib/types';
 
 const PatchSettingsSchema = z.object({
 	harbour_cadence: z.enum(['weekly', 'fortnightly', 'monthly']).optional(),
 	harbour_day: z.string().optional(),
 	harbour_notify_at: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-	cycle_budget_paise: z.number().int().min(0).optional()
+	cycle_budget_paise: z.number().int().min(0).optional(),
+	home_state: z.enum(INDIAN_STATES).nullable().optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
@@ -49,6 +51,10 @@ export const PATCH: RequestHandler = async ({ platform, locals, request }) => {
 	if (updates.cycle_budget_paise !== undefined) {
 		setClauses.push('cycle_budget_paise = ?');
 		bindings.push(updates.cycle_budget_paise);
+	}
+	if (updates.home_state !== undefined) {
+		setClauses.push('home_state = ?');
+		bindings.push(updates.home_state);
 	}
 
 	if (setClauses.length === 0) {

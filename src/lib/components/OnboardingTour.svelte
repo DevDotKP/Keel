@@ -14,37 +14,37 @@
 	const STEPS: TourStep[] = [
 		{
 			title: 'Welcome to Keel',
-			body: 'A quick walk through three things you need to know. Takes about a minute. Skip at any time.'
+			body: 'A one-minute tour of the three things that matter. Skip anytime.'
 		},
 		{
 			title: 'Safe to spend',
-			body: 'This is the number that matters. Not your bank balance — your bank balance minus what you still owe this cycle. Updated every time you log an expense.',
+			body: "What's left after what you still owe this cycle. Not your bank balance.",
 			target: '[aria-label="Safe to spend"]',
 			placement: 'below'
 		},
 		{
 			title: 'The cycle',
-			body: 'Keel tracks money in cycles — weekly, fortnightly, or monthly. Pick the cadence in Settings. Each cycle starts fresh. Miss a day and nothing breaks.',
+			body: 'Keel works in cycles: weekly, fortnightly, or monthly. Each one starts fresh.',
 			target: '[aria-label="Safe to spend"]',
 			placement: 'below'
 		},
 		{
 			title: 'Log an expense',
-			body: 'Tap the gold button whenever you spend. Amount first, then a description. Done in under 3 seconds. Speak it instead: say "Swiggy 200 rupees" to use voice.',
+			body: 'Tap the gold button. Amount first. Or just say "Swiggy 200 rupees".',
 			target: '.fab',
 			placement: 'above'
 		},
 		{
 			title: 'The Harbour',
-			body: 'At the end of each cycle, you come to Harbour. Type your real bank balance — Keel squares the books. Missed entries become Uncategorized, not errors. Clean slate. No guilt.'
+			body: 'At cycle end, type your real balance. Keel squares the books. No guilt.'
 		},
 		{
 			title: 'The gold dot',
-			body: "A gold dot beside an entry means it hasn't been categorized yet. It never corrupts your totals — it waits quietly until your next Harbour, when you can sort it or leave it."
+			body: 'A gold dot means an entry is uncategorized. It waits for Harbour and never breaks your totals.'
 		},
 		{
 			title: "That's Keel",
-			body: 'Log expenses as they happen. Come to Harbour at the end of each cycle. The habit is forgiving on purpose — that is the only kind that sticks.'
+			body: 'Log as you spend. Square up at Harbour. Forgiving by design.'
 		}
 	];
 
@@ -261,11 +261,11 @@
 
 	.tour-title {
 		font-family: var(--font-display);
-		font-size: 1.0625rem;
+		font-size: 1.25rem;
 		font-weight: 700;
 		color: var(--color-text);
 		margin: 0;
-		line-height: 1.3;
+		line-height: 1.25;
 	}
 
 	.tour-close {
@@ -289,9 +289,9 @@
 	}
 
 	.tour-body {
-		font-size: 0.9375rem;
+		font-size: 1rem;
 		color: var(--color-text-muted);
-		line-height: 1.6;
+		line-height: 1.55;
 		margin: 0;
 		padding: 0 var(--space-5) var(--space-2);
 	}

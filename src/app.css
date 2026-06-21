@@ -41,6 +41,9 @@
   /* Uncategorized dot: calm gold, not an alarm */
   --color-uncategorized: var(--color-gold);
 
+  /* Positive / "good" signal (tracking quality, zero drift). Shares the income teal. */
+  --color-positive: var(--color-income);
+
   /* Typography */
   --font-display: 'Fraunces', Georgia, serif; /* hero figures and section heads only */
   --font-ui:      system-ui, -apple-system, 'Segoe UI', sans-serif;

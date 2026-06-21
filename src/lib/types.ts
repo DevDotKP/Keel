@@ -58,6 +58,7 @@ export interface Settings {
 	harbour_day: string; // 'sunday', 'monday', 'payday', etc.
 	harbour_notify_at: string; // 'HH:MM'
 	cycle_budget_paise: number; // optional overall spending target for the cycle (0 = none)
+	home_state: string | null; // user's state, for the bank-holiday calendar (null = not set)
 }
 
 export interface Account {

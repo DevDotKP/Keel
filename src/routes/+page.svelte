@@ -5,8 +5,9 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
-	import { formatDisplayDate } from '$lib/utils/date';
+	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
 	import { enqueueTransaction } from '$lib/utils/offline-queue';
+	import { toast } from '$lib/stores/toast';
 	import type { PageData } from './$types';
 	import type { TransactionDraft, Transaction, ReconciliationPeriod, RunwaySummary } from '$lib/types';
 
@@ -44,6 +45,10 @@
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
 	let editingTx = $state<Transaction | null>(null);
+	// Entries hidden during the undo window, before their delete commits.
+	let hiddenIds = $state<string[]>([]);
+	// Show attribution and time only when the household has more than one member.
+	let isShared = $derived(Object.keys(data.memberEmails ?? {}).length > 1);
 
 	function periodRange(p: ReconciliationPeriod): string {
 		return `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`;
@@ -89,9 +94,27 @@
 		}
 	}
 
-	async function handleDelete(id: string): Promise<void> {
-		const res = await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
-		if (res.ok) await invalidateAll();
+	function commitDelete(id: string): void {
+		// Soft-delete on the server, then refresh. Runs after the undo window closes.
+		fetch(`/api/transactions/${id}`, { method: 'DELETE' })
+			.then((res) => (res.ok ? invalidateAll() : undefined))
+			.finally(() => {
+				hiddenIds = hiddenIds.filter((x) => x !== id);
+			});
+	}
+
+	function handleDelete(id: string): void {
+		// Hide optimistically; commit after the undo window, or restore on undo.
+		hiddenIds = [...hiddenIds, id];
+		toast.show({
+			message: 'Entry deleted',
+			actionLabel: 'Undo',
+			onAction: () => {
+				hiddenIds = hiddenIds.filter((x) => x !== id);
+			},
+			onExpire: () => commitDelete(id),
+			duration: 5000
+		});
 	}
 </script>
 
@@ -122,6 +145,7 @@
 	{@const reservedEssentials = categories
 		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
 		.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)}
+	{@const visibleTransactions = transactions.filter((t) => !hiddenIds.includes(t.id))}
 
 	<div class="dashboard">
 		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
@@ -154,12 +178,12 @@
 					<span class="money breakdown-amount">{formatPaiseLedger(summary.remaining_paise)}</span>
 				</div>
 				{#if summary.locked_obligations_paise > 0}
-					<div class="breakdown-row">
+					<a class="breakdown-row breakdown-row--link" href="/obligations">
 						<span class="breakdown-label">Obligations still due</span>
 						<span class="money breakdown-amount muted"
 							>−{formatPaiseLedger(summary.locked_obligations_paise)}</span
 						>
-					</div>
+					</a>
 				{/if}
 				{#if summary.locked_reserve_paise > 0}
 					<div class="breakdown-row">
@@ -245,16 +269,15 @@
 				<a href="/transactions" class="see-all-link">See all</a>
 			</div>
 
-			{#if transactions.length === 0}
+			{#if visibleTransactions.length === 0}
 				<EmptyState heading="No entries yet" body="Add your first expense below." />
 			{:else}
 				<ul class="ledger">
-					{#each transactions as tx (tx.id)}
+					{#each visibleTransactions as tx (tx.id)}
 						{@const cat = catById.get(tx.category_id)}
 						{@const income = tx.amount_paise >= 0}
 						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-						{@const addedByOther = tx.entered_by && tx.entered_by !== data.currentUserId}
-						{@const byLabel = addedByOther ? ((data.memberEmails[tx.entered_by!] ?? '').split('@')[0]) : ''}
+						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'you' : (data.memberEmails[tx.entered_by] ?? '').split('@')[0]) : ''}
 						<li class="ledger-row">
 							<button
 								class="row-tap"
@@ -272,10 +295,14 @@
 											<span class="meta-sep" aria-hidden="true">·</span>
 										{/if}
 										<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
-										{#if addedByOther && byLabel}
-											<span class="meta-sep" aria-hidden="true">·</span>
-											<span class="ledger-by">by {byLabel}</span>
-										{/if}
+										{#if isShared}
+												{#if enteredByName}
+													<span class="meta-sep" aria-hidden="true">·</span>
+													<span class="ledger-by">by {enteredByName}</span>
+												{/if}
+												<span class="meta-sep" aria-hidden="true">·</span>
+												<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
+											{/if}
 									</span>
 									{#if tx.note}
 										<span class="ledger-note">{tx.note}</span>
@@ -414,6 +441,21 @@
 	.breakdown-amount.muted {
 		color: var(--color-text-muted);
 		font-weight: 500;
+	}
+
+	/* Tappable breakdown row: surfaces the Obligations page where its number lives. */
+	.breakdown-row--link {
+		text-decoration: none;
+		color: inherit;
+		margin: 0 calc(var(--space-2) * -1);
+		padding-left: var(--space-2);
+		padding-right: var(--space-2);
+		border-radius: var(--radius-sm);
+		transition: background var(--duration-fast) var(--ease-out);
+	}
+
+	.breakdown-row--link:hover {
+		background: var(--color-surface);
 	}
 
 	/* Expandable "Reserved for essentials" toggle */
@@ -671,6 +713,12 @@
 	.ledger-by {
 		font-size: 0.75rem;
 		color: var(--color-text-subtle);
+	}
+
+	.ledger-time {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		font-variant-numeric: tabular-nums;
 	}
 
 	.meta-sep {

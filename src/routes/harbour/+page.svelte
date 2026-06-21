@@ -9,8 +9,16 @@
 	let { data }: { data: PageData } = $props();
 
 	let submitting = $state(false);
-	let balanceInput = $state('');
+	let balanceInput = $state(initialBalance());
 	let error = $state<string | null>(null);
+
+	// Prefill with Keel's estimate so the user confirms or adjusts, not types from zero.
+	function initialBalance(): string {
+		if (!data.period || data.estimatePaise <= 0) return '';
+		return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2 }).format(
+			data.estimatePaise / 100
+		);
+	}
 
 	let catById = $derived(new Map(data.categories.map((c) => [c.id, c])));
 	let enteredPaise = $derived(parseToPaise(balanceInput));

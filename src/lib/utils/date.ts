@@ -71,6 +71,28 @@ export function formatDisplayDate(iso: string): string {
 }
 
 /**
+ * Format a logging timestamp as an IST clock time, e.g. '9:30 pm'.
+ * Accepts SQLite UTC ('YYYY-MM-DD HH:MM:SS', as entered_at is stored) or any
+ * ISO string. Offset is applied manually so it does not depend on the runtime
+ * shipping IANA timezone data (Cloudflare Workers may not).
+ */
+export function formatIstTime(input: string): string {
+	if (!input) return '';
+	// SQLite datetime('now') is UTC with no zone marker; tag it as UTC.
+	const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(input)
+		? input.replace(' ', 'T') + 'Z'
+		: input;
+	const d = new Date(iso);
+	if (isNaN(d.getTime())) return '';
+	const ist = new Date(d.getTime() + IST_OFFSET_MS);
+	let h = ist.getUTCHours();
+	const m = ist.getUTCMinutes();
+	const ampm = h >= 12 ? 'pm' : 'am';
+	h = h % 12 || 12;
+	return `${h}:${m.toString().padStart(2, '0')} ${ampm}`;
+}
+
+/**
  * Return the Monday of the week containing the given date.
  * Used for computing period_start when cadence is weekly.
  */

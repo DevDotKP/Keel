@@ -5,6 +5,7 @@
 	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
 	import ClarityLoader from '$lib/components/ClarityLoader.svelte';
 	import InstallPrompt from '$lib/components/InstallPrompt.svelte';
+	import Toast from '$lib/components/Toast.svelte';
 
 	let { children } = $props();
 
@@ -28,6 +29,7 @@
 </main>
 
 <InstallPrompt />
+<Toast />
 
 {#if showChrome}
 	<BottomNav />

@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { installPrompt } from '$lib/stores/install';
+	import { INDIAN_STATES } from '$lib/holidays';
 
 	let { data }: { data: PageData } = $props();
 
@@ -55,6 +56,11 @@
 
 	async function handleNotifyTimeChange(time: string) {
 		await patch({ harbour_notify_at: time });
+	}
+
+	async function handleStateChange(state: string) {
+		if (!state) return;
+		await patch({ home_state: state });
 	}
 
 	function ordinal(n: number): string {
@@ -166,6 +172,28 @@
 				<span>Saving…</span>
 			</p>
 		{/if}
+	</section>
+
+	<!-- Location: picks the bank-holiday calendar for recurring scheduling -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Location</h2>
+		<p class="settings-hint">
+			Your state. Keel uses it to skip bank holidays when scheduling recurring income.
+		</p>
+		<div class="field">
+			<label for="home-state">State</label>
+			<select
+				id="home-state"
+				value={data.settings?.home_state ?? ''}
+				onchange={(e) => handleStateChange(e.currentTarget.value)}
+				disabled={saving}
+			>
+				<option value="" disabled>Select your state</option>
+				{#each INDIAN_STATES as st}
+					<option value={st}>{st}</option>
+				{/each}
+			</select>
+		</div>
 	</section>
 
 	<!-- Manage -->

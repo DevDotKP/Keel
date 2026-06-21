@@ -447,7 +447,7 @@
 
 	.prog-fill {
 		height: 100%;
-		background: var(--color-gold);
+		background: var(--color-text-muted);
 		border-radius: var(--radius-full);
 		transition: width 0.3s var(--ease-out);
 	}
@@ -736,8 +736,8 @@
 	}
 
 	.drift-badge--perfect {
-		background: color-mix(in srgb, var(--color-gold) 15%, transparent);
-		color: var(--color-gold);
+		background: color-mix(in srgb, var(--color-positive) 15%, transparent);
+		color: var(--color-positive);
 	}
 
 	.drift-sub {
@@ -772,9 +772,9 @@
 
 	.drift-bar {
 		width: 100%;
-		background: var(--color-gold);
+		background: var(--color-text-muted);
 		border-radius: 2px 2px 0 0;
-		opacity: 0.7;
+		opacity: 1;
 		transition: height 300ms ease-out;
 	}
 
