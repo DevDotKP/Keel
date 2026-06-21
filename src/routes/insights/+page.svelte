@@ -264,6 +264,9 @@
 												style="width:{Math.min(100, pct(c.spent_paise, c.budget_paise))}%"
 											></span>
 										</span>
+										<span class="budget-caption" class:budget-caption--over={budgetOver}>
+											Budget {formatPaiseLedger(c.budget_paise)} · {pct(c.spent_paise, c.budget_paise)}% used
+										</span>
 									{/if}
 								</span>
 								<span class="cat-right">
@@ -631,6 +634,16 @@
 	}
 
 	.budget-fill--over { background: var(--color-clay); }
+
+	.budget-caption {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		margin-top: 2px;
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.budget-caption--over { color: var(--color-clay); }
 
 	.cat-right {
 		display: flex;
