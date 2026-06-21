@@ -37,9 +37,17 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// Falls back to userId so the app works even before ensureUserSetup creates the membership row.
 	let householdId: string | null = null;
 	if (userId && event.platform?.env?.DB) {
+		// Prefer a shared household (household_id != user_id) over the user's own
+		// personal household, so an invited member sees the joint ledger, not their
+		// empty personal one. Earliest-joined breaks ties.
 		const hm = await getReadDb(event.platform)
-			.prepare('SELECT household_id FROM household_members WHERE user_id = ? LIMIT 1')
-			.bind(userId)
+			.prepare(
+				`SELECT household_id FROM household_members
+				 WHERE user_id = ?
+				 ORDER BY CASE WHEN household_id = ? THEN 1 ELSE 0 END ASC, joined_at ASC
+				 LIMIT 1`
+			)
+			.bind(userId, userId)
 			.first<{ household_id: string }>();
 		householdId = hm?.household_id ?? userId;
 	} else if (userId) {

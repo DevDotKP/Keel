@@ -8,14 +8,25 @@
 </svelte:head>
 
 <div class="join-page">
-	<h1 class="section-head">You've been invited</h1>
-	<p class="join-sub">
-		Join <strong>{data.invite.household_name}</strong> as a {data.invite.role}.
-	</p>
-
-	<form method="POST" action="?/accept&token={data.token}">
-		<button type="submit" class="primary-btn">Accept and join</button>
-	</form>
+	{#if data.status === 'ready'}
+		<h1 class="section-head">You've been invited</h1>
+		<p class="join-sub">
+			Join <strong>{data.household_name}</strong> as {data.role === 'admin' ? 'an admin' : 'a member'}.
+		</p>
+		<form method="POST" action="?/accept&token={data.token}">
+			<button type="submit" class="primary-btn">Accept and join</button>
+		</form>
+	{:else}
+		<h1 class="section-head">Invite unavailable</h1>
+		<p class="join-sub">
+			{#if data.status === 'expired'}
+				This invite link has expired or has already been used. Ask for a fresh one.
+			{:else}
+				This invite link is not valid. Check the link and try again.
+			{/if}
+		</p>
+		<a href="/" class="primary-btn" role="button">Go to Keel</a>
+	{/if}
 </div>
 
 <style>
@@ -35,6 +46,9 @@
 	}
 
 	.primary-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 100%;
 		height: 52px;
 		background: var(--color-gold);
@@ -44,5 +58,6 @@
 		border: none;
 		border-radius: var(--radius-md);
 		cursor: pointer;
+		text-decoration: none;
 	}
 </style>
