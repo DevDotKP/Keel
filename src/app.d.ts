@@ -11,6 +11,9 @@ declare global {
 		// returns the sign-in link directly (no email needed). Anyone who knows an
 		// email can then log in as them, so keep this OFF for any real launch.
 		MAGIC_LINK_REVEAL?: string;
+		// Google OAuth — set via: wrangler secret put GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+		GOOGLE_CLIENT_ID?: string;
+		GOOGLE_CLIENT_SECRET?: string;
 	}
 
 	namespace App {

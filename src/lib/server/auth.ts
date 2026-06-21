@@ -103,6 +103,33 @@ export async function issueMagicLink(
 }
 
 /**
+ * Create a session for the given user_id and set the session cookie.
+ * Called by both the magic-link verify path and the Google OAuth callback.
+ */
+export async function createSession(
+	db: D1Database,
+	event: RequestEvent,
+	userId: string
+): Promise<void> {
+	const sessionToken = randomToken();
+	const sessionHash = await sha256(sessionToken);
+	const expiresAt = sqliteUtc(new Date(Date.now() + COOKIE_MAX_AGE * 1000));
+
+	await db
+		.prepare('INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
+		.bind(userId, sessionHash, expiresAt)
+		.run();
+
+	event.cookies.set(SESSION_COOKIE, sessionToken, {
+		path: '/',
+		httpOnly: true,
+		secure: !dev,
+		sameSite: 'lax',
+		maxAge: COOKIE_MAX_AGE
+	});
+}
+
+/**
  * Verify a magic-link token.
  * On success: marks the token used, creates a session cookie, calls ensureUserSetup,
  * and returns the user. On failure: returns null.
@@ -139,23 +166,7 @@ export async function verifyMagicLink(
 	// Bootstrap user data (idempotent: no-op on subsequent logins).
 	await ensureUserSetup(db, user.id, user.email);
 
-	// Create session.
-	const sessionToken = randomToken();
-	const sessionHash = await sha256(sessionToken);
-	const expiresAt = sqliteUtc(new Date(Date.now() + COOKIE_MAX_AGE * 1000));
-
-	await db
-		.prepare('INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)')
-		.bind(user.id, sessionHash, expiresAt)
-		.run();
-
-	event.cookies.set(SESSION_COOKIE, sessionToken, {
-		path: '/',
-		httpOnly: true,
-		secure: !dev,
-		sameSite: 'lax',
-		maxAge: COOKIE_MAX_AGE
-	});
+	await createSession(db, event, user.id);
 
 	return user;
 }
