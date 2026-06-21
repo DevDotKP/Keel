@@ -4,7 +4,11 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
+	import { today, formatDisplayDate } from '$lib/utils/date';
+	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
+	import { holidaysForState, type IndianState } from '$lib/holidays';
 	import type { PageData } from './$types';
+	import type { RecurringIncome, SalaryAnchorKind } from '$lib/types';
 
 	let { data }: { data: PageData } = $props();
 
@@ -80,6 +84,84 @@
 	function categoryName(id: string | null): string {
 		if (!id) return 'Uncategorized';
 		return data.categories.find((c) => c.id === id)?.name ?? 'Uncategorized';
+	}
+
+	// ── Recurring income ─────────────────────────────────────────────────────
+	let incName = $state('');
+	let incAmount = $state('');
+	let incAnchorKind = $state<SalaryAnchorKind>('end_of_month');
+	let incAnchorDay = $state(25);
+	let incCategory = $state('');
+	let incSubmitting = $state(false);
+	let incBusyId = $state<string | null>(null);
+	let incError = $state<string | null>(null);
+	let incAmountPaise = $derived(parseToPaise(incAmount));
+
+	function toAnchor(inc: RecurringIncome): SalaryAnchor {
+		if (inc.anchor_kind === 'day_of_month') return { kind: 'day_of_month', day: inc.anchor_day ?? 1 };
+		return { kind: inc.anchor_kind };
+	}
+
+	function anchorLabel(inc: RecurringIncome): string {
+		if (inc.anchor_kind === 'end_of_month') return 'End of month';
+		if (inc.anchor_kind === 'start_of_month') return 'Start of month';
+		return `Day ${inc.anchor_day} of the month`;
+	}
+
+	// Next pay date from today, adjusted for weekends and the user's state holidays.
+	function nextPayDate(inc: RecurringIncome): string {
+		const t = today();
+		let y = parseInt(t.slice(0, 4), 10);
+		let m = parseInt(t.slice(5, 7), 10);
+		const state = (data.homeState as IndianState | null) ?? null;
+		for (let i = 0; i < 13; i++) {
+			const d = resolvePaymentDate(toAnchor(inc), y, m, holidaysForState(state, y));
+			if (d >= t) return d;
+			m++;
+			if (m > 12) {
+				m = 1;
+				y++;
+			}
+		}
+		return '';
+	}
+
+	async function handleCreateIncome(e: Event) {
+		e.preventDefault();
+		if (incAmountPaise === null || incAmountPaise <= 0) {
+			incError = 'Enter a valid amount';
+			return;
+		}
+		incSubmitting = true;
+		incError = null;
+		const res = await fetch('/api/recurring-income', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: incName.trim(),
+				amount_paise: incAmountPaise,
+				anchor_kind: incAnchorKind,
+				anchor_day: incAnchorKind === 'day_of_month' ? incAnchorDay : null,
+				category_id: incCategory || null
+			})
+		});
+		incSubmitting = false;
+		if (!res.ok) {
+			incError = 'Could not add. Try again.';
+			return;
+		}
+		incName = '';
+		incAmount = '';
+		incCategory = '';
+		await invalidateAll();
+	}
+
+	async function deleteIncome(id: string) {
+		if (!confirm('Delete this recurring income?')) return;
+		incBusyId = id;
+		const res = await fetch(`/api/recurring-income/${id}`, { method: 'DELETE' });
+		incBusyId = null;
+		if (res.ok) await invalidateAll();
 	}
 </script>
 
@@ -208,6 +290,112 @@
 			{#if submitting}<Spinner size={18} label="Adding" />{:else}Add obligation{/if}
 		</button>
 	</form>
+
+	<!-- Recurring income: forecast only, confirmed at Harbour -->
+	<section class="income-section">
+		<h2 class="form-head">Recurring income</h2>
+		<p class="page-sub">
+			Salary and other income Keel expects each cycle. Forecast only: you confirm it at Harbour.
+		</p>
+
+		{#if incError}
+			<p class="error" role="alert">{incError}</p>
+		{/if}
+
+		{#if data.recurringIncome.length > 0}
+			<ul class="obligation-list" aria-label="Recurring income">
+				{#each data.recurringIncome as inc (inc.id)}
+					<li class="obligation-row">
+						<span class="obligation-main">
+							<span class="obligation-name">{inc.name}</span>
+							<span class="obligation-meta">
+								{anchorLabel(inc)} · next {formatDisplayDate(nextPayDate(inc))}
+							</span>
+						</span>
+						<span class="money obligation-amount money--income"
+							>+{formatPaiseLedger(inc.amount_paise)}</span
+						>
+						<button
+							class="delete-btn"
+							onclick={() => deleteIncome(inc.id)}
+							disabled={incBusyId === inc.id}
+							aria-label="Delete {inc.name}"
+						>
+							<Trash2 size={16} aria-hidden="true" />
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		<form class="add-form" onsubmit={handleCreateIncome} novalidate>
+			<div class="field">
+				<label for="inc-name">Name</label>
+				<input
+					id="inc-name"
+					type="text"
+					placeholder="e.g. Salary"
+					bind:value={incName}
+					maxlength="60"
+					required
+				/>
+			</div>
+
+			<div class="field">
+				<label for="inc-amount">Amount</label>
+				<div class="amount-row">
+					<span class="currency-symbol" aria-hidden="true">₹</span>
+					<input
+						id="inc-amount"
+						type="text"
+						inputmode="decimal"
+						placeholder="0"
+						bind:value={incAmount}
+						class="money"
+						required
+					/>
+				</div>
+			</div>
+
+			<div class="field">
+				<label for="inc-anchor">When it arrives</label>
+				<select id="inc-anchor" bind:value={incAnchorKind}>
+					<option value="end_of_month">End of month</option>
+					<option value="start_of_month">Start of month</option>
+					<option value="day_of_month">A specific day</option>
+				</select>
+			</div>
+
+			{#if incAnchorKind === 'day_of_month'}
+				<div class="field">
+					<label for="inc-day">Day of month</label>
+					<select id="inc-day" bind:value={incAnchorDay}>
+						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+							<option value={d}>{d}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+
+			<div class="field">
+				<label for="inc-category">Category</label>
+				<select id="inc-category" bind:value={incCategory}>
+					<option value="">Income</option>
+					{#each data.categories.filter((c) => c.kind === 'income' && !c.is_system) as cat}
+						<option value={cat.id}>{cat.name}</option>
+					{/each}
+				</select>
+			</div>
+
+			<button
+				type="submit"
+				class="submit-btn"
+				disabled={incSubmitting || !incName.trim() || !incAmountPaise}
+			>
+				{#if incSubmitting}<Spinner size={18} label="Adding" />{:else}Add income{/if}
+			</button>
+		</form>
+	</section>
 </div>
 
 <style>
@@ -448,5 +636,13 @@
 	.error {
 		color: var(--color-clay);
 		font-size: 0.875rem;
+	}
+
+	.income-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--color-border);
 	}
 </style>

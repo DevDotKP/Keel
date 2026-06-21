@@ -109,6 +109,32 @@ export interface ObligationStatus extends Obligation {
 	paid: boolean;
 }
 
+export type SalaryAnchorKind = 'end_of_month' | 'start_of_month' | 'day_of_month';
+
+export interface RecurringIncome {
+	id: string;
+	household_id: string;
+	user_id: string;
+	name: string;
+	amount_paise: number;
+	anchor_kind: SalaryAnchorKind;
+	anchor_day: number | null; // 1..28 when anchor_kind is day_of_month
+	category_id: string | null;
+	is_active: 0 | 1;
+	created_at: string;
+	deleted_at: string | null;
+}
+
+export interface NewRecurringIncome {
+	household_id: string;
+	user_id: string;
+	name: string;
+	amount_paise: number;
+	anchor_kind: SalaryAnchorKind;
+	anchor_day?: number | null;
+	category_id?: string | null;
+}
+
 export interface ReconciliationPeriod {
 	id: string;
 	account_id: string;
