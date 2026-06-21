@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaiseLedger } from '$lib/utils/money';
-	import { formatDisplayDate } from '$lib/utils/date';
+	import { formatDisplayDate, today } from '$lib/utils/date';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
+
+	let showDetail = $state(false);
+
+	// Days elapsed in the current period (1-based, clamped to the period length).
+	function daysElapsed(startIso: string, endIso: string): number {
+		const day = 86400000;
+		const start = Date.parse(startIso);
+		const total = Math.floor((Date.parse(endIso) - start) / day) + 1;
+		const elapsed = Math.floor((Date.parse(today()) - start) / day) + 1;
+		return Math.min(Math.max(1, elapsed), Math.max(1, total));
+	}
 
 	// Cycle target inline edit
 	let editingTarget = $state(false);
@@ -282,6 +293,55 @@
 					</ul>
 				</section>
 			</div>
+			{#if insights.recent_periods.length > 0 || insights.total_expense_paise > 0}
+				<section class="detail-section" aria-label="More detail">
+					{#if !showDetail}
+						<button class="detail-toggle" onclick={() => (showDetail = true)}>See more detail</button>
+					{:else}
+						{@const de = daysElapsed(insights.period_start, insights.period_end)}
+						{@const prev = insights.recent_periods[0]}
+						<div class="detail-grid">
+							<div class="detail-card">
+								<span class="detail-label">Avg daily spend</span>
+								<span class="detail-value money">{formatPaiseLedger(de > 0 ? Math.round(insights.total_expense_paise / de) : 0)}</span>
+								<span class="detail-note">over {de} {de === 1 ? 'day' : 'days'} this period</span>
+							</div>
+							{#if prev}
+								{@const delta = insights.total_expense_paise - prev.total_expense_paise}
+								{@const pctChange = prev.total_expense_paise > 0 ? Math.round((delta / prev.total_expense_paise) * 100) : 0}
+								<div class="detail-card">
+									<span class="detail-label">vs last period</span>
+									<span class="detail-value money">{formatPaiseLedger(insights.total_expense_paise)}</span>
+									<span class="detail-note" class:detail-note--up={delta > 0} class:detail-note--down={delta < 0}>
+										{#if delta === 0}Same as last period{:else}{Math.abs(pctChange)}% {delta > 0 ? 'higher' : 'lower'} than last ({formatPaiseLedger(prev.total_expense_paise)}){/if}
+									</span>
+								</div>
+							{/if}
+						</div>
+						{#if insights.recent_periods.length >= 2}
+							{@const trend = [...insights.recent_periods].reverse()}
+							{@const maxT = Math.max(...trend.map((p) => p.total_expense_paise), insights.total_expense_paise, 1)}
+							<div class="trend-block">
+								<h3 class="group-head">Spend trend</h3>
+								<div class="trend-chart" aria-hidden="true">
+									{#each trend as p (p.period_start)}
+										{@const h = Math.max(4, Math.round((p.total_expense_paise / maxT) * 48))}
+										<div class="trend-col">
+											<div class="trend-bar" style="height:{h}px"></div>
+											<span class="trend-label">{formatDisplayDate(p.period_end).slice(0, 6)}</span>
+										</div>
+									{/each}
+									<div class="trend-col">
+										<div class="trend-bar trend-bar--current" style="height:{Math.max(4, Math.round((insights.total_expense_paise / maxT) * 48))}px"></div>
+										<span class="trend-label">Now</span>
+									</div>
+								</div>
+							</div>
+						{/if}
+						<p class="detail-foot">Per-category and year-over-year comparisons are coming next.</p>
+					{/if}
+				</section>
+			{/if}
 		</div>
 	{/if}
 {:catch}
@@ -862,5 +922,104 @@
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
 		cursor: pointer;
+	}
+
+	.detail-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding-top: var(--space-4);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.detail-toggle {
+		align-self: flex-start;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--color-text-muted);
+		font-size: 0.9375rem;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		font-family: inherit;
+	}
+
+	.detail-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: var(--space-5);
+	}
+
+	.detail-card {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.detail-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-subtle);
+	}
+
+	.detail-value {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.detail-note {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.detail-note--up { color: var(--color-clay); }
+	.detail-note--down { color: var(--color-positive); }
+
+	.trend-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.trend-chart {
+		display: flex;
+		align-items: flex-end;
+		gap: var(--space-2);
+		height: 64px;
+	}
+
+	.trend-col {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-1);
+		height: 100%;
+		justify-content: flex-end;
+	}
+
+	.trend-bar {
+		width: 100%;
+		background: var(--color-text-muted);
+		border-radius: 2px 2px 0 0;
+	}
+
+	.trend-bar--current { background: var(--color-navy); }
+
+	.trend-label {
+		font-size: 0.6875rem;
+		color: var(--color-text-subtle);
+		white-space: nowrap;
+	}
+
+	.detail-foot {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
 	}
 </style>
