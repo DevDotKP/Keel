@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { getDb } from '$lib/server/db';
 import { createSession } from '$lib/server/auth';
 import { ensureUserSetup } from '$lib/server/bootstrap';
-import { OAUTH_STATE_COOKIE } from '../+server';
+import { OAUTH_STATE_COOKIE } from '$lib/server/auth';
 
 interface GoogleTokenResponse {
 	access_token: string;

@@ -1,8 +1,8 @@
 import { redirect, error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import type { RequestHandler } from './$types';
+import { OAUTH_STATE_COOKIE } from '$lib/server/auth';
 
-export const OAUTH_STATE_COOKIE = 'keel_oauth_state';
 const STATE_TTL = 10 * 60; // 10 minutes
 
 function randomNonce(): string {

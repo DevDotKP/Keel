@@ -4,6 +4,7 @@ import type { User } from '$lib/types';
 import { ensureUserSetup } from './bootstrap';
 
 export const SESSION_COOKIE = 'keel_session';
+export const OAUTH_STATE_COOKIE = 'keel_oauth_state';
 export const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days in seconds
 const MAGIC_LINK_TTL = 15 * 60; // 15 minutes in seconds
 
