@@ -24,13 +24,28 @@ export const GET: RequestHandler = async (event) => {
 
 	const code = url.searchParams.get('code');
 	const returnedState = url.searchParams.get('state');
-	const storedState = cookies.get(OAUTH_STATE_COOKIE);
+	const rawCookie = cookies.get(OAUTH_STATE_COOKIE);
 
 	// Always clear the state cookie — one use only.
 	cookies.delete(OAUTH_STATE_COOKIE, { path: '/' });
 
-	// Missing params or state mismatch = CSRF or stale flow.
-	if (!code || !returnedState || !storedState || returnedState !== storedState) {
+	// Parse {nonce, next} stored server-side when the flow was initiated.
+	let storedNonce: string | null = null;
+	let next = '/';
+	try {
+		if (rawCookie) {
+			const parsed = JSON.parse(rawCookie) as { nonce?: string; next?: string };
+			storedNonce = parsed.nonce ?? null;
+			// Re-validate next on the way back out.
+			const n = parsed.next ?? '/';
+			next = n.startsWith('/') && !n.startsWith('//') ? n : '/';
+		}
+	} catch {
+		// Malformed cookie — treat as missing.
+	}
+
+	// Missing params or nonce mismatch = CSRF or stale flow.
+	if (!code || !returnedState || !storedNonce || returnedState !== storedNonce) {
 		throw redirect(302, '/auth?error=oauth');
 	}
 
@@ -124,5 +139,5 @@ export const GET: RequestHandler = async (event) => {
 	await ensureUserSetup(db, userId, info.email);
 	await createSession(db, event, userId);
 
-	throw redirect(302, '/');
+	throw redirect(302, next);
 };

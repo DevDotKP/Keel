@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 export const OAUTH_STATE_COOKIE = 'keel_oauth_state';
 const STATE_TTL = 10 * 60; // 10 minutes
 
-function randomState(): string {
+function randomNonce(): string {
 	const bytes = new Uint8Array(16);
 	crypto.getRandomValues(bytes);
 	return Array.from(bytes)
@@ -13,13 +13,23 @@ function randomState(): string {
 		.join('');
 }
 
+// Only allow relative paths — prevent open redirect.
+function safeNext(raw: string | null): string {
+	if (!raw) return '/';
+	if (raw.startsWith('/') && !raw.startsWith('//')) return raw;
+	return '/';
+}
+
 export const GET: RequestHandler = async ({ platform, url, cookies }) => {
 	const clientId = platform?.env?.GOOGLE_CLIENT_ID;
 	if (!clientId) throw error(500, 'Google auth is not configured on this deployment.');
 
-	const state = randomState();
+	const nonce = randomNonce();
+	const next = safeNext(url.searchParams.get('next'));
 
-	cookies.set(OAUTH_STATE_COOKIE, state, {
+	// Store {nonce, next} server-side so the callback can redirect correctly.
+	// Only the nonce is sent to Google as the state parameter.
+	cookies.set(OAUTH_STATE_COOKIE, JSON.stringify({ nonce, next }), {
 		path: '/',
 		httpOnly: true,
 		secure: !dev,
@@ -34,7 +44,7 @@ export const GET: RequestHandler = async ({ platform, url, cookies }) => {
 		redirect_uri: redirectUri,
 		response_type: 'code',
 		scope: 'openid email',
-		state,
+		state: nonce,
 		access_type: 'online',
 		prompt: 'select_account'
 	});

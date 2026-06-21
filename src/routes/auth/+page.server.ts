@@ -5,5 +5,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.userId) throw redirect(302, '/');
 
 	// error values: 'oauth' | 'unverified' | 'invalid'
-	return { error: url.searchParams.get('error') };
+	return {
+		error: url.searchParams.get('error'),
+		next: url.searchParams.get('next')
+	};
 };
