@@ -174,6 +174,11 @@ function buildDescription(
 	return remaining || '';
 }
 
+/** Capitalize the first letter, leaving the rest (e.g. merchant casing) intact. */
+function capitalizeFirst(s: string): string {
+	return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
 export function parse(transcript: string, knownCategories: string[] = []): AnchorParseResult {
@@ -202,7 +207,7 @@ export function parse(transcript: string, knownCategories: string[] = []): Ancho
 	if (dateMatch?.consumedText) consumed.push(dateMatch.consumedText);
 
 	// 5. Description
-	const description = buildDescription(text, consumed, lexiconMatch?.descriptionHint);
+	const description = capitalizeFirst(buildDescription(text, consumed, lexiconMatch?.descriptionHint));
 
 	// 6. Confidence: how many fields were resolved
 	let resolved = 0;

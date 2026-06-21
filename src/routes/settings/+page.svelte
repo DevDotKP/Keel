@@ -278,6 +278,10 @@
 					{inviteBusy ? 'Sending…' : 'Invite'}
 				</button>
 			</div>
+			<p class="settings-hint">
+				Admins can invite and manage the household. Members can add and view entries.
+			</p>
+
 			{#if inviteError}
 				<p class="error" role="alert">{inviteError}</p>
 			{/if}

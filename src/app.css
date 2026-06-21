@@ -44,6 +44,9 @@
   /* Positive / "good" signal (tracking quality, zero drift). Shares the income teal. */
   --color-positive: var(--color-income);
 
+  /* Navy fill for the committed split segment; lightened in dark mode for contrast. */
+  --color-navy: #1B3A66;
+
   /* Typography */
   --font-display: 'Fraunces', Georgia, serif; /* hero figures and section heads only */
   --font-ui:      system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -98,6 +101,7 @@
     --color-text:        #F0EDE8;
     --color-text-muted:  var(--color-neutral-400);
     --color-text-subtle: var(--color-neutral-500);
+    --color-navy:        #9DB4D4;
   }
 }
 
@@ -187,6 +191,19 @@ input:focus, textarea:focus, select:focus {
   outline: 2px solid var(--color-gold);
   outline-offset: 0;
   border-color: var(--color-gold);
+}
+
+/* ── Visually hidden (screen-reader only) ──────────────────────────────────── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ── Reduced motion ────────────────────────────────────────────────────────── */

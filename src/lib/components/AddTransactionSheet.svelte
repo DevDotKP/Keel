@@ -264,7 +264,7 @@
 		categoryManuallySet = true;
 		description = editingTx.description;
 		note = editingTx.note ?? '';
-		showNote = !!(editingTx.note);
+		showNote = true; // editing always reveals the note field so it can be added or changed
 		occurredAt = editingTx.occurred_at.slice(0, 10);
 	});
 
@@ -575,6 +575,30 @@
 	.field textarea:focus {
 		outline: none;
 		border-color: var(--color-gold);
+	}
+
+	/* Category picker: themed to match the sheet, with a custom chevron. */
+	.field select {
+		appearance: none;
+		-webkit-appearance: none;
+		height: 44px;
+		width: 100%;
+		padding: 0 var(--space-8) 0 var(--space-4);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C756A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right var(--space-3) center;
+		font-size: 1rem;
+		color: var(--color-text);
+		font-family: inherit;
+	}
+
+	.field select:focus {
+		outline: none;
+		border-color: var(--color-gold);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 15%, transparent);
 	}
 
 	/* Expense/Income segmented toggle */

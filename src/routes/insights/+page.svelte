@@ -217,6 +217,10 @@
 										Harbour adjustment per period. Smaller is better.
 									{/if}
 								</p>
+								<p class="sr-only">
+									Harbour adjustment over the last {driftData.length} periods.
+									{#if !hasAnyDrift}No drift in any period.{:else if improving}The latest adjustment is smaller than the previous one.{:else}Latest adjustment {formatPaiseLedger(latestDrift)}.{/if}
+								</p>
 								<div class="drift-chart" aria-hidden="true">
 									{#each driftData as p (p.period_start)}
 										{@const barH = p.drift_paise === 0 ? 2 : Math.max(4, Math.round((p.drift_paise / maxDrift) * 48))}
