@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
 	import { enqueueTransaction } from '$lib/utils/offline-queue';
@@ -310,6 +311,8 @@
 		onclose={() => { sheetOpen = false; editingTx = null; }}
 		onsubmit={handleSubmit}
 	/>
+
+	<OnboardingTour />
 {:catch}
 	<div class="dashboard">
 		<p class="load-error">
