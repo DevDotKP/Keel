@@ -2,6 +2,7 @@
 	import { Trash2, Check, ArrowLeft } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { today, formatDisplayDate } from '$lib/utils/date';
@@ -76,8 +77,18 @@
 		await invalidateAll();
 	}
 
-	async function handleDelete(id: string) {
-		if (!confirm('Delete this obligation? Past payments stay in your ledger.')) return;
+	// Single hand-styled confirm for both obligation and income deletes.
+	let confirmState = $state<{ title: string; message: string; run: () => void } | null>(null);
+
+	function handleDelete(id: string) {
+		confirmState = {
+			title: 'Delete obligation?',
+			message: 'Past payments stay in your ledger.',
+			run: () => actuallyDelete(id)
+		};
+	}
+
+	async function actuallyDelete(id: string) {
 		removedIds = [...removedIds, id]; // hide immediately
 		const res = await fetch(`/api/obligations/${id}`, { method: 'DELETE' });
 		if (!res.ok) {
@@ -162,8 +173,15 @@
 		await invalidateAll();
 	}
 
-	async function deleteIncome(id: string) {
-		if (!confirm('Delete this recurring income?')) return;
+	function deleteIncome(id: string) {
+		confirmState = {
+			title: 'Delete recurring income?',
+			message: 'This stops forecasting it. Past entries stay in your ledger.',
+			run: () => actuallyDeleteIncome(id)
+		};
+	}
+
+	async function actuallyDeleteIncome(id: string) {
 		removedIds = [...removedIds, id];
 		const res = await fetch(`/api/recurring-income/${id}`, { method: 'DELETE' });
 		if (!res.ok) {
@@ -417,6 +435,15 @@
 		</form>
 	</section>
 </div>
+
+<ConfirmDialog
+	open={confirmState !== null}
+	title={confirmState?.title ?? ''}
+	message={confirmState?.message ?? ''}
+	confirmLabel="Delete"
+	onconfirm={() => { const r = confirmState?.run; confirmState = null; r?.(); }}
+	oncancel={() => (confirmState = null)}
+/>
 
 <style>
 	.obligations-page {

@@ -2,6 +2,7 @@
 	import { Trash2, ArrowLeft } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
 	import type { PageData } from './$types';
@@ -95,8 +96,16 @@
 		patchCategory(cat.id, { daily_reserve_paise: paise });
 	}
 
-	async function handleDelete(id: string) {
-		if (!confirm('Delete this category? Subcategories under it are removed too.')) return;
+	let confirmState = $state<{ message: string; run: () => void } | null>(null);
+
+	function handleDelete(id: string) {
+		confirmState = {
+			message: 'Subcategories under it are removed too.',
+			run: () => actuallyDelete(id)
+		};
+	}
+
+	async function actuallyDelete(id: string) {
 		busyId = id;
 		const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
 		busyId = null;
@@ -255,6 +264,15 @@
 		</button>
 	</form>
 </div>
+
+<ConfirmDialog
+	open={confirmState !== null}
+	title="Delete category?"
+	message={confirmState?.message ?? ''}
+	confirmLabel="Delete"
+	onconfirm={() => { const r = confirmState?.run; confirmState = null; r?.(); }}
+	oncancel={() => (confirmState = null)}
+/>
 
 {#snippet categoryRow(cat: Category, isChild: boolean)}
 	{@const isExpense = cat.kind === 'expense'}

@@ -5,6 +5,7 @@
 	import { formatDisplayDate } from '$lib/utils/date';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import type { PageData } from './$types';
 	import type { Holding, HoldingKind } from '$lib/types';
 
@@ -82,8 +83,13 @@
 		await invalidateAll();
 	}
 
-	async function remove(id: string) {
-		if (!confirm('Remove this holding?')) return;
+	let confirmId = $state<string | null>(null);
+
+	function remove(id: string) {
+		confirmId = id;
+	}
+
+	async function actuallyRemove(id: string) {
 		removedIds = [...removedIds, id];
 		const res = await fetch(`/api/portfolio/${id}`, { method: 'DELETE' });
 		if (!res.ok) {
@@ -199,6 +205,15 @@
 		{/if}
 	</section>
 </div>
+
+<ConfirmDialog
+	open={confirmId !== null}
+	title="Remove holding?"
+	message="This removes the holding and its value from your portfolio."
+	confirmLabel="Remove"
+	onconfirm={() => { const id = confirmId; confirmId = null; if (id) actuallyRemove(id); }}
+	oncancel={() => (confirmId = null)}
+/>
 
 <style>
 	.portfolio-page {
