@@ -6,8 +6,11 @@
 	import type { PageData } from './$types';
 	import { installPrompt } from '$lib/stores/install';
 	import { INDIAN_STATES } from '$lib/holidays';
+	import Combobox from '$lib/components/Combobox.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const stateOptions = INDIAN_STATES.map((s) => ({ value: s, label: s }));
 
 	let saving = $state(false);
 	let error = $state<string | null>(null);
@@ -302,17 +305,14 @@
 		</p>
 		<div class="field">
 			<label for="home-state">State</label>
-			<select
+			<Combobox
 				id="home-state"
+				options={stateOptions}
 				value={data.settings?.home_state ?? ''}
-				onchange={(e) => handleStateChange(e.currentTarget.value)}
+				placeholder="Search your state"
 				disabled={saving}
-			>
-				<option value="" disabled>Select your state</option>
-				{#each INDIAN_STATES as st}
-					<option value={st}>{st}</option>
-				{/each}
-			</select>
+				onchange={handleStateChange}
+			/>
 		</div>
 	</section>
 
