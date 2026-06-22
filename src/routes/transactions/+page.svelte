@@ -112,15 +112,6 @@
 								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
 								<span class="meta-sep" aria-hidden="true">·</span>
 								<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
-								{#if addedByOther && byLabel}
-									<span class="meta-sep" aria-hidden="true">·</span>
-									<span class="ledger-by" title="Added by {byEmail}">
-										<span class="by-avatar" aria-hidden="true">
-											{#if byAvatar}<img src={byAvatar} alt="" class="by-avatar-img" />{:else}{byLabel.charAt(0).toUpperCase()}{/if}
-										</span>
-										{byLabel}
-									</span>
-								{/if}
 								{#if wasEdited}
 									<span class="meta-sep" aria-hidden="true">·</span>
 									<span class="ledger-edited">edited</span>
@@ -130,6 +121,14 @@
 									<span class="ledger-note-inline">{tx.note}</span>
 								{/if}
 							</span>
+							{#if addedByOther && byLabel}
+								<span class="ledger-by" title="Added by {byEmail}" aria-label="Added by {byLabel}">
+									<span class="by-avatar" aria-hidden="true">
+										{#if byAvatar}<img src={byAvatar} alt="" class="by-avatar-img" />{:else}{byLabel.charAt(0).toUpperCase()}{/if}
+									</span>
+									<span class="by-name">{byLabel}</span>
+								</span>
+							{/if}
 						</span>
 						<span class="ledger-amount money {income ? 'money--income' : 'money--expense'}">
 							{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
@@ -288,9 +287,40 @@
 	.ledger-cat { color: var(--color-text-muted); }
 	.meta-sep   { color: var(--color-text-subtle); }
 
+	/* Attribution on its own calm line, not crammed into the meta. */
 	.ledger-by {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: 4px;
 		color: var(--color-text-subtle);
 		font-size: 0.75rem;
+	}
+
+	.by-name {
+		line-height: 1;
+	}
+
+	.by-avatar {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: var(--radius-full);
+		background: color-mix(in srgb, var(--color-text) 12%, transparent);
+		color: var(--color-text-muted);
+		font-size: 0.625rem;
+		font-weight: 600;
+		overflow: hidden;
+		text-transform: uppercase;
+	}
+
+	.by-avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.ledger-time {

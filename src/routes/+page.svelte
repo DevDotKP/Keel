@@ -344,18 +344,17 @@
 										<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
 										<span class="meta-sep" aria-hidden="true">·</span>
 										<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
-										{#if isShared && enteredByName}
-											<span class="meta-sep" aria-hidden="true">·</span>
-											<span class="ledger-by">
-												<span class="by-avatar" aria-hidden="true">
-													{#if enteredByAvatar}<img src={enteredByAvatar} alt="" class="by-avatar-img" />{:else}{enteredByName.charAt(0).toUpperCase()}{/if}
-												</span>
-												{enteredByName}
-											</span>
-										{/if}
 									</span>
 									{#if tx.note}
 										<span class="ledger-note">{tx.note}</span>
+									{/if}
+									{#if isShared && enteredByName}
+										<span class="ledger-by" aria-label="Added by {enteredByName}">
+											<span class="by-avatar" aria-hidden="true">
+												{#if enteredByAvatar}<img src={enteredByAvatar} alt="" class="by-avatar-img" />{:else}{enteredByName.charAt(0).toUpperCase()}{/if}
+											</span>
+											<span class="by-name">{enteredByName}</span>
+										</span>
 									{/if}
 								</span>
 								<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
@@ -831,24 +830,31 @@
 		font-style: italic;
 	}
 
+	/* Attribution on its own calm line, not crammed into the meta. */
 	.ledger-by {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-2);
+		margin-top: 4px;
 		font-size: 0.75rem;
 		color: var(--color-text-subtle);
 	}
 
+	.by-name {
+		line-height: 1;
+	}
+
 	.by-avatar {
+		flex: none;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 16px;
-		height: 16px;
+		width: 18px;
+		height: 18px;
 		border-radius: var(--radius-full);
 		background: color-mix(in srgb, var(--color-text) 12%, transparent);
 		color: var(--color-text-muted);
-		font-size: 0.5625rem;
+		font-size: 0.625rem;
 		font-weight: 600;
 		overflow: hidden;
 		text-transform: uppercase;
