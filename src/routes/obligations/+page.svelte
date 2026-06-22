@@ -377,6 +377,13 @@
 					<option value="start_of_month">Start of month</option>
 					<option value="day_of_month">A specific day</option>
 				</select>
+				{#if incAnchorKind === 'end_of_month'}
+					<p class="field-hint">Added on the last working day of the month, skipping weekends and bank holidays.</p>
+				{:else if incAnchorKind === 'start_of_month'}
+					<p class="field-hint">Added on the first working day of the month, skipping weekends and bank holidays.</p>
+				{:else}
+					<p class="field-hint">Added on day {incAnchorDay} of the month, or the working day before if that is a weekend or holiday.</p>
+				{/if}
 			</div>
 
 			{#if incAnchorKind === 'day_of_month'}
@@ -657,6 +664,11 @@
 		gap: var(--space-4);
 		padding-top: var(--space-4);
 		border-top: 1px solid var(--color-border);
+	}
+
+	.field-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
 	}
 
 	.amount-words {
