@@ -3,7 +3,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
+	import { formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import { today, formatDisplayDate } from '$lib/utils/date';
 	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
 	import { holidaysForState, type IndianState } from '$lib/holidays';
@@ -268,7 +268,8 @@
 					type="text"
 					inputmode="decimal"
 					placeholder="0"
-					bind:value={newAmount}
+					value={newAmount}
+					oninput={(e) => (newAmount = formatAmountInput(e.currentTarget.value))}
 					class="money"
 					required
 				/>
@@ -358,7 +359,8 @@
 						type="text"
 						inputmode="decimal"
 						placeholder="0"
-						bind:value={incAmount}
+						value={incAmount}
+						oninput={(e) => (incAmount = formatAmountInput(e.currentTarget.value))}
 						class="money"
 						required
 					/>

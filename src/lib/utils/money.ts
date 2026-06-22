@@ -62,6 +62,40 @@ export function parseToPaise(input: string): number | null {
 }
 
 /**
+ * Format a raw amount string for display in an input as the user types, with
+ * en-IN grouping. Preserves a trailing dot and up to two decimals. Pair with
+ * parseToPaise on submit (it ignores the commas).
+ */
+export function formatAmountInput(value: string): string {
+	const raw = value.replace(/[^\d.]/g, '');
+	if (!raw) return '';
+	const firstDot = raw.indexOf('.');
+	let intDigits: string;
+	let dec = '';
+	let hasDot = false;
+	if (firstDot === -1) {
+		intDigits = raw;
+	} else {
+		hasDot = true;
+		intDigits = raw.slice(0, firstDot);
+		dec = raw.slice(firstDot + 1).replace(/\./g, '').slice(0, 2);
+	}
+	intDigits = intDigits.replace(/^0+(?=\d)/, '');
+	const grouped = groupIndianDigits(intDigits || '0');
+	return hasDot ? `${grouped}.${dec}` : grouped;
+}
+
+/** en-IN digit grouping: last 3 digits, then groups of 2 from the right. */
+function groupIndianDigits(s: string): string {
+	if (s.length <= 3) return s;
+	const tail = s.slice(-3);
+	const head = s.slice(0, -3);
+	const parts: string[] = [];
+	for (let i = head.length; i > 0; i -= 2) parts.unshift(head.slice(Math.max(0, i - 2), i));
+	return parts.join(',') + ',' + tail;
+}
+
+/**
  * Format a paise value as a compact display string for ledger columns.
  * Always right-aligned; uses tabular lining numerals via CSS.
  * 15050 → "₹150.50"

@@ -2,7 +2,7 @@
 	import { Mic, Square, X } from 'lucide-svelte';
 	import Spinner from './Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { parseToPaise, formatPaise } from '$lib/utils/money';
+	import { parseToPaise, formatPaise, formatAmountInput } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
 	import { parse, matchCategory } from '$lib/anchors';
@@ -102,7 +102,7 @@
 
 	// ── Prefill from a draft (called after voice parse) ────────────────────
 	export function prefill(draft: TransactionDraft) {
-		if (draft.amount_paise !== null) amountRaw = (draft.amount_paise / 100).toString();
+		if (draft.amount_paise !== null) amountRaw = formatAmountInput((draft.amount_paise / 100).toString());
 		if (draft.category_id) categoryId = draft.category_id;
 		if (draft.description) description = draft.description;
 		if (draft.note) {
@@ -259,7 +259,7 @@
 		if (!open) { reset(); return; }
 		if (!editingTx) return;
 		entryKind = editingTx.amount_paise >= 0 ? 'income' : 'expense';
-		amountRaw = (Math.abs(editingTx.amount_paise) / 100).toString();
+		amountRaw = formatAmountInput((Math.abs(editingTx.amount_paise) / 100).toString());
 		categoryId = editingTx.category_id;
 		categoryManuallySet = true;
 		description = editingTx.description;
@@ -386,7 +386,8 @@
 						type="text"
 						inputmode="decimal"
 						placeholder="0"
-						bind:value={amountRaw}
+						value={amountRaw}
+						oninput={(e) => (amountRaw = formatAmountInput(e.currentTarget.value))}
 						class="amount-input money"
 						autocomplete="off"
 						required
