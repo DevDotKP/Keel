@@ -426,7 +426,7 @@
 			<div class="field">
 				<label for="category">Category</label>
 				<select id="category" bind:value={categoryId} onchange={onCategoryChange}>
-					<option value="">{entryKind === 'income' ? 'Income (uncategorised)' : 'Uncategorized'}</option>
+					<option value="">Uncategorized</option>
 					{#each pickableCategories as cat}
 						<option value={cat.id}>{cat.name}</option>
 					{/each}
