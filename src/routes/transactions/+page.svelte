@@ -202,7 +202,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 0.9375rem;
 		color: var(--color-text);
 		min-width: 180px;
@@ -366,5 +366,10 @@
 		clip: rect(0,0,0,0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	/* room for the global select chevron */
+	.filter-row select {
+		padding-right: var(--space-8);
 	}
 </style>

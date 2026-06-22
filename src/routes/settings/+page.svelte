@@ -683,7 +683,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 1rem;
 		color: var(--color-text);
 	}
@@ -866,7 +866,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 0.9375rem;
 		color: var(--color-text);
 	}
@@ -878,7 +878,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 0.9375rem;
 		color: var(--color-text);
 	}
@@ -913,7 +913,7 @@
 		flex: none;
 		height: 36px;
 		padding: 0 var(--space-3);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-sm);
 		font-size: 0.875rem;
@@ -1031,7 +1031,7 @@
 		gap: var(--space-4);
 		width: min(320px, 100%);
 		padding: var(--space-6);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		border-radius: var(--radius-lg);
 	}
 
@@ -1095,5 +1095,10 @@
 	.crop-use:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	/* room for the global select chevron */
+	.field select, .invite-role {
+		padding-right: var(--space-8);
 	}
 </style>

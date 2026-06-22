@@ -635,7 +635,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 1rem;
 		color: var(--color-text);
 	}
@@ -702,5 +702,10 @@
 		font-size: 0.8125rem;
 		color: var(--color-text-subtle);
 		margin-top: calc(var(--space-2) * -1);
+	}
+
+	/* room for the global select chevron */
+	.field select {
+		padding-right: var(--space-8);
 	}
 </style>

@@ -431,7 +431,7 @@
 		padding: 0 var(--space-2);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-sm);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 0.8125rem;
 		color: var(--color-text);
 	}
@@ -502,7 +502,7 @@
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
-		background: var(--color-surface);
+		background-color: var(--color-surface);
 		font-size: 1rem;
 		color: var(--color-text);
 	}
@@ -610,5 +610,10 @@
 	.error {
 		color: var(--color-clay);
 		font-size: 0.875rem;
+	}
+
+	/* room for the global select chevron */
+	.field select {
+		padding-right: var(--space-8);
 	}
 </style>
