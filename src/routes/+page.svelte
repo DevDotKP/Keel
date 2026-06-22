@@ -4,7 +4,7 @@
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import OnboardingTour from '$lib/components/OnboardingTour.svelte';
-	import { formatPaise, formatPaiseLedger } from '$lib/utils/money';
+	import { formatPaise, formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
 	import { enqueueTransaction } from '$lib/utils/offline-queue';
 	import { toast } from '$lib/stores/toast';
@@ -45,6 +45,9 @@
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
 	let editingTx = $state<Transaction | null>(null);
+	// Starting-balance nudge (for users who skipped first-run setup).
+	let balanceNudge = $state('');
+	let savingBalance = $state(false);
 	// Entries hidden during the undo window, before their delete commits.
 	let hiddenIds = $state<string[]>([]);
 	// Show attribution and time only when the household has more than one member.
@@ -103,6 +106,22 @@
 			});
 	}
 
+	async function saveStartingBalance(): Promise<void> {
+		const paise = parseToPaise(balanceNudge);
+		if (paise === null) return;
+		savingBalance = true;
+		const res = await fetch('/api/account', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ balance_paise: paise })
+		});
+		savingBalance = false;
+		if (res.ok) {
+			balanceNudge = '';
+			await invalidateAll();
+		}
+	}
+
 	function handleDelete(id: string): void {
 		// Hide optimistically; commit after the undo window, or restore on undo.
 		hiddenIds = [...hiddenIds, id];
@@ -146,6 +165,7 @@
 		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
 		.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)}
 	{@const visibleTransactions = transactions.filter((t) => !hiddenIds.includes(t.id))}
+		{@const showBalanceNudge = !!summary && summary.balance_paise === 0 && transactions.length === 0 && summary.harbour_visits === 0}
 
 	<div class="dashboard">
 		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
@@ -169,6 +189,31 @@
 				{/if}
 			</p>
 		</section>
+
+		<!-- Starting-balance nudge: only when nothing is set yet (skipped setup). -->
+		{#if showBalanceNudge}
+			<section class="balance-nudge" aria-label="Set your starting balance">
+				<p class="bn-title">Set your starting balance</p>
+				<p class="bn-sub">Tell Keel what's in your account so "safe to spend" is real.</p>
+				<div class="bn-row">
+					<span class="bn-currency" aria-hidden="true">₹</span>
+					<label for="bn-input" class="sr-only">Starting balance in rupees</label>
+					<input
+						id="bn-input"
+						type="text"
+						inputmode="decimal"
+						placeholder="0"
+						value={balanceNudge}
+						oninput={(e) => (balanceNudge = formatAmountInput(e.currentTarget.value))}
+						class="bn-input money"
+						autocomplete="off"
+					/>
+					<button class="bn-set" onclick={saveStartingBalance} disabled={savingBalance || !parseToPaise(balanceNudge)}>
+						{savingBalance ? 'Saving…' : 'Set'}
+					</button>
+				</div>
+			</section>
+		{/if}
 
 		<!-- The breakdown: how safe-to-spend is derived. Calm, never scolding. -->
 		{#if summary && (summary.locked_obligations_paise > 0 || summary.locked_reserve_paise > 0)}
@@ -400,6 +445,76 @@
 	/* Over-committed is a genuine attention state: clay, never red alarm. */
 	.money-hero.over-committed {
 		color: var(--color-clay);
+	}
+
+	/* Starting-balance nudge */
+	.balance-nudge {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.bn-title {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.bn-sub {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.bn-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
+	}
+
+	.bn-currency {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		color: var(--color-text-muted);
+	}
+
+	.bn-input {
+		flex: 1;
+		min-width: 0;
+		height: 44px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+	}
+
+	.bn-input:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	.bn-set {
+		flex: none;
+		height: 44px;
+		padding: 0 var(--space-5);
+		background: var(--color-text);
+		color: var(--color-surface);
+		font-weight: 600;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.bn-set:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
 	}
 
 	.breakdown {
