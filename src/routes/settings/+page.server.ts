@@ -11,9 +11,9 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 
 	const [settings, user, membersRes, invitesRes, householdRes] = await Promise.all([
 		rdb.prepare('SELECT * FROM settings WHERE user_id = ? LIMIT 1').bind(locals.userId).first<Settings>(),
-		rdb.prepare('SELECT id, email, created_at FROM users WHERE id = ? LIMIT 1').bind(locals.userId).first<User>(),
+		rdb.prepare('SELECT id, email, created_at, display_name, avatar FROM users WHERE id = ? LIMIT 1').bind(locals.userId).first<User>(),
 		rdb.prepare(
-			`SELECT hm.id, hm.household_id, hm.user_id, hm.role, hm.joined_at, u.email
+			`SELECT hm.id, hm.household_id, hm.user_id, hm.role, hm.joined_at, u.email, u.display_name, u.avatar
 			 FROM household_members hm
 			 JOIN users u ON u.id = hm.user_id
 			 WHERE hm.household_id = ? ORDER BY hm.joined_at ASC`

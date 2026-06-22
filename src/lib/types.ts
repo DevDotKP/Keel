@@ -13,6 +13,8 @@ export interface User {
 	id: string;
 	email: string;
 	created_at: string;
+	display_name?: string | null;
+	avatar?: string | null; // small base64 data URL
 }
 
 export interface Household {
@@ -29,6 +31,8 @@ export interface HouseholdMember {
 	role: 'admin' | 'member';
 	joined_at: string;
 	email?: string; // joined from users table
+	display_name?: string | null;
+	avatar?: string | null;
 }
 
 export interface HouseholdInvite {

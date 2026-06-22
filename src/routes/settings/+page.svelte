@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { Tags, CalendarClock, ChevronRight } from 'lucide-svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -73,6 +74,100 @@
 	async function handleSignOut() {
 		await fetch('/api/auth/signout', { method: 'POST' });
 		location.href = '/auth';
+	}
+
+	// ── Profile (display name + avatar) ──────────────────────────────────────
+	let displayName = $state(untrack(() => data.user?.display_name ?? ''));
+	let avatarBusy = $state(false);
+	let profileError = $state<string | null>(null);
+
+	async function patchProfile(fields: Record<string, unknown>): Promise<boolean> {
+		const res = await fetch('/api/profile', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(fields)
+		});
+		if (!res.ok) {
+			profileError = 'Could not save. Try again.';
+			return false;
+		}
+		await invalidateAll();
+		return true;
+	}
+
+	async function saveDisplayName() {
+		profileError = null;
+		const name = displayName.trim();
+		if (name === (data.user?.display_name ?? '')) return;
+		await patchProfile({ display_name: name || null });
+	}
+
+	// Resize a chosen image to a small centered square and return a JPEG data URL.
+	function resizeToDataUrl(file: File, size: number, quality: number): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const url = URL.createObjectURL(file);
+			const img = new Image();
+			img.onload = () => {
+				URL.revokeObjectURL(url);
+				const canvas = document.createElement('canvas');
+				canvas.width = size;
+				canvas.height = size;
+				const ctx = canvas.getContext('2d');
+				if (!ctx) return reject(new Error('no-canvas'));
+				const min = Math.min(img.width, img.height);
+				ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
+				resolve(canvas.toDataURL('image/jpeg', quality));
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(url);
+				reject(new Error('load'));
+			};
+			img.src = url;
+		});
+	}
+
+	async function onAvatarFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = ''; // allow re-selecting the same file later
+		if (!file) return;
+		profileError = null;
+		if (!file.type.startsWith('image/')) {
+			profileError = 'Choose an image file.';
+			return;
+		}
+		if (file.size > 8 * 1024 * 1024) {
+			profileError = 'Image too large. Max 8 MB.';
+			return;
+		}
+		avatarBusy = true;
+		try {
+			let dataUrl = await resizeToDataUrl(file, 128, 0.82);
+			if (dataUrl.length > 200_000) dataUrl = await resizeToDataUrl(file, 96, 0.7);
+			if (dataUrl.length > 200_000) {
+				profileError = 'Could not compress the image enough. Try another.';
+			} else {
+				await patchProfile({ avatar: dataUrl });
+			}
+		} catch {
+			profileError = 'Could not process the image.';
+		}
+		avatarBusy = false;
+	}
+
+	async function removeAvatar() {
+		avatarBusy = true;
+		profileError = null;
+		await patchProfile({ avatar: null });
+		avatarBusy = false;
+	}
+
+	function initials(name: string | null | undefined, email: string | null | undefined): string {
+		const base = (name && name.trim()) || (email ? email.split('@')[0] : '');
+		const parts = base.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return '?';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 	}
 
 	// Household invite
@@ -246,7 +341,13 @@
 			<ul class="member-list">
 				{#each data.members as m}
 					<li class="member-row">
-						<span class="member-email">{m.email}</span>
+						<span class="avatar" aria-hidden="true">
+							{#if m.avatar}<img src={m.avatar} alt="" class="avatar-img" />{:else}{initials(m.display_name, m.email)}{/if}
+						</span>
+						<span class="member-main">
+							<span class="member-name">{m.display_name || (m.email ?? '').split('@')[0]}</span>
+							<span class="member-email-sub">{m.email}</span>
+						</span>
 						<span class="member-role">{m.role}</span>
 						{#if m.user_id === data.currentUserId}
 							<span class="member-you">you</span>
@@ -312,6 +413,44 @@
 			<a href="/api/export?format=csv" class="export-btn" download>Export CSV</a>
 			<a href="/api/export?format=json" class="export-btn" download>Export JSON</a>
 		</div>
+	</section>
+
+	<!-- Profile -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Profile</h2>
+		<div class="profile-row">
+			<span class="avatar avatar--lg" aria-hidden="true">
+				{#if data.user?.avatar}
+					<img src={data.user.avatar} alt="" class="avatar-img" />
+				{:else}
+					{initials(data.user?.display_name, data.user?.email)}
+				{/if}
+			</span>
+			<div class="profile-actions">
+				<label class="secondary-btn avatar-btn">
+					{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
+					<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
+				</label>
+				{#if data.user?.avatar}
+					<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
+				{/if}
+			</div>
+		</div>
+		<p class="settings-hint">A square photo works best. Max 8 MB; it is resized small and stored privately.</p>
+		<div class="field">
+			<label for="display-name">Display name</label>
+			<input
+				id="display-name"
+				type="text"
+				placeholder="Your name"
+				bind:value={displayName}
+				onblur={saveDisplayName}
+				maxlength="60"
+			/>
+		</div>
+		{#if profileError}
+			<p class="error" role="alert">{profileError}</p>
+		{/if}
 	</section>
 
 	<!-- Account -->
@@ -592,14 +731,6 @@
 
 	.member-row:last-child { border-bottom: none; }
 
-	.member-email {
-		flex: 1;
-		color: var(--color-text);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
 	.member-role {
 		flex: none;
 		font-size: 0.75rem;
@@ -690,5 +821,90 @@
 	.copy-btn:hover {
 		color: var(--color-text);
 		border-color: var(--color-text-subtle);
+	}
+
+	.avatar {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-full);
+		background: color-mix(in srgb, var(--color-text) 10%, transparent);
+		color: var(--color-text-muted);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		overflow: hidden;
+		text-transform: uppercase;
+	}
+
+	.avatar--lg {
+		width: 64px;
+		height: 64px;
+		font-size: 1.25rem;
+	}
+
+	.avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.profile-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-4);
+	}
+
+	.profile-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
+	.avatar-btn {
+		cursor: pointer;
+	}
+
+	.link-btn {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		font-family: inherit;
+	}
+
+	.link-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.member-main {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.member-name {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.member-email-sub {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 </style>

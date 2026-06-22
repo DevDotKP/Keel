@@ -277,7 +277,7 @@
 						{@const cat = catById.get(tx.category_id)}
 						{@const income = tx.amount_paise >= 0}
 						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'you' : (data.memberEmails[tx.entered_by] ?? '').split('@')[0]) : ''}
+						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'you' : (data.memberNames[tx.entered_by] ?? (data.memberEmails[tx.entered_by] ?? '').split('@')[0])) : ''}
 						<li class="ledger-row">
 							<button
 								class="row-tap"

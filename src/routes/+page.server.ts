@@ -28,7 +28,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 			.bind(locals.userId),
 		rdb
 			.prepare(
-				`SELECT u.id, u.email FROM household_members hm
+				`SELECT u.id, u.email, u.display_name FROM household_members hm
 				 JOIN users u ON u.id = hm.user_id
 				 WHERE hm.household_id = ?`
 			)
@@ -42,7 +42,8 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		categories: Promise.resolve([]),
 		runway: Promise.resolve(null),
 		currentUserId: locals.userId,
-		memberEmails: {} as Record<string, string>
+		memberEmails: {} as Record<string, string>,
+		memberNames: {} as Record<string, string>
 	};
 
 	const settingsRow = settingsRes.results?.[0] as
@@ -52,8 +53,10 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const harbourDay = settingsRow?.harbour_day ?? 'sunday';
 
 	const memberEmails: Record<string, string> = {};
-	for (const m of (membersRes.results ?? []) as Array<{ id: string; email: string }>) {
+	const memberNames: Record<string, string> = {};
+	for (const m of (membersRes.results ?? []) as Array<{ id: string; email: string; display_name: string | null }>) {
 		memberEmails[m.id] = m.email;
+		if (m.display_name) memberNames[m.id] = m.display_name;
 	}
 
 	// Return promises — the page shell renders immediately while D1 responds.
@@ -63,6 +66,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		categories: listCategories(rdb, hid),
 		runway: getRunway(rdb, account.id as string),
 		currentUserId: locals.userId,
-		memberEmails
+		memberEmails,
+		memberNames
 	};
 };
