@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { Tags, CalendarClock, ChevronRight } from 'lucide-svelte';
+	import { Tags, CalendarClock } from 'lucide-svelte';
+	import MenuLink from '$lib/components/MenuLink.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { installPrompt } from '$lib/stores/install';
@@ -214,22 +215,12 @@
 	<!-- Manage: the most-used destinations, lifted to the top -->
 	<section class="settings-section">
 		<nav class="manage-links" aria-label="Manage">
-			<a href="/categories" class="manage-link">
-				<span class="manage-icon" aria-hidden="true"><Tags size={20} /></span>
-				<span class="manage-text">
-					<span class="manage-title">Categories</span>
-					<span class="manage-sub">Spending and income categories, budgets, colours</span>
-				</span>
-				<ChevronRight class="manage-chevron" size={18} aria-hidden="true" />
-			</a>
-			<a href="/obligations" class="manage-link">
-				<span class="manage-icon" aria-hidden="true"><CalendarClock size={20} /></span>
-				<span class="manage-text">
-					<span class="manage-title">Recurring &amp; income</span>
-					<span class="manage-sub">Rent, bills, EMIs, and recurring income</span>
-				</span>
-				<ChevronRight class="manage-chevron" size={18} aria-hidden="true" />
-			</a>
+			<MenuLink href="/categories" title="Categories" sub="Spending and income categories, budgets, colours">
+				{#snippet icon()}<Tags size={20} />{/snippet}
+			</MenuLink>
+			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
+				{#snippet icon()}<CalendarClock size={20} />{/snippet}
+			</MenuLink>
 		</nav>
 	</section>
 
@@ -556,61 +547,6 @@
 		overflow: hidden;
 	}
 
-	.manage-link {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-4);
-		min-height: 56px;
-		color: var(--color-text);
-		text-decoration: none;
-		border-bottom: 1px solid var(--color-border);
-		transition: background var(--duration-fast) var(--ease-out);
-	}
-
-	.manage-link:last-child {
-		border-bottom: none;
-	}
-
-	.manage-link:hover {
-		background: var(--color-surface-subtle);
-	}
-
-	.manage-icon {
-		flex: none;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 36px;
-		height: 36px;
-		border-radius: var(--radius-md);
-		background: color-mix(in srgb, var(--color-text) 8%, transparent);
-		color: var(--color-text-muted);
-	}
-
-	.manage-text {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		flex: 1;
-		min-width: 0;
-	}
-
-	.manage-title {
-		font-size: 0.9375rem;
-		font-weight: 600;
-		color: var(--color-text);
-	}
-
-	.manage-sub {
-		font-size: 0.8125rem;
-		color: var(--color-text-subtle);
-	}
-
-	.manage-link :global(.manage-chevron) {
-		flex: none;
-		color: var(--color-text-subtle);
-	}
 
 	.export-row {
 		display: flex;
