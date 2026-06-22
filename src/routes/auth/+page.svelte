@@ -54,8 +54,16 @@
 		<span class="brand-by">by Annapurna Labs</span>
 	</div>
 
+	<header class="hero">
+		<h1 class="hero-title">The tracker for people who quit trackers.</h1>
+		<p class="hero-sub">
+			Keep a calm eye on what is safe to spend. Fall behind without breaking your
+			numbers. No bank logins, no SMS reading.
+		</p>
+	</header>
+
 	<div class="sign-in">
-		<h1 class="heading">Sign in to Keel</h1>
+		<h2 class="heading">Get started</h2>
 
 		{#if formError}
 			<p class="error-msg" role="alert">{formError}</p>
@@ -126,6 +134,27 @@
 			{/if}
 		{/if}
 	</div>
+
+	<ul class="why" aria-label="Why Keel">
+		<li>
+			<span class="why-label">Forgiving</span>
+			<span class="why-text">Miss an entry and nothing breaks. Loose ends wait at Harbour, never as guilt.</span>
+		</li>
+		<li>
+			<span class="why-label">Private</span>
+			<span class="why-text">No SMS, email, or bank scraping. You type only what matters.</span>
+		</li>
+		<li>
+			<span class="why-label">One-time</span>
+			<span class="why-text">Free to start. A one-time price later, never a subscription.</span>
+		</li>
+	</ul>
+
+	<footer class="auth-foot">
+		<a href="/pricing">Pricing</a>
+		<a href="/legal/privacy">Privacy</a>
+		<a href="/legal/terms">Terms</a>
+	</footer>
 </div>
 
 <style>
@@ -154,6 +183,65 @@
 	.brand-by {
 		font-size: 0.8125rem;
 		color: var(--color-text-subtle);
+	}
+
+	.hero {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.hero-title {
+		font-family: var(--font-display);
+		font-size: 1.75rem;
+		font-weight: 700;
+		line-height: 1.15;
+		color: var(--color-text);
+	}
+
+	.hero-sub {
+		font-size: 0.9375rem;
+		line-height: 1.55;
+		color: var(--color-text-muted);
+	}
+
+	.why {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding-top: var(--space-5);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.why li {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.why-label {
+		font-size: 0.875rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.why-text {
+		font-size: 0.875rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+	}
+
+	.auth-foot {
+		display: flex;
+		gap: var(--space-4);
+		padding-top: var(--space-2);
+	}
+
+	.auth-foot a {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-underline-offset: 3px;
 	}
 
 	.sign-in {
