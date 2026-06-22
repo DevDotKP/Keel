@@ -19,11 +19,14 @@
 	let submitting = $state(false);
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
+	// Optimistically removed rows (obligations and income) during delete.
+	let removedIds = $state<string[]>([]);
 
 	let newAmountPaise = $derived(parseToPaise(newAmount));
 
+	let visibleObligations = $derived(data.obligations.filter((o) => !removedIds.includes(o.id)));
 	let totalDue = $derived(
-		data.obligations.filter((o) => !o.paid && o.is_active).reduce((sum, o) => sum + o.amount_paise, 0)
+		visibleObligations.filter((o) => !o.paid && o.is_active).reduce((sum, o) => sum + o.amount_paise, 0)
 	);
 
 	async function handleCreate(e: Event) {
@@ -75,10 +78,12 @@
 
 	async function handleDelete(id: string) {
 		if (!confirm('Delete this obligation? Past payments stay in your ledger.')) return;
-		busyId = id;
+		removedIds = [...removedIds, id]; // hide immediately
 		const res = await fetch(`/api/obligations/${id}`, { method: 'DELETE' });
-		busyId = null;
-		if (res.ok) await invalidateAll();
+		if (!res.ok) {
+			removedIds = removedIds.filter((x) => x !== id); // restore on failure
+			error = 'Could not delete. Try again.';
+		}
 	}
 
 	function categoryName(id: string | null): string {
@@ -96,6 +101,7 @@
 	let incBusyId = $state<string | null>(null);
 	let incError = $state<string | null>(null);
 	let incAmountPaise = $derived(parseToPaise(incAmount));
+	let visibleIncome = $derived(data.recurringIncome.filter((i) => !removedIds.includes(i.id)));
 
 	function toAnchor(inc: RecurringIncome): SalaryAnchor {
 		if (inc.anchor_kind === 'day_of_month') return { kind: 'day_of_month', day: inc.anchor_day ?? 1 };
@@ -158,10 +164,12 @@
 
 	async function deleteIncome(id: string) {
 		if (!confirm('Delete this recurring income?')) return;
-		incBusyId = id;
+		removedIds = [...removedIds, id];
 		const res = await fetch(`/api/recurring-income/${id}`, { method: 'DELETE' });
-		incBusyId = null;
-		if (res.ok) await invalidateAll();
+		if (!res.ok) {
+			removedIds = removedIds.filter((x) => x !== id);
+			incError = 'Could not delete. Try again.';
+		}
 	}
 </script>
 
@@ -189,9 +197,9 @@
 		<p class="error" role="alert">{error}</p>
 	{/if}
 
-	{#if data.obligations.length > 0}
+	{#if visibleObligations.length > 0}
 		<ul class="obligation-list" aria-label="Your obligations">
-			{#each data.obligations as obl (obl.id)}
+			{#each visibleObligations as obl (obl.id)}
 				<li class="obligation-row" class:paid={obl.paid}>
 					<button
 						class="check-btn"
@@ -302,9 +310,9 @@
 			<p class="error" role="alert">{incError}</p>
 		{/if}
 
-		{#if data.recurringIncome.length > 0}
+		{#if visibleIncome.length > 0}
 			<ul class="obligation-list" aria-label="Recurring income">
-				{#each data.recurringIncome as inc (inc.id)}
+				{#each visibleIncome as inc (inc.id)}
 					<li class="obligation-row">
 						<span class="obligation-main">
 							<span class="obligation-name">{inc.name}</span>
