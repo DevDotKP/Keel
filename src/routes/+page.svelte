@@ -162,7 +162,7 @@
 			<p class="hero-sub">
 				{#if summary}
 					{#if summary.safe_to_spend_paise < 0}
-						Your commitments run ahead of your balance this period.
+						Over by {formatPaise(Math.abs(summary.safe_to_spend_paise))} until {formatDisplayDate(summary.current_period.period_end)}.
 					{:else}
 						Free to spend before your next harbour · {periodRange(summary.current_period)}
 					{/if}
