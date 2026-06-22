@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { Tags, CalendarClock } from 'lucide-svelte';
+	import { Tags, CalendarClock, TrendingUp } from 'lucide-svelte';
 	import MenuLink from '$lib/components/MenuLink.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
@@ -67,6 +67,10 @@
 	async function handleStateChange(state: string) {
 		if (!state) return;
 		await patch({ home_state: state });
+	}
+
+	async function handlePortfolioToggle(checked: boolean) {
+		await patch({ show_portfolio: checked ? 1 : 0 });
 	}
 
 	function ordinal(n: number): string {
@@ -400,6 +404,28 @@
 			</button>
 		</section>
 	{/if}
+
+	<!-- Portfolio (opt-in, hidden by default) -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Portfolio</h2>
+		<label class="toggle-row">
+			<input
+				type="checkbox"
+				class="toggle-check"
+				checked={data.settings?.show_portfolio === 1}
+				onchange={(e) => handlePortfolioToggle(e.currentTarget.checked)}
+				disabled={saving}
+			/>
+			<span class="toggle-label">Track investments (private, manual)</span>
+		</label>
+		{#if data.settings?.show_portfolio === 1}
+			<nav class="manage-links" aria-label="Portfolio">
+				<MenuLink href="/portfolio" title="Portfolio" sub="Your investments and value over time">
+					{#snippet icon()}<TrendingUp size={20} />{/snippet}
+				</MenuLink>
+			</nav>
+		{/if}
+	</section>
 
 	<!-- Household -->
 	<section class="settings-section">

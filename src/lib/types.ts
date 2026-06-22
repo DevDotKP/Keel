@@ -63,6 +63,39 @@ export interface Settings {
 	harbour_notify_at: string; // 'HH:MM'
 	cycle_budget_paise: number; // optional overall spending target for the cycle (0 = none)
 	home_state: string | null; // user's state, for the bank-holiday calendar (null = not set)
+	show_portfolio: 0 | 1; // opt-in: portfolio feature hidden unless enabled
+}
+
+export type HoldingKind =
+	| 'mutual_fund'
+	| 'stock'
+	| 'fd_rd'
+	| 'ppf_epf'
+	| 'gold'
+	| 'crypto'
+	| 'real_estate'
+	| 'cash'
+	| 'other';
+
+export interface Holding {
+	id: string;
+	household_id: string;
+	user_id: string;
+	name: string;
+	kind: HoldingKind;
+	value_paise: number;
+	sort_order: number;
+	created_at: string;
+	updated_at: string;
+	deleted_at: string | null;
+}
+
+export interface NewHolding {
+	household_id: string;
+	user_id: string;
+	name: string;
+	kind: HoldingKind;
+	value_paise: number;
 }
 
 export interface Account {
