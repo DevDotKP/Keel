@@ -1,4 +1,4 @@
-import type { Handle } from '@sveltejs/kit';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { getDb, getReadDb } from '$lib/server/db';
 import { getSessionUser } from '$lib/server/auth';
@@ -83,4 +83,25 @@ export const handle: Handle = async ({ event, resolve }) => {
 	);
 
 	return response;
+};
+
+// Central server error logging. Fires for uncaught/unexpected errors (e.g. a
+// failed D1 write), not for handled throw error(...) responses. Cloudflare
+// captures console output: live via `wrangler tail`, retained if Workers
+// Observability is enabled on the project. Privacy-first: log only the route,
+// method, status, and message. Never amounts, email, or transcripts.
+export const handleError: HandleServerError = ({ error, event, status, message }) => {
+	const id = crypto.randomUUID().slice(0, 8);
+	console.error(
+		JSON.stringify({
+			errorId: id,
+			at: new Date().toISOString(),
+			method: event.request.method,
+			route: event.route?.id ?? event.url.pathname,
+			status,
+			message: error instanceof Error ? error.message : String(error)
+		})
+	);
+	// Surface a reference id so a user-reported failure can be found in the logs.
+	return { message, errorId: id };
 };

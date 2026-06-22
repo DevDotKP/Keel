@@ -34,6 +34,8 @@ declare global {
 		interface Error {
 			message: string;
 			code?: string;
+			// Reference id logged server-side, shown to the user so a failure is traceable.
+			errorId?: string;
 		}
 	}
 }
