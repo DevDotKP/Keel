@@ -12,6 +12,7 @@ export interface InsightCategoryRow {
 }
 
 export interface InsightPeriodRow {
+	id: string;
 	period_start: string;
 	period_end: string;
 	total_expense_paise: number;
@@ -35,6 +36,15 @@ export interface InsightsData {
 	/** Last 3 completed (harboured) periods, newest first. */
 	recent_periods: InsightPeriodRow[];
 	cycle_budget_paise: number;
+	/** Previous completed period's spend per category, for change-vs-last-period. */
+	prev_by_category: PrevCategorySpend[];
+}
+
+export interface PrevCategorySpend {
+	category_id: string;
+	name: string;
+	color: string;
+	spent_paise: number;
 }
 
 /**
@@ -81,7 +91,7 @@ export async function getInsightsData(
 		// and the actual balance typed by the user). Zero means perfect tracking.
 		db
 			.prepare(
-				`SELECT rp.period_start, rp.period_end, rp.harboured_at,
+				`SELECT rp.id, rp.period_start, rp.period_end, rp.harboured_at,
 				        COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN -t.amount_paise ELSE 0 END), 0) AS total_expense_paise,
 				        COALESCE(SUM(CASE WHEN t.amount_paise < 0
 				          AND (t.is_uncategorized_fallback = 1 OR c.name = 'Uncategorized')
@@ -106,6 +116,26 @@ export async function getInsightsData(
 			?.cycle_budget_paise ?? 0;
 	const recent_periods = (historyRes.results ?? []) as InsightPeriodRow[];
 
+	// Previous completed period's spend per category, for "change vs last period".
+	const prevPeriodId = recent_periods[0]?.id;
+	let prev_by_category: PrevCategorySpend[] = [];
+	if (prevPeriodId) {
+		const prevRes = await readDb
+			.prepare(
+				`SELECT c.id AS category_id, c.name, c.color,
+				        COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN -t.amount_paise ELSE 0 END), 0) AS spent_paise
+				 FROM categories c
+				 LEFT JOIN transactions t
+				   ON t.category_id = c.id AND t.period_id = ? AND t.deleted_at IS NULL
+				 WHERE c.user_id = ? AND c.deleted_at IS NULL AND c.kind = 'expense'
+				 GROUP BY c.id
+				 HAVING spent_paise > 0`
+			)
+			.bind(prevPeriodId, user_id)
+			.all<PrevCategorySpend>();
+		prev_by_category = (prevRes.results ?? []) as PrevCategorySpend[];
+	}
+
 	let committed_paise = 0;
 	let flexible_paise = 0;
 	let uncategorized_paise = 0;
@@ -129,6 +159,7 @@ export async function getInsightsData(
 		total_expense_paise: committed_paise + flexible_paise + uncategorized_paise,
 		by_category,
 		recent_periods,
-		cycle_budget_paise
+		cycle_budget_paise,
+		prev_by_category
 	};
 }

@@ -338,7 +338,41 @@
 								</div>
 							</div>
 						{/if}
-						<p class="detail-foot">Per-category and year-over-year comparisons are coming next.</p>
+						{#if insights.prev_by_category.length > 0}
+							{@const curMap = new Map(insights.by_category.map((c) => [c.category_id, c]))}
+							{@const prevMap = new Map(insights.prev_by_category.map((pp) => [pp.category_id, pp]))}
+							{@const movers = [...new Set([...curMap.keys(), ...prevMap.keys()])]
+								.map((cid) => {
+									const cur = curMap.get(cid);
+									const prev = prevMap.get(cid);
+									return {
+										cid,
+										name: cur?.name ?? prev?.name ?? '',
+										color: cur?.color ?? prev?.color ?? '#6B7280',
+										isUncat: cur?.is_system === 1 && cur?.name === 'Uncategorized',
+										delta: (cur?.spent_paise ?? 0) - (prev?.spent_paise ?? 0)
+									};
+								})
+								.filter((mv) => !mv.isUncat && mv.delta !== 0)
+								.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+								.slice(0, 5)}
+							{#if movers.length > 0}
+								<div class="movers-block">
+									<h3 class="group-head">Biggest changes vs last period</h3>
+									<ul class="movers-list">
+										{#each movers as mv (mv.cid)}
+											<li class="mover-row">
+												<span class="cat-dot" style="background:{mv.color}" aria-hidden="true"></span>
+												<span class="mover-name">{mv.name}</span>
+												<span class="mover-delta" class:mover-up={mv.delta > 0} class:mover-down={mv.delta < 0}
+													>{mv.delta > 0 ? '+' : '\u2212'}{formatPaiseLedger(Math.abs(mv.delta))}</span>
+											</li>
+										{/each}
+									</ul>
+								</div>
+							{/if}
+						{/if}
+						<p class="detail-foot">Year-over-year comparison is coming next.</p>
 					{/if}
 				</section>
 			{/if}
@@ -1022,4 +1056,48 @@
 		font-size: 0.8125rem;
 		color: var(--color-text-subtle);
 	}
+
+	.movers-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.movers-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.mover-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.mover-row:last-child {
+		border-bottom: none;
+	}
+
+	.mover-name {
+		flex: 1;
+		min-width: 0;
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.mover-delta {
+		flex: none;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.mover-up { color: var(--color-clay); }
+	.mover-down { color: var(--color-positive); }
 </style>
