@@ -5,7 +5,7 @@
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { formatPaiseLedger } from '$lib/utils/money';
-	import { formatDisplayDate } from '$lib/utils/date';
+	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
 	import type { PageData } from './$types';
 	import type { TransactionDraft, Transaction } from '$lib/types';
 
@@ -108,6 +108,8 @@
 									<span class="meta-sep" aria-hidden="true">·</span>
 								{/if}
 								<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+								<span class="meta-sep" aria-hidden="true">·</span>
+								<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
 								{#if addedByOther && byLabel}
 									<span class="meta-sep" aria-hidden="true">·</span>
 									<span class="ledger-by" title="Added by {byEmail}">by {byLabel}</span>
@@ -281,6 +283,12 @@
 	.ledger-by {
 		color: var(--color-text-subtle);
 		font-size: 0.75rem;
+	}
+
+	.ledger-time {
+		color: var(--color-text-subtle);
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums;
 	}
 
 	.ledger-edited {

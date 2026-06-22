@@ -17,15 +17,6 @@ export function isSpeechSupported(): boolean {
 	return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 }
 
-/** iOS Safari mishandles continuous recognition; capture a single utterance there. */
-function isIOS(): boolean {
-	if (typeof navigator === 'undefined') return false;
-	return (
-		/iP(hone|ad|od)/.test(navigator.userAgent) ||
-		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-	);
-}
-
 /**
  * Start a voice capture session.
  * Recognises Indian English (en-IN), which also copes with Hinglish, and returns
@@ -45,11 +36,12 @@ export function captureOnce(options: { signal?: AbortSignal } = {}): Promise<Cap
 
 		// English output (the user speaks English; en-IN also handles Hinglish).
 		rec.lang = 'en-IN';
-		// iOS Safari behaves erratically in continuous mode (the stop control
-		// gets out of sync), so there we capture a single utterance and let
-		// recognition end itself. Android/Chrome keep continuous capture.
-		const ios = isIOS();
-		rec.continuous = !ios;
+		// Single-utterance capture on every platform. In continuous mode, Android
+		// Chrome re-emits the same final result across events, so rebuilding the
+		// transcript concatenated it (the "added thrice" bug). One short utterance
+		// is the right granularity for amount-first entries anyway, and iOS Safari
+		// only behaves with continuous off.
+		rec.continuous = false;
 		rec.interimResults = true;
 		rec.maxAlternatives = 1;
 

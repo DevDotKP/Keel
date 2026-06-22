@@ -340,14 +340,12 @@
 											<span class="meta-sep" aria-hidden="true">·</span>
 										{/if}
 										<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
-										{#if isShared}
-												{#if enteredByName}
-													<span class="meta-sep" aria-hidden="true">·</span>
-													<span class="ledger-by">by {enteredByName}</span>
-												{/if}
-												<span class="meta-sep" aria-hidden="true">·</span>
-												<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
-											{/if}
+										<span class="meta-sep" aria-hidden="true">·</span>
+										<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
+										{#if isShared && enteredByName}
+											<span class="meta-sep" aria-hidden="true">·</span>
+											<span class="ledger-by">by {enteredByName}</span>
+										{/if}
 									</span>
 									{#if tx.note}
 										<span class="ledger-note">{tx.note}</span>
