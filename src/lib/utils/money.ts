@@ -113,3 +113,20 @@ export function isExpense(amount_paise: number): boolean {
 export function absPaise(amount_paise: number): number {
 	return Math.abs(amount_paise);
 }
+
+/**
+ * Short Indian-system words for an amount magnitude: "15 thousand", "1.5 lakh",
+ * "2 crore". Empty under 1,000 (no words needed). India only for now; locale-aware
+ * words are a future i18n step.
+ */
+export function amountInWordsIndian(paise: number): string {
+	const rupees = Math.abs(paise) / 100;
+	if (rupees < 1000) return '';
+	const fmt = (n: number): string => {
+		const r = Math.round(n * 100) / 100;
+		return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, '');
+	};
+	if (rupees < 1e5) return `${fmt(rupees / 1000)} thousand`;
+	if (rupees < 1e7) return `${fmt(rupees / 1e5)} lakh`;
+	return `${fmt(rupees / 1e7)} crore`;
+}

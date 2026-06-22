@@ -3,7 +3,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
+	import { formatPaiseLedger, parseToPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { today, formatDisplayDate } from '$lib/utils/date';
 	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
 	import { holidaysForState, type IndianState } from '$lib/holidays';
@@ -365,6 +365,9 @@
 						required
 					/>
 				</div>
+				{#if incAmountPaise && amountInWordsIndian(incAmountPaise)}
+					<p class="amount-words">{amountInWordsIndian(incAmountPaise)}</p>
+				{/if}
 			</div>
 
 			<div class="field">
@@ -654,5 +657,11 @@
 		gap: var(--space-4);
 		padding-top: var(--space-4);
 		border-top: 1px solid var(--color-border);
+	}
+
+	.amount-words {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		margin-top: calc(var(--space-2) * -1);
 	}
 </style>

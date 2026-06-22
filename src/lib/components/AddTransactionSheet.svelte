@@ -2,7 +2,7 @@
 	import { Mic, Square, X } from 'lucide-svelte';
 	import Spinner from './Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { parseToPaise, formatPaise, formatAmountInput } from '$lib/utils/money';
+	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { parseFlexDate, nowIso } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
 	import { parse, matchCategory } from '$lib/anchors';
@@ -416,7 +416,9 @@
 						Stop recording
 					</button>
 				{:else if amountPaise && amountPaise > 0}
-					<p class="amount-formatted" aria-live="polite">{formatPaise(amountPaise)}</p>
+					<p class="amount-formatted" aria-live="polite">
+						{formatPaise(amountPaise)}{#if amountInWordsIndian(amountPaise)} · {amountInWordsIndian(amountPaise)}{/if}
+					</p>
 				{/if}
 			</div>
 
