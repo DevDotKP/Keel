@@ -73,6 +73,10 @@
 		await patch({ show_portfolio: checked ? 1 : 0 });
 	}
 
+	async function handleRolloverChange(policy: string) {
+		await patch({ budget_rollover: policy });
+	}
+
 	function ordinal(n: number): string {
 		const s = ['th', 'st', 'nd', 'rd'];
 		const v = n % 100;
@@ -365,6 +369,27 @@
 				<span>Saving…</span>
 			</p>
 		{/if}
+	</section>
+
+	<!-- Cycle budget: how the Insights target carries between cycles -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Cycle budget</h2>
+		<p class="settings-hint">
+			Set the amount in Insights. This controls how an unspent surplus or an overspend carries into next cycle's target. It never changes your safe to spend.
+		</p>
+		<div class="field">
+			<label for="rollover">When a cycle ends</label>
+			<select
+				id="rollover"
+				value={data.settings?.budget_rollover ?? 'fresh'}
+				onchange={(e) => handleRolloverChange(e.currentTarget.value)}
+				disabled={saving}
+			>
+				<option value="fresh">Start fresh each cycle</option>
+				<option value="surplus">Carry unspent budget forward</option>
+				<option value="deficit">Carry overspending forward</option>
+			</select>
+		</div>
 	</section>
 
 	<!-- Location: picks the bank-holiday calendar for recurring scheduling -->

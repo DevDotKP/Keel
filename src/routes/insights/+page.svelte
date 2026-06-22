@@ -104,15 +104,15 @@
 								<button
 									class="target-total"
 									onclick={() => {
-										targetValue = insights.cycle_budget_paise
-											? (insights.cycle_budget_paise / 100).toString()
+										targetValue = insights.base_budget_paise
+											? (insights.base_budget_paise / 100).toString()
 											: '';
 										editingTarget = true;
 									}}
 									aria-label="Edit cycle spending target"
 								>
 									<span class="total-number money">{formatPaiseLedger(total)}</span>
-									{#if insights.cycle_budget_paise > 0}
+									{#if insights.base_budget_paise > 0}
 										<span class="total-sub">of {formatPaiseLedger(insights.cycle_budget_paise)} target</span>
 									{:else}
 										<span class="total-sub total-sub--set">Set a cycle target</span>
@@ -120,7 +120,7 @@
 								</button>
 							{/if}
 						</div>
-						{#if insights.cycle_budget_paise > 0}
+						{#if insights.base_budget_paise > 0}
 							{@const over = total > insights.cycle_budget_paise}
 							<div class="prog-track" aria-hidden="true">
 								<div
@@ -131,6 +131,15 @@
 							</div>
 							{#if over}
 								<p class="over-note">{formatPaiseLedger(total - insights.cycle_budget_paise)} over target this cycle.</p>
+							{/if}
+							{#if insights.carryover_paise !== 0}
+								<p class="carry-note">
+									{#if insights.carryover_paise > 0}
+										Includes {formatPaiseLedger(insights.carryover_paise)} carried over from last cycle.
+									{:else}
+										{formatPaiseLedger(-insights.carryover_paise)} less, after last cycle's overspend.
+									{/if}
+								</p>
 							{/if}
 						{/if}
 					</section>
@@ -286,7 +295,7 @@
 								</span>
 								<span class="cat-right">
 									<span class="cat-amount money">{formatPaiseLedger(c.spent_paise)}</span>
-									<span class="cat-pct">{barWidth}%</span>
+									<span class="cat-pct">{barWidth}% of spend</span>
 								</span>
 							</li>
 						{/each}
@@ -560,6 +569,11 @@
 		color: var(--color-clay);
 	}
 
+	.carry-note {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
 	/* ── Committed / flexible split ─────────────────────────────────────────── */
 	.split-card {
 		display: flex;
@@ -762,6 +776,7 @@
 	.cat-pct {
 		font-size: 0.75rem;
 		color: var(--color-text-subtle);
+		white-space: nowrap;
 	}
 
 	/* ── Data quality signal ─────────────────────────────────────────────────── */

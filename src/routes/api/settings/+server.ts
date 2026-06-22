@@ -11,7 +11,8 @@ const PatchSettingsSchema = z.object({
 	harbour_notify_at: z.string().regex(/^\d{2}:\d{2}$/).optional(),
 	cycle_budget_paise: z.number().int().min(0).optional(),
 	home_state: z.enum(INDIAN_STATES).nullable().optional(),
-	show_portfolio: z.union([z.literal(0), z.literal(1)]).optional()
+	show_portfolio: z.union([z.literal(0), z.literal(1)]).optional(),
+	budget_rollover: z.enum(['fresh', 'surplus', 'deficit']).optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
@@ -60,6 +61,10 @@ export const PATCH: RequestHandler = async ({ platform, locals, request }) => {
 	if (updates.show_portfolio !== undefined) {
 		setClauses.push('show_portfolio = ?');
 		bindings.push(updates.show_portfolio);
+	}
+	if (updates.budget_rollover !== undefined) {
+		setClauses.push('budget_rollover = ?');
+		bindings.push(updates.budget_rollover);
 	}
 
 	if (setClauses.length === 0) {

@@ -64,7 +64,12 @@ export interface Settings {
 	cycle_budget_paise: number; // optional overall spending target for the cycle (0 = none)
 	home_state: string | null; // user's state, for the bank-holiday calendar (null = not set)
 	show_portfolio: 0 | 1; // opt-in: portfolio feature hidden unless enabled
+	budget_rollover: BudgetRollover; // how the cycle target carries between cycles
 }
+
+// How an unspent surplus or an overspend carries into the next cycle's target.
+// Applies to the Insights budget target only, never to safe-to-spend.
+export type BudgetRollover = 'fresh' | 'surplus' | 'deficit';
 
 export type HoldingKind =
 	| 'mutual_fund'

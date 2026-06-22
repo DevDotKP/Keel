@@ -1,4 +1,4 @@
-import type { HarbourCadence } from '$lib/types';
+import type { HarbourCadence, BudgetRollover } from '$lib/types';
 import { getOrCreateCurrentPeriod, nextDay } from './periods';
 
 export interface InsightCategoryRow {
@@ -35,7 +35,14 @@ export interface InsightsData {
 	by_category: InsightCategoryRow[];
 	/** Last 3 completed (harboured) periods, newest first. */
 	recent_periods: InsightPeriodRow[];
+	/** Effective target for this cycle: base + rollover carry, clamped to >= 0. */
 	cycle_budget_paise: number;
+	/** The stored base target the user edits (before any rollover carry). */
+	base_budget_paise: number;
+	/** Signed carry applied to the base this cycle: positive added, negative removed. */
+	carryover_paise: number;
+	/** How the target carries between cycles. */
+	budget_rollover: BudgetRollover;
 	/** Previous completed period's spend per category, for change-vs-last-period. */
 	prev_by_category: PrevCategorySpend[];
 }
@@ -83,7 +90,7 @@ export async function getInsightsData(
 			.bind(account_id, from, to, user_id),
 
 		db
-			.prepare('SELECT cycle_budget_paise FROM settings WHERE user_id = ?')
+			.prepare('SELECT cycle_budget_paise, budget_rollover FROM settings WHERE user_id = ?')
 			.bind(user_id),
 
 		// Last 5 completed periods with expense, uncategorized, and drift totals.
@@ -111,10 +118,23 @@ export async function getInsightsData(
 	]);
 
 	const by_category = (catRes.results ?? []) as InsightCategoryRow[];
-	const cycle_budget_paise =
-		(settingsRes.results?.[0] as { cycle_budget_paise: number } | undefined)
-			?.cycle_budget_paise ?? 0;
+	const settingsRow = settingsRes.results?.[0] as
+		| { cycle_budget_paise: number; budget_rollover: BudgetRollover }
+		| undefined;
+	const base_budget_paise = settingsRow?.cycle_budget_paise ?? 0;
+	const budget_rollover: BudgetRollover = settingsRow?.budget_rollover ?? 'fresh';
 	const recent_periods = (historyRes.results ?? []) as InsightPeriodRow[];
+
+	// Rollover carries into the *target* only (never safe-to-spend). We compare the
+	// previous completed period's spend against the base target. Budget rarely
+	// changes, so the current base stands in for the previous period's base.
+	let carryover_paise = 0;
+	if (base_budget_paise > 0 && budget_rollover !== 'fresh' && recent_periods.length > 0) {
+		const delta = base_budget_paise - recent_periods[0].total_expense_paise; // + surplus, - overspend
+		if (budget_rollover === 'surplus') carryover_paise = Math.max(0, delta);
+		else if (budget_rollover === 'deficit') carryover_paise = Math.min(0, delta);
+	}
+	const cycle_budget_paise = Math.max(0, base_budget_paise + carryover_paise);
 
 	// Previous completed period's spend per category, for "change vs last period".
 	const prevPeriodId = recent_periods[0]?.id;
@@ -160,6 +180,9 @@ export async function getInsightsData(
 		by_category,
 		recent_periods,
 		cycle_budget_paise,
+		base_budget_paise,
+		carryover_paise,
+		budget_rollover,
 		prev_by_category
 	};
 }
