@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { dev } from '$app/environment';
 	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { PageData } from './$types';
@@ -80,9 +79,9 @@
 			Continue with Google
 		</a>
 
-		<!-- Magic-link fallback: dev only -->
-		{#if dev}
-			<div class="divider"><span>or (dev only)</span></div>
+		<!-- Email magic-link: shown when it can actually send (dev, or Resend configured) -->
+		{#if data.magicLink}
+			<div class="divider"><span>or</span></div>
 
 			{#if mailState === 'sent'}
 				<div class="sent-state">
