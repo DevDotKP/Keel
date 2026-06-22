@@ -88,10 +88,9 @@
 				{@const cat = catById.get(tx.category_id)}
 				{@const income = tx.amount_paise >= 0}
 				{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-				{@const addedByOther = tx.entered_by && tx.entered_by !== data.currentUserId}
-				{@const byEmail = addedByOther ? (data.memberEmails[tx.entered_by!] ?? '') : ''}
-				{@const byLabel = addedByOther ? (data.memberNames[tx.entered_by!] ?? (byEmail ? byEmail.split('@')[0] : '')) : ''}
-				{@const byAvatar = addedByOther ? (data.memberAvatars[tx.entered_by!] ?? '') : ''}
+				{@const byEmail = tx.entered_by ? (data.memberEmails[tx.entered_by] ?? '') : ''}
+				{@const byLabel = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'You' : (data.memberNames[tx.entered_by] ?? (byEmail ? byEmail.split('@')[0] : ''))) : ''}
+				{@const byAvatar = tx.entered_by ? (data.memberAvatars[tx.entered_by] ?? '') : ''}
 				{@const wasEdited = tx.updated_at && tx.entered_at && (new Date(tx.updated_at).getTime() - new Date(tx.entered_at).getTime()) > 60_000}
 				<li class="ledger-row">
 					<button
@@ -121,7 +120,7 @@
 									<span class="ledger-note-inline">{tx.note}</span>
 								{/if}
 							</span>
-							{#if addedByOther && byLabel}
+							{#if isShared && byLabel}
 								<span class="ledger-by" title="Added by {byEmail}" aria-label="Added by {byLabel}">
 									<span class="by-avatar" aria-hidden="true">
 										{#if byAvatar}<img src={byAvatar} alt="" class="by-avatar-img" />{:else}{byLabel.charAt(0).toUpperCase()}{/if}

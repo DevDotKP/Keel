@@ -322,9 +322,8 @@
 						{@const cat = catById.get(tx.category_id)}
 						{@const income = tx.amount_paise >= 0}
 						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-						{@const addedByOther = !!tx.entered_by && tx.entered_by !== data.currentUserId}
-						{@const enteredByName = addedByOther ? (data.memberNames[tx.entered_by!] ?? (data.memberEmails[tx.entered_by!] ?? '').split('@')[0]) : ''}
-						{@const enteredByAvatar = addedByOther ? (data.memberAvatars[tx.entered_by!] ?? '') : ''}
+						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'You' : (data.memberNames[tx.entered_by] ?? (data.memberEmails[tx.entered_by] ?? '').split('@')[0])) : ''}
+						{@const enteredByAvatar = tx.entered_by ? (data.memberAvatars[tx.entered_by] ?? '') : ''}
 						<li class="ledger-row">
 							<button
 								class="row-tap"
