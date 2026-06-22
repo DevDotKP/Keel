@@ -104,25 +104,27 @@
 
 	// Resize a chosen image to a small centered square and return a JPEG data URL.
 	function resizeToDataUrl(file: File, size: number, quality: number): Promise<string> {
+		// Read as a data: URL (allowed by CSP) rather than a blob: object URL,
+		// which the img-src 'self' data: policy blocks.
 		return new Promise((resolve, reject) => {
-			const url = URL.createObjectURL(file);
-			const img = new Image();
-			img.onload = () => {
-				URL.revokeObjectURL(url);
-				const canvas = document.createElement('canvas');
-				canvas.width = size;
-				canvas.height = size;
-				const ctx = canvas.getContext('2d');
-				if (!ctx) return reject(new Error('no-canvas'));
-				const min = Math.min(img.width, img.height);
-				ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
-				resolve(canvas.toDataURL('image/jpeg', quality));
+			const reader = new FileReader();
+			reader.onerror = () => reject(new Error('read'));
+			reader.onload = () => {
+				const img = new Image();
+				img.onload = () => {
+					const canvas = document.createElement('canvas');
+					canvas.width = size;
+					canvas.height = size;
+					const ctx = canvas.getContext('2d');
+					if (!ctx) return reject(new Error('no-canvas'));
+					const min = Math.min(img.width, img.height);
+					ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
+					resolve(canvas.toDataURL('image/jpeg', quality));
+				};
+				img.onerror = () => reject(new Error('decode'));
+				img.src = reader.result as string;
 			};
-			img.onerror = () => {
-				URL.revokeObjectURL(url);
-				reject(new Error('load'));
-			};
-			img.src = url;
+			reader.readAsDataURL(file);
 		});
 	}
 
@@ -150,7 +152,7 @@
 				await patchProfile({ avatar: dataUrl });
 			}
 		} catch {
-			profileError = 'Could not process the image.';
+			profileError = 'Could not read that image. Try a JPEG or PNG.';
 		}
 		avatarBusy = false;
 	}

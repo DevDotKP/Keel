@@ -43,7 +43,7 @@ export const GET: RequestHandler = async ({ platform, url, cookies }) => {
 		client_id: clientId,
 		redirect_uri: redirectUri,
 		response_type: 'code',
-		scope: 'openid email',
+		scope: 'openid email profile',
 		state: nonce,
 		access_type: 'online',
 		prompt: 'select_account'
