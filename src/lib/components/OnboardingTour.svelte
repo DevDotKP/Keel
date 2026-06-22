@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { X, ChevronRight, ChevronLeft } from 'lucide-svelte';
+	import { isSpeechSupported } from '$lib/utils/voice/capture';
 
 	const TOUR_KEY = 'keel_tour_v1';
+
+	// Don't promise voice where the browser can't do it (notably iOS Safari).
+	const voiceSupported = isSpeechSupported();
 
 	interface TourStep {
 		title: string;
@@ -30,7 +34,9 @@
 		},
 		{
 			title: 'Log an expense',
-			body: 'Tap the gold button. Amount first. Or just say "Swiggy 200 rupees".',
+			body: voiceSupported
+				? 'Tap the gold button. Amount first. Or just say "Swiggy 200 rupees".'
+				: 'Tap the gold button. Amount first. Quick, and forgiving if you miss one.',
 			target: '.fab',
 			placement: 'above'
 		},
