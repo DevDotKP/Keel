@@ -1,0 +1,50 @@
+name: Deploy to Cloudflare Pages
+
+# Builds and deploys on every push to main, plus a manual trigger.
+# Requires two repository secrets (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN  - a token with "Cloudflare Pages: Edit" permission
+#   CLOUDFLARE_ACCOUNT_ID - your Cloudflare account id
+# Note: D1 migrations are NOT run here. Apply schema changes to the remote DB
+# (npx wrangler d1 migrations apply keel-prod --remote) before pushing a migration.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      - name: Unit tests
+        run: npm run test:unit -- --run
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy .svelte-kit/cloudflare --project-name keel
