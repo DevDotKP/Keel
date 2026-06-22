@@ -11,6 +11,8 @@ const DEFAULT_SPENDING_CATEGORIES: Array<{ name: string; color: string; bucket: 
 	{ name: 'Transport', color: '#1B3A66', bucket: 'committed' },
 	{ name: 'Bills & Utilities', color: '#7C756A', bucket: 'committed' },
 	{ name: 'Shopping', color: '#8B6DBF', bucket: 'flexible' },
+	{ name: 'Home', color: '#9C6B4A', bucket: 'flexible' },
+	{ name: 'Plants & Garden', color: '#4E8B5A', bucket: 'flexible' },
 	{ name: 'Health', color: '#2F7E72', bucket: 'flexible' },
 	{ name: 'Entertainment', color: '#E07B54', bucket: 'flexible' },
 	{ name: 'Rent', color: '#374151', bucket: 'committed' },
