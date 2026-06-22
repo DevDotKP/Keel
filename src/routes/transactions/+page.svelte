@@ -14,6 +14,7 @@
 	let sheetOpen = $state(false);
 	let editingTx = $state<Transaction | null>(null);
 	let busyId = $state<string | null>(null);
+	let isShared = $derived(Object.keys(data.memberEmails ?? {}).length > 1);
 
 	let totalPages = $derived(Math.max(1, Math.ceil(data.total / data.pageSize)));
 
@@ -89,7 +90,8 @@
 				{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
 				{@const addedByOther = tx.entered_by && tx.entered_by !== data.currentUserId}
 				{@const byEmail = addedByOther ? (data.memberEmails[tx.entered_by!] ?? '') : ''}
-				{@const byLabel = byEmail ? byEmail.split('@')[0] : ''}
+				{@const byLabel = addedByOther ? (data.memberNames[tx.entered_by!] ?? (byEmail ? byEmail.split('@')[0] : '')) : ''}
+				{@const byAvatar = addedByOther ? (data.memberAvatars[tx.entered_by!] ?? '') : ''}
 				{@const wasEdited = tx.updated_at && tx.entered_at && (new Date(tx.updated_at).getTime() - new Date(tx.entered_at).getTime()) > 60_000}
 				<li class="ledger-row">
 					<button
@@ -112,7 +114,12 @@
 								<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
 								{#if addedByOther && byLabel}
 									<span class="meta-sep" aria-hidden="true">·</span>
-									<span class="ledger-by" title="Added by {byEmail}">by {byLabel}</span>
+									<span class="ledger-by" title="Added by {byEmail}">
+										<span class="by-avatar" aria-hidden="true">
+											{#if byAvatar}<img src={byAvatar} alt="" class="by-avatar-img" />{:else}{byLabel.charAt(0).toUpperCase()}{/if}
+										</span>
+										{byLabel}
+									</span>
 								{/if}
 								{#if wasEdited}
 									<span class="meta-sep" aria-hidden="true">·</span>
@@ -171,6 +178,7 @@
 	open={sheetOpen}
 	categories={data.categories}
 	{editingTx}
+	{isShared}
 	onclose={() => { sheetOpen = false; editingTx = null; }}
 	onsubmit={handleSubmit}
 />

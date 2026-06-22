@@ -322,7 +322,9 @@
 						{@const cat = catById.get(tx.category_id)}
 						{@const income = tx.amount_paise >= 0}
 						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'you' : (data.memberNames[tx.entered_by] ?? (data.memberEmails[tx.entered_by] ?? '').split('@')[0])) : ''}
+						{@const addedByOther = !!tx.entered_by && tx.entered_by !== data.currentUserId}
+						{@const enteredByName = addedByOther ? (data.memberNames[tx.entered_by!] ?? (data.memberEmails[tx.entered_by!] ?? '').split('@')[0]) : ''}
+						{@const enteredByAvatar = addedByOther ? (data.memberAvatars[tx.entered_by!] ?? '') : ''}
 						<li class="ledger-row">
 							<button
 								class="row-tap"
@@ -344,7 +346,12 @@
 										<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
 										{#if isShared && enteredByName}
 											<span class="meta-sep" aria-hidden="true">·</span>
-											<span class="ledger-by">by {enteredByName}</span>
+											<span class="ledger-by">
+												<span class="by-avatar" aria-hidden="true">
+													{#if enteredByAvatar}<img src={enteredByAvatar} alt="" class="by-avatar-img" />{:else}{enteredByName.charAt(0).toUpperCase()}{/if}
+												</span>
+												{enteredByName}
+											</span>
 										{/if}
 									</span>
 									{#if tx.note}
@@ -378,6 +385,7 @@
 		open={sheetOpen}
 		{categories}
 		{editingTx}
+		{isShared}
 		onclose={() => { sheetOpen = false; editingTx = null; }}
 		onsubmit={handleSubmit}
 	/>
@@ -824,8 +832,32 @@
 	}
 
 	.ledger-by {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
 		font-size: 0.75rem;
 		color: var(--color-text-subtle);
+	}
+
+	.by-avatar {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		border-radius: var(--radius-full);
+		background: color-mix(in srgb, var(--color-text) 12%, transparent);
+		color: var(--color-text-muted);
+		font-size: 0.5625rem;
+		font-weight: 600;
+		overflow: hidden;
+		text-transform: uppercase;
+	}
+
+	.by-avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
 	}
 
 	.ledger-time {

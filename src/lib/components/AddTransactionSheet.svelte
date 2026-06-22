@@ -3,7 +3,7 @@
 	import Spinner from './Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
-	import { parseFlexDate, nowIso } from '$lib/utils/date';
+	import { parseFlexDate, nowIso, formatIstTime } from '$lib/utils/date';
 	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
 	import { parse, matchCategory } from '$lib/anchors';
 	import type { TransactionDraft, Category, Transaction } from '$lib/types';
@@ -14,9 +14,14 @@
 		onclose: () => void;
 		onsubmit: (draft: Required<TransactionDraft>) => Promise<void>;
 		editingTx?: Transaction | null;
+		isShared?: boolean; // household account: enables the duplicate-charge guard
 	}
 
-	let { open, categories, onclose, onsubmit, editingTx = null }: Props = $props();
+	let { open, categories, onclose, onsubmit, editingTx = null, isShared = false }: Props = $props();
+
+	// Family duplicate-charge guard: a recent same-amount entry by another member.
+	let duplicate = $state<{ name: string; description: string; amount_paise: number; entered_at: string } | null>(null);
+	let dupAcknowledged = $state(false);
 
 	// ── Local state ────────────────────────────────────────────────────────
 	let entryKind = $state<'expense' | 'income'>('expense'); // expense or income
@@ -183,6 +188,40 @@
 			error = 'Enter a valid amount';
 			return;
 		}
+		// Family guard: if another member just logged the same amount, ask before
+		// adding a second copy. New entries only; once acknowledged, don't re-ask.
+		if (isShared && !editingTx && !dupAcknowledged) {
+			const dup = await checkDuplicate(amountPaise);
+			if (dup) {
+				duplicate = dup;
+				return;
+			}
+		}
+		await proceed();
+	}
+
+	async function checkDuplicate(paise: number) {
+		try {
+			const res = await fetch(`/api/transactions/duplicate-check?amount_paise=${paise}`);
+			if (!res.ok) return null;
+			const body = (await res.json()) as { duplicate: typeof duplicate };
+			return body.duplicate ?? null;
+		} catch {
+			return null; // never block a save on the guard failing
+		}
+	}
+
+	function addAnyway() {
+		duplicate = null;
+		dupAcknowledged = true;
+		void proceed();
+	}
+
+	function dismissDuplicate() {
+		duplicate = null;
+	}
+
+	async function proceed() {
 		// Default category follows the chosen kind: Uncategorized for spending,
 		// Income for income. The category's kind sets the sign server-side.
 		const fallbackName = entryKind === 'income' ? 'Income' : 'Uncategorized';
@@ -243,6 +282,8 @@
 		occurredAt = nowIso().slice(0, 10);
 		error = null;
 		pendingVoice = null;
+		duplicate = null;
+		dupAcknowledged = false;
 	}
 
 	// ── Auto-categorize typed description (new entries only) ─────────────────
@@ -494,13 +535,31 @@
 				<p class="error" role="alert">{error}</p>
 			{/if}
 
-			<button type="submit" class="submit-btn" disabled={submitting || !amountPaise}>
-				{#if submitting}
-					<Spinner size={18} label="Saving" />
-				{:else}
-					{editingTx ? 'Save changes' : 'Save'}
-				{/if}
-			</button>
+			{#if duplicate}
+				<div class="dup-warning" role="alert">
+					<p class="dup-text">
+						{duplicate.name} already added {duplicate.description || 'a charge'} for
+						{formatPaise(duplicate.amount_paise)} at {formatIstTime(duplicate.entered_at)}.
+						Add it again?
+					</p>
+					<div class="dup-actions">
+						<button type="button" class="dup-cancel" onclick={dismissDuplicate} disabled={submitting}>
+							Not now
+						</button>
+						<button type="button" class="dup-add" onclick={addAnyway} disabled={submitting}>
+							{#if submitting}<Spinner size={18} label="Saving" />{:else}Add anyway{/if}
+						</button>
+					</div>
+				</div>
+			{:else}
+				<button type="submit" class="submit-btn" disabled={submitting || !amountPaise}>
+					{#if submitting}
+						<Spinner size={18} label="Saving" />
+					{:else}
+						{editingTx ? 'Save changes' : 'Save'}
+					{/if}
+				</button>
+			{/if}
 		</form>
 	</div>
 {/if}
@@ -748,6 +807,62 @@
 	.error {
 		color: var(--color-clay);
 		font-size: 0.875rem;
+	}
+
+	/* Family duplicate-charge prompt: calm gold notice, not an alarm. */
+	.dup-warning {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4);
+		margin-top: var(--space-2);
+		background: color-mix(in srgb, var(--color-gold) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
+		border-radius: var(--radius-md);
+	}
+
+	.dup-text {
+		font-size: 0.9375rem;
+		line-height: 1.5;
+		color: var(--color-text);
+	}
+
+	.dup-actions {
+		display: flex;
+		gap: var(--space-3);
+	}
+
+	.dup-cancel {
+		flex: 1;
+		height: 48px;
+		background: transparent;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text-muted);
+		font-weight: 500;
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.dup-add {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 48px;
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.dup-cancel:disabled,
+	.dup-add:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.sr-only {
