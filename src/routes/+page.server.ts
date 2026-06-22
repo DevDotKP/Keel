@@ -16,7 +16,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 
 	// Read account + cadence + harbourDay + household members in one batch.
 	const [accountRes, settingsRes, membersRes] = await rdb.batch<
-		{ id: string; balance_paise: number } | { harbour_cadence: HarbourCadence; harbour_day: string } | { id: string; email: string }
+		{ id: string; balance_paise: number } | { harbour_cadence: HarbourCadence; harbour_day: string; onboarded: number } | { id: string; email: string }
 	>([
 		rdb
 			.prepare(
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 			)
 			.bind(hid),
 		rdb
-			.prepare('SELECT harbour_cadence, harbour_day FROM settings WHERE user_id = ?')
+			.prepare('SELECT harbour_cadence, harbour_day, onboarded FROM settings WHERE user_id = ?')
 			.bind(locals.userId),
 		rdb
 			.prepare(
@@ -47,8 +47,12 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	};
 
 	const settingsRow = settingsRes.results?.[0] as
-		| { harbour_cadence: HarbourCadence; harbour_day: string }
+		| { harbour_cadence: HarbourCadence; harbour_day: string; onboarded: number }
 		| undefined;
+
+	// First run: send the user to set their starting balance and cadence once.
+	if (settingsRow && settingsRow.onboarded !== 1) redirect(302, '/welcome');
+
 	const cadence = settingsRow?.harbour_cadence ?? 'monthly';
 	const harbourDay = settingsRow?.harbour_day ?? 'sunday';
 

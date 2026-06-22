@@ -65,6 +65,7 @@ export interface Settings {
 	home_state: string | null; // user's state, for the bank-holiday calendar (null = not set)
 	show_portfolio: 0 | 1; // opt-in: portfolio feature hidden unless enabled
 	budget_rollover: BudgetRollover; // how the cycle target carries between cycles
+	onboarded: 0 | 1; // 0 until the /welcome first-run setup is done or skipped
 }
 
 // How an unspent surplus or an overspend carries into the next cycle's target.
