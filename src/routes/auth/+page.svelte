@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import { ShieldCheck, LifeBuoy, Tag } from 'lucide-svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	// Magic-link state (dev only)
+	// Magic-link state
 	type MailState = 'idle' | 'submitting' | 'sent';
 	let mailState = $state<MailState>('idle');
 	let email = $state('');
@@ -44,10 +45,10 @@
 </script>
 
 <svelte:head>
-	<title>Sign in — Keel</title>
+	<title>Keel — the tracker for people who quit trackers</title>
 </svelte:head>
 
-<div class="auth-card">
+<div class="landing">
 	<div class="brand">
 		<span class="brand-name">Keel</span>
 		<span class="brand-by">by Annapurna Labs</span>
@@ -55,20 +56,39 @@
 
 	<header class="hero">
 		<h1 class="hero-title">The tracker for people who quit trackers.</h1>
-		<p class="hero-sub">
-			Keep a calm eye on what is safe to spend. Fall behind without breaking your
-			numbers. No bank logins, no SMS reading.
-		</p>
+		<p class="hero-sub">See what is safe to spend at a glance. Fall behind without breaking your numbers.</p>
 	</header>
 
-	<div class="sign-in">
-		<h2 class="heading">Get started</h2>
+	<!-- Product preview: the value, as a picture. Pure CSS, no external assets. -->
+	<div class="preview" aria-hidden="true">
+		<div class="pv-top">
+			<span class="pv-label">Safe to spend</span>
+			<span class="pv-amount">₹42,300</span>
+			<span class="pv-sub">Free to spend before your next harbour</span>
+		</div>
+		<ul class="pv-ledger">
+			<li class="pv-row">
+				<span class="pv-name">Swiggy</span>
+				<span class="pv-amt">−₹240</span>
+			</li>
+			<li class="pv-row">
+				<span class="pv-dot"></span>
+				<span class="pv-name">Auto</span>
+				<span class="pv-amt">−₹60</span>
+			</li>
+			<li class="pv-row">
+				<span class="pv-name">Salary</span>
+				<span class="pv-amt pv-amt--in">+₹85,000</span>
+			</li>
+		</ul>
+	</div>
 
+	<!-- Sign in -->
+	<div class="sign-in">
 		{#if formError}
 			<p class="error-msg" role="alert">{formError}</p>
 		{/if}
 
-		<!-- Google Sign-In (primary, always shown) -->
 		<a href="/api/auth/google{data.next ? `?next=${encodeURIComponent(data.next)}` : ''}" class="google-btn" role="button">
 			<svg class="google-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -103,30 +123,24 @@
 				</div>
 			{:else}
 				<form class="magic-form" onsubmit={sendMagicLink} novalidate>
-					<div class="field">
-						<label for="email" class="field-label">Email</label>
-						<input
-							id="email"
-							type="email"
-							name="email"
-							bind:value={email}
-							class="field-input"
-							placeholder="you@example.com"
-							autocomplete="email"
-							inputmode="email"
-							required
-							disabled={mailState === 'submitting'}
-						/>
-					</div>
-					<button
-						class="magic-btn"
-						type="submit"
-						disabled={mailState === 'submitting' || !email}
-					>
+					<input
+						id="email"
+						type="email"
+						name="email"
+						bind:value={email}
+						class="field-input"
+						placeholder="you@example.com"
+						autocomplete="email"
+						inputmode="email"
+						aria-label="Email"
+						required
+						disabled={mailState === 'submitting'}
+					/>
+					<button class="magic-btn" type="submit" disabled={mailState === 'submitting' || !email}>
 						{#if mailState === 'submitting'}
 							<Spinner size={16} label="Sending link" />
 						{:else}
-							Send magic link
+							Email me a link
 						{/if}
 					</button>
 				</form>
@@ -134,18 +148,28 @@
 		{/if}
 	</div>
 
-	<ul class="why" aria-label="Why Keel">
-		<li>
-			<span class="why-label">Forgiving</span>
-			<span class="why-text">Miss an entry and nothing breaks. Loose ends wait at Harbour, never as guilt.</span>
+	<!-- Why Keel: scannable, icon-led, not prose. -->
+	<ul class="pillars">
+		<li class="pillar">
+			<span class="pillar-icon" aria-hidden="true"><LifeBuoy size={20} /></span>
+			<span class="pillar-body">
+				<span class="pillar-title">Forgiving</span>
+				<span class="pillar-text">Miss an entry and nothing breaks. Loose ends wait at Harbour.</span>
+			</span>
 		</li>
-		<li>
-			<span class="why-label">Private</span>
-			<span class="why-text">No SMS, email, or bank scraping. You type only what matters.</span>
+		<li class="pillar">
+			<span class="pillar-icon" aria-hidden="true"><ShieldCheck size={20} /></span>
+			<span class="pillar-body">
+				<span class="pillar-title">Private</span>
+				<span class="pillar-text">No SMS, email, or bank scraping. You type only what matters.</span>
+			</span>
 		</li>
-		<li>
-			<span class="why-label">One-time</span>
-			<span class="why-text">Free to start. A one-time price later, never a subscription.</span>
+		<li class="pillar">
+			<span class="pillar-icon" aria-hidden="true"><Tag size={20} /></span>
+			<span class="pillar-body">
+				<span class="pillar-title">One-time</span>
+				<span class="pillar-text">Free to start. A one-time price later, never a subscription.</span>
+			</span>
 		</li>
 	</ul>
 
@@ -157,23 +181,25 @@
 </div>
 
 <style>
-	.auth-card {
+	.landing {
 		width: 100%;
-		max-width: 400px;
+		max-width: 420px;
+		margin: 0 auto;
+		padding: var(--space-8) var(--space-6) var(--space-10);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-8);
+		gap: var(--space-6);
 	}
 
 	.brand {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
+		align-items: baseline;
+		gap: var(--space-2);
 	}
 
 	.brand-name {
 		font-family: var(--font-display);
-		font-size: 2rem;
+		font-size: 1.375rem;
 		font-weight: 700;
 		color: var(--color-text);
 		line-height: 1;
@@ -187,72 +213,113 @@
 	.hero {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-3);
+		gap: var(--space-2);
 	}
 
 	.hero-title {
 		font-family: var(--font-display);
-		font-size: 1.75rem;
+		font-size: 1.875rem;
 		font-weight: 700;
-		line-height: 1.15;
+		line-height: 1.12;
 		color: var(--color-text);
+		letter-spacing: -0.01em;
 	}
 
 	.hero-sub {
-		font-size: 0.9375rem;
-		line-height: 1.55;
-		color: var(--color-text-muted);
-	}
-
-	.why {
-		list-style: none;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-		padding-top: var(--space-5);
-		border-top: 1px solid var(--color-border);
-	}
-
-	.why li {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.why-label {
-		font-size: 0.875rem;
-		font-weight: 700;
-		color: var(--color-text);
-	}
-
-	.why-text {
-		font-size: 0.875rem;
+		font-size: 1rem;
 		line-height: 1.5;
 		color: var(--color-text-muted);
 	}
 
-	.auth-foot {
-		display: flex;
-		gap: var(--space-4);
-		padding-top: var(--space-2);
+	/* ── Product preview (the picture) ───────────────────────────────────────── */
+	.preview {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: var(--color-surface);
+		box-shadow: 0 10px 30px rgba(12, 35, 64, 0.10);
+		overflow: hidden;
 	}
 
-	.auth-foot a {
+	.pv-top {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: var(--space-5) var(--space-5) var(--space-4);
+		background: var(--color-surface-subtle);
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.pv-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-subtle);
+	}
+
+	.pv-amount {
+		font-family: var(--font-display);
+		font-size: 2.25rem;
+		font-weight: 700;
+		color: var(--color-gold);
+		font-variant-numeric: tabular-nums lining-nums;
+		line-height: 1.1;
+	}
+
+	.pv-sub {
 		font-size: 0.8125rem;
 		color: var(--color-text-muted);
-		text-underline-offset: 3px;
 	}
 
+	.pv-ledger {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		padding: var(--space-2) var(--space-5) var(--space-4);
+	}
+
+	.pv-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.pv-row:last-child {
+		border-bottom: none;
+	}
+
+	.pv-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: var(--radius-full);
+		background: var(--color-gold);
+		flex: none;
+	}
+
+	.pv-name {
+		flex: 1;
+		font-size: 0.875rem;
+		color: var(--color-text);
+	}
+
+	.pv-amt {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.pv-amt--in {
+		color: var(--color-positive);
+	}
+
+	/* ── Sign in ─────────────────────────────────────────────────────────────── */
 	.sign-in {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-5);
-	}
-
-	.heading {
-		font-size: 1.25rem;
-		font-weight: 600;
-		color: var(--color-text);
+		gap: var(--space-3);
 	}
 
 	.error-msg {
@@ -263,7 +330,7 @@
 		border-radius: var(--radius-sm);
 	}
 
-	/* Google's official button spec: white bg, border, G logo, system font */
+	/* Google's official button spec: white bg, border, G logo */
 	.google-btn {
 		display: flex;
 		align-items: center;
@@ -281,18 +348,12 @@
 		cursor: pointer;
 		transition:
 			background var(--duration-fast) var(--ease-out),
-			border-color var(--duration-fast) var(--ease-out),
 			box-shadow var(--duration-fast) var(--ease-out);
 	}
 
 	.google-btn:hover {
 		background: #f8f9fa;
-		border-color: #c6c6c6;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-	}
-
-	.google-btn:active {
-		background: #f1f3f4;
 	}
 
 	.google-logo {
@@ -301,7 +362,6 @@
 		flex: none;
 	}
 
-	/* Dev-only divider */
 	.divider {
 		display: flex;
 		align-items: center;
@@ -318,26 +378,14 @@
 		background: var(--color-border);
 	}
 
-	/* Dev-only magic link form */
 	.magic-form {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
 		gap: var(--space-2);
 	}
 
-	.field-label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--color-text-muted);
-	}
-
 	.field-input {
+		flex: 1;
+		min-width: 0;
 		height: 48px;
 		padding: 0 var(--space-4);
 		border: 1px solid var(--color-border);
@@ -345,7 +393,6 @@
 		background: var(--color-surface);
 		font-size: 1rem;
 		color: var(--color-text);
-		width: 100%;
 		font-family: inherit;
 	}
 
@@ -355,14 +402,12 @@
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 15%, transparent);
 	}
 
-	.field-input:disabled {
-		opacity: 0.5;
-	}
-
 	.magic-btn {
+		flex: none;
 		height: 48px;
+		padding: 0 var(--space-4);
 		background: var(--color-surface-subtle);
-		color: var(--color-text-muted);
+		color: var(--color-text);
 		font-weight: 600;
 		font-size: 0.9375rem;
 		border: 1px solid var(--color-border);
@@ -373,6 +418,7 @@
 		justify-content: center;
 		gap: var(--space-2);
 		font-family: inherit;
+		white-space: nowrap;
 	}
 
 	.magic-btn:disabled {
@@ -433,5 +479,63 @@
 		text-decoration: underline;
 		text-align: left;
 		font-family: inherit;
+	}
+
+	/* ── Pillars ─────────────────────────────────────────────────────────────── */
+	.pillars {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.pillar {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-3);
+	}
+
+	.pillar-icon {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		border-radius: var(--radius-md);
+		background: var(--color-surface-subtle);
+		color: var(--color-text);
+	}
+
+	.pillar-body {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+
+	.pillar-title {
+		font-size: 0.9375rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.pillar-text {
+		font-size: 0.875rem;
+		line-height: 1.45;
+		color: var(--color-text-muted);
+	}
+
+	.auth-foot {
+		display: flex;
+		gap: var(--space-4);
+		padding-top: var(--space-2);
+	}
+
+	.auth-foot a {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-underline-offset: 3px;
 	}
 </style>
