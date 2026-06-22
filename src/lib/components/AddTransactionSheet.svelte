@@ -202,7 +202,11 @@
 
 	async function checkDuplicate(paise: number) {
 		try {
-			const res = await fetch(`/api/transactions/duplicate-check?amount_paise=${paise}`);
+			const res = await fetch('/api/transactions/duplicate-check', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ amount_paise: paise })
+			});
 			if (!res.ok) return null;
 			const body = (await res.json()) as { duplicate: typeof duplicate };
 			return body.duplicate ?? null;

@@ -9,10 +9,12 @@ import { getDefaultAccount } from '$lib/server/queries/accounts';
 // Returns at most one match (the most recent). Personal accounts never match.
 const WINDOW_HOURS = 6;
 
-export const GET: RequestHandler = async ({ platform, locals, url }) => {
+// POST (not GET) so the amount travels in the body, never in a URL/log line.
+export const POST: RequestHandler = async ({ platform, locals, request }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 
-	const amount = Math.abs(parseInt(url.searchParams.get('amount_paise') ?? '', 10));
+	const body = (await request.json().catch(() => null)) as { amount_paise?: number } | null;
+	const amount = Math.abs(Math.trunc(Number(body?.amount_paise)));
 	if (!amount || Number.isNaN(amount)) return json({ duplicate: null });
 
 	const rdb = getReadDb(platform);

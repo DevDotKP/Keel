@@ -92,16 +92,33 @@ export const handle: Handle = async ({ event, resolve }) => {
 // method, status, and message. Never amounts, email, or transcripts.
 export const handleError: HandleServerError = ({ error, event, status, message }) => {
 	const id = crypto.randomUUID().slice(0, 8);
-	console.error(
-		JSON.stringify({
-			errorId: id,
-			at: new Date().toISOString(),
-			method: event.request.method,
-			route: event.route?.id ?? event.url.pathname,
-			status,
-			message: error instanceof Error ? error.message : String(error)
-		})
-	);
-	// Surface a reference id so a user-reported failure can be found in the logs.
+	const route = event.route?.id ?? event.url.pathname;
+	const method = event.request.method;
+	const detail = error instanceof Error ? error.message : String(error);
+
+	console.error(JSON.stringify({ errorId: id, at: new Date().toISOString(), method, route, status, message: detail }));
+
+	// Persist to our own D1 (private, retained, no third party). Fire-and-forget
+	// via waitUntil so it never blocks or throws into the response.
+	try {
+		const db = event.platform?.env?.DB;
+		const waitUntil = event.platform?.context?.waitUntil?.bind(event.platform.context);
+		if (db && waitUntil) {
+			waitUntil(
+				db
+					.prepare(
+						'INSERT INTO error_logs (error_id, method, route, status, message) VALUES (?, ?, ?, ?, ?)'
+					)
+					.bind(id, method, route, status ?? 500, detail)
+					.run()
+					.then(() => undefined)
+					.catch(() => undefined)
+			);
+		}
+	} catch {
+		/* logging must never break error handling */
+	}
+
+	// Surface a reference id so a user-reported failure can be found later.
 	return { message, errorId: id };
 };
