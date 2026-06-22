@@ -106,33 +106,30 @@
 		await patchProfile({ display_name: name || null });
 	}
 
-	// Resize a chosen image to a small centered square and return a JPEG data URL.
-	function resizeToDataUrl(file: File, size: number, quality: number): Promise<string> {
-		// Read as a data: URL (allowed by CSP) rather than a blob: object URL,
-		// which the img-src 'self' data: policy blocks.
-		return new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onerror = () => reject(new Error('read'));
-			reader.onload = () => {
-				const img = new Image();
-				img.onload = () => {
-					const canvas = document.createElement('canvas');
-					canvas.width = size;
-					canvas.height = size;
-					const ctx = canvas.getContext('2d');
-					if (!ctx) return reject(new Error('no-canvas'));
-					const min = Math.min(img.width, img.height);
-					ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
-					resolve(canvas.toDataURL('image/jpeg', quality));
-				};
-				img.onerror = () => reject(new Error('decode'));
-				img.src = reader.result as string;
-			};
-			reader.readAsDataURL(file);
-		});
+	// ── Avatar crop (position + zoom) ────────────────────────────────────────
+	const CROP_VP = 240; // crop viewport size in px
+	let cropOpen = $state(false);
+	let cropSrc = $state('');
+	let imgW = $state(0);
+	let imgH = $state(0);
+	let zoom = $state(1);
+	let offX = $state(0);
+	let offY = $state(0);
+	let cropBusy = $state(false);
+	let dragging = false;
+	let lastX = 0;
+	let lastY = 0;
+
+	let renderW = $derived(imgW ? imgW * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
+	let renderH = $derived(imgH ? imgH * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
+
+	// Keep the image covering the viewport (no gaps) as it pans/zooms.
+	function clampOffsets() {
+		offX = Math.min(0, Math.max(CROP_VP - renderW, offX));
+		offY = Math.min(0, Math.max(CROP_VP - renderH, offY));
 	}
 
-	async function onAvatarFile(e: Event) {
+	function onAvatarFile(e: Event) {
 		const input = e.currentTarget as HTMLInputElement;
 		const file = input.files?.[0];
 		input.value = ''; // allow re-selecting the same file later
@@ -146,19 +143,97 @@
 			profileError = 'Image too large. Max 8 MB.';
 			return;
 		}
-		avatarBusy = true;
+		// Read as a data: URL (CSP allows data:, not blob:) and open the cropper.
+		const reader = new FileReader();
+		reader.onerror = () => (profileError = 'Could not read that image.');
+		reader.onload = () => {
+			const src = reader.result as string;
+			const img = new Image();
+			img.onload = () => {
+				cropSrc = src;
+				imgW = img.naturalWidth;
+				imgH = img.naturalHeight;
+				zoom = 1;
+				const ds = CROP_VP / Math.min(imgW, imgH);
+				offX = (CROP_VP - imgW * ds) / 2;
+				offY = (CROP_VP - imgH * ds) / 2;
+				cropOpen = true;
+			};
+			img.onerror = () => (profileError = 'Could not read that image. Try a JPEG or PNG.');
+			img.src = src;
+		};
+		reader.readAsDataURL(file);
+	}
+
+	function cropPointerDown(e: PointerEvent) {
+		dragging = true;
+		lastX = e.clientX;
+		lastY = e.clientY;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	}
+
+	function cropPointerMove(e: PointerEvent) {
+		if (!dragging) return;
+		offX += e.clientX - lastX;
+		offY += e.clientY - lastY;
+		lastX = e.clientX;
+		lastY = e.clientY;
+		clampOffsets();
+	}
+
+	function cropPointerUp() {
+		dragging = false;
+	}
+
+	function onZoom(v: number) {
+		zoom = v;
+		clampOffsets();
+	}
+
+	// Render the visible square of the cropper to a small JPEG data URL.
+	function renderCrop(out: number, quality: number): Promise<string> {
+		return new Promise((resolve, reject) => {
+			const img = new Image();
+			img.onload = () => {
+				const ds = (CROP_VP / Math.min(imgW, imgH)) * zoom;
+				const sx = -offX / ds;
+				const sy = -offY / ds;
+				const s = CROP_VP / ds;
+				const canvas = document.createElement('canvas');
+				canvas.width = out;
+				canvas.height = out;
+				const ctx = canvas.getContext('2d');
+				if (!ctx) return reject(new Error('no-canvas'));
+				ctx.drawImage(img, sx, sy, s, s, 0, 0, out, out);
+				resolve(canvas.toDataURL('image/jpeg', quality));
+			};
+			img.onerror = () => reject(new Error('decode'));
+			img.src = cropSrc;
+		});
+	}
+
+	function cancelCrop() {
+		cropOpen = false;
+		cropSrc = '';
+	}
+
+	async function useCrop() {
+		cropBusy = true;
+		profileError = null;
 		try {
-			let dataUrl = await resizeToDataUrl(file, 128, 0.82);
-			if (dataUrl.length > 200_000) dataUrl = await resizeToDataUrl(file, 96, 0.7);
+			let dataUrl = await renderCrop(192, 0.82);
+			if (dataUrl.length > 200_000) dataUrl = await renderCrop(144, 0.72);
 			if (dataUrl.length > 200_000) {
-				profileError = 'Could not compress the image enough. Try another.';
+				profileError = 'Could not compress that image. Try another.';
 			} else {
 				await patchProfile({ avatar: dataUrl });
+				cropOpen = false;
+				cropSrc = '';
 			}
 		} catch {
-			profileError = 'Could not read that image. Try a JPEG or PNG.';
+			profileError = 'Could not process the image.';
 		}
-		avatarBusy = false;
+		cropBusy = false;
 	}
 
 	async function removeAvatar() {
@@ -429,7 +504,7 @@
 				{/if}
 			</div>
 		</div>
-		<p class="settings-hint">A square photo works best. Max 8 MB; it is resized small and stored privately.</p>
+		<p class="settings-hint">Up to 8 MB. Position and zoom it after choosing. Stored privately.</p>
 		<div class="field">
 			<label for="display-name">Display name</label>
 			<input
@@ -445,6 +520,48 @@
 			<p class="error" role="alert">{profileError}</p>
 		{/if}
 	</section>
+
+	{#if cropOpen}
+		<div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Position your photo">
+			<div class="crop-card">
+				<h2 class="crop-title">Position your photo</h2>
+				<div
+					class="crop-viewport"
+					role="application"
+					aria-label="Drag to reposition your photo"
+					onpointerdown={cropPointerDown}
+					onpointermove={cropPointerMove}
+					onpointerup={cropPointerUp}
+					onpointercancel={cropPointerUp}
+				>
+					<img
+						class="crop-img"
+						src={cropSrc}
+						alt=""
+						draggable="false"
+						style="width:{renderW}px; height:{renderH}px; transform:translate({offX}px, {offY}px)"
+					/>
+				</div>
+				<label class="crop-zoom">
+					<span class="sr-only">Zoom</span>
+					<input
+						type="range"
+						min="1"
+						max="3"
+						step="0.01"
+						value={zoom}
+						oninput={(e) => onZoom(parseFloat(e.currentTarget.value))}
+					/>
+				</label>
+				<div class="crop-actions">
+					<button class="secondary-btn" onclick={cancelCrop} disabled={cropBusy}>Cancel</button>
+					<button class="crop-use" onclick={useCrop} disabled={cropBusy}>
+						{cropBusy ? 'Saving…' : 'Use photo'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<!-- Account -->
 	<section class="settings-section">
@@ -844,5 +961,88 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.crop-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: var(--z-sheet);
+		background: rgba(12, 35, 64, 0.5);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-4);
+	}
+
+	.crop-card {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-4);
+		width: min(320px, 100%);
+		padding: var(--space-6);
+		background: var(--color-surface);
+		border-radius: var(--radius-lg);
+	}
+
+	.crop-title {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.crop-viewport {
+		position: relative;
+		width: 240px;
+		height: 240px;
+		border-radius: 50%;
+		overflow: hidden;
+		background: var(--color-surface-subtle);
+		touch-action: none;
+		cursor: grab;
+	}
+
+	.crop-img {
+		position: absolute;
+		top: 0;
+		left: 0;
+		max-width: none;
+		user-select: none;
+		-webkit-user-drag: none;
+	}
+
+	.crop-zoom {
+		width: 100%;
+	}
+
+	.crop-zoom input {
+		width: 100%;
+		accent-color: var(--color-gold);
+	}
+
+	.crop-actions {
+		display: flex;
+		gap: var(--space-3);
+		width: 100%;
+	}
+
+	.crop-actions .secondary-btn {
+		flex: 1;
+	}
+
+	.crop-use {
+		flex: 1;
+		height: 44px;
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.crop-use:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>
