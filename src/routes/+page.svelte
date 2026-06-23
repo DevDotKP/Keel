@@ -135,31 +135,39 @@
 			duration: 5000
 		});
 	}
+
+	// Cache the resolved dashboard data. Rendering from this (instead of awaiting
+	// the streamed promises directly) means a background refresh after a delete
+	// updates the numbers in place, with no skeleton flash.
+	let view = $state<{
+		summary: Awaited<PageData['summary']>;
+		transactions: Awaited<PageData['transactions']>;
+		categories: Awaited<PageData['categories']>;
+		runway: Awaited<PageData['runway']>;
+	} | null>(null);
+	let loadError = $state(false);
+
+	$effect(() => {
+		Promise.all([data.summary, data.transactions, data.categories, data.runway])
+			.then(([summary, transactions, categories, runway]) => {
+				view = { summary, transactions, categories, runway };
+				loadError = false;
+			})
+			.catch(() => {
+				loadError = true;
+			});
+	});
 </script>
 
 <svelte:head>
 	<title>Dashboard - Keel</title>
 </svelte:head>
 
-{#await Promise.all([data.summary, data.transactions, data.categories, data.runway])}
-	<div class="dashboard">
-		<section class="hero" aria-hidden="true">
-			<div class="skel skel-label"></div>
-			<div class="skel skel-hero"></div>
-			<div class="skel skel-sub"></div>
-		</section>
-		<div class="runway-card" aria-hidden="true">
-			<div class="skel skel-label" style="width:60px"></div>
-			<div class="skel" style="height:28px;width:120px;margin-top:4px"></div>
-		</div>
-		<section class="ledger-section">
-			<div class="skel skel-section-head"></div>
-			{#each [1, 2, 3] as _}
-				<div class="skel skel-ledger-row"></div>
-			{/each}
-		</section>
-	</div>
-{:then [summary, transactions, categories, runway]}
+{#if view}
+	{@const summary = view.summary}
+	{@const transactions = view.transactions}
+	{@const categories = view.categories}
+	{@const runway = view.runway}
 	{@const catById = new Map(categories.map((c) => [c.id, c]))}
 	{@const reservedEssentials = categories
 		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
@@ -389,14 +397,32 @@
 	/>
 
 	<OnboardingTour />
-{:catch}
+{:else if loadError}
 	<div class="dashboard">
 		<p class="load-error">
 			Couldn't load your data.
 			<button class="retry-btn" onclick={() => invalidateAll()}>Retry</button>
 		</p>
 	</div>
-{/await}
+{:else}
+	<div class="dashboard">
+		<section class="hero" aria-hidden="true">
+			<div class="skel skel-label"></div>
+			<div class="skel skel-hero"></div>
+			<div class="skel skel-sub"></div>
+		</section>
+		<div class="runway-card" aria-hidden="true">
+			<div class="skel skel-label" style="width:60px"></div>
+			<div class="skel" style="height:28px;width:120px;margin-top:4px"></div>
+		</div>
+		<section class="ledger-section">
+			<div class="skel skel-section-head"></div>
+			{#each [1, 2, 3] as _}
+				<div class="skel skel-ledger-row"></div>
+			{/each}
+		</section>
+	</div>
+{/if}
 
 <style>
 	.dashboard {
