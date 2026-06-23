@@ -66,22 +66,58 @@
 
 <div class="harbour-page">
 	<header class="page-header">
-		<h1 class="section-head">Harbour</h1>
+		<div class="harbour-title-row">
+			<h1 class="section-head">Harbour</h1>
+			{#if data.harbourVisits > 0}
+				<span class="visits-badge" aria-label="{data.harbourVisits} harbour visits">
+					{data.harbourVisits} {data.harbourVisits === 1 ? 'visit' : 'visits'}
+				</span>
+			{/if}
+		</div>
 		<p class="page-sub">{periodRange()}</p>
-		{#if data.harbourVisits > 0}
-			<p class="visits-badge" aria-label="{data.harbourVisits} harbour visits">
-				{data.harbourVisits} {data.harbourVisits === 1 ? 'visit' : 'visits'}
-			</p>
-		{/if}
+		<p class="harbour-intro">
+			Close out this period: confirm what's really in your account and Keel squares the difference, then seals it.
+		</p>
 	</header>
 
-	<section class="estimate">
-		<p class="estimate-label">Keel's estimate of money left</p>
-		<p class="money-hero">{formatPaise(data.estimatePaise)}</p>
+	<!-- The reckoning: estimate → your real balance → the difference Keel squares. -->
+	<section class="reconcile" aria-label="Reconcile your balance">
+		<div class="rec-estimate">
+			<span class="rec-label">Keel's estimate</span>
+			<span class="rec-estimate-val money">{formatPaise(data.estimatePaise)}</span>
+		</div>
+
+		<div class="rec-field">
+			<label for="actual-balance" class="rec-field-label">What's actually in your account?</label>
+			<p class="rec-hint">Check your bank or UPI app. Prefilled with Keel's estimate, change it if it's off.</p>
+			<div class="balance-input-row">
+				<span class="currency-symbol" aria-hidden="true">₹</span>
+				<input
+					id="actual-balance"
+					type="text"
+					inputmode="decimal"
+					placeholder="0"
+					value={balanceInput}
+					oninput={handleBalanceInput}
+					class="balance-input money"
+					aria-label="Actual balance in rupees"
+				/>
+			</div>
+		</div>
+
+		{#if drift !== null && drift !== 0}
+			<div class="rec-drift">
+				<span class="rec-label">Difference</span>
+				<span class="rec-drift-val money">{drift > 0 ? '+' : '−'}{formatPaiseLedger(Math.abs(drift))}</span>
+			</div>
+			<p class="drift-note">Keel files this as Uncategorized so your total stays clean. No hunting for the gap.</p>
+		{:else if drift === 0 && enteredPaise !== null}
+			<p class="drift-note">Spot on. Nothing to reconcile.</p>
+		{/if}
 	</section>
 
 	<section class="entries">
-		<h2 class="section-head">This period</h2>
+		<h2 class="entries-head">What you logged this period</h2>
 		{#if data.transactions.length === 0}
 			<EmptyState heading="Nothing logged yet" body="Add entries, then come back to settle." />
 		{:else}
@@ -110,31 +146,6 @@
 					</li>
 				{/each}
 			</ul>
-		{/if}
-	</section>
-
-	<section class="drift-section">
-		<h2 class="section-head">Your actual balance</h2>
-		<p class="drift-hint">Enter the balance from your bank or UPI app.</p>
-		<div class="balance-input-row">
-			<span class="currency-symbol" aria-hidden="true">₹</span>
-			<input
-				type="text"
-				inputmode="decimal"
-				placeholder="0"
-				value={balanceInput}
-				oninput={handleBalanceInput}
-				class="balance-input money"
-				aria-label="Actual balance in rupees"
-			/>
-		</div>
-		{#if drift !== null && drift !== 0}
-			<p class="drift-note">
-				Difference of {formatPaiseLedger(Math.abs(drift))}. Keel files it as Uncategorized so your
-				total stays clean.
-			</p>
-		{:else if drift === 0}
-			<p class="drift-note">Spot on. Nothing to reconcile.</p>
 		{/if}
 	</section>
 
@@ -185,10 +196,15 @@
 		font-size: 0.9375rem;
 	}
 
+	.harbour-title-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
 	/* Harbour visit count: a warm total, never a streak. */
 	.visits-badge {
 		display: inline-flex;
-		align-self: flex-start;
 		padding: 2px var(--space-3);
 		border-radius: var(--radius-full);
 		background: var(--color-surface-subtle);
@@ -198,16 +214,71 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	.estimate {
+	.harbour-intro {
+		font-size: 0.9375rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+		margin-top: var(--space-1);
+	}
+
+	/* Reconcile card: the reckoning. Estimate vs your real balance vs difference. */
+	.reconcile {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		padding: var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+	}
+
+	.rec-estimate,
+	.rec-drift {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.rec-label {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.rec-estimate-val {
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.rec-field {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
+		padding: var(--space-4) 0;
+		border-top: 1px solid var(--color-border);
+		border-bottom: 1px solid var(--color-border);
 	}
 
-	.estimate-label {
-		font-size: 0.875rem;
-		color: var(--color-text-muted);
-		font-weight: 500;
+	.rec-field-label {
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.rec-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		line-height: 1.4;
+	}
+
+	.rec-drift-val {
+		font-family: var(--font-display);
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums lining-nums;
 	}
 
 	.entries {
@@ -271,15 +342,12 @@
 		color: var(--color-text-subtle);
 	}
 
-	.drift-section {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-	}
-
-	.drift-hint {
-		font-size: 0.875rem;
-		color: var(--color-text-muted);
+	.entries-head {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-subtle);
 	}
 
 	.balance-input-row {
