@@ -10,7 +10,9 @@
 	let { children } = $props();
 
 	const showChrome = $derived(
-		!page.url.pathname.startsWith('/auth') && !page.url.pathname.startsWith('/opt-out')
+		!page.url.pathname.startsWith('/auth') &&
+			!page.url.pathname.startsWith('/opt-out') &&
+			!page.url.pathname.startsWith('/admin')
 	);
 </script>
 

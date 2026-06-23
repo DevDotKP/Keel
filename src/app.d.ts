@@ -14,6 +14,9 @@ declare global {
 		// Google OAuth — set via: wrangler secret put GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
 		GOOGLE_CLIENT_ID?: string;
 		GOOGLE_CLIENT_SECRET?: string;
+		// Owner-only admin panel (/admin). Set via: wrangler secret put ADMIN_USER / ADMIN_PASS
+		ADMIN_USER?: string;
+		ADMIN_PASS?: string;
 	}
 
 	namespace App {
