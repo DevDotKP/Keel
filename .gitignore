@@ -17,6 +17,8 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+# Local Cloudflare dev secrets (production secrets live in wrangler pages secret)
+.dev.vars
 
 # Vite
 vite.config.js.timestamp-*
