@@ -575,14 +575,13 @@
 	}
 
 	/* ── Committed / flexible split ─────────────────────────────────────────── */
+	/* Hairline section, not a filled card: the cycle target is the one anchor. */
 	.split-card {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-		padding: var(--space-4) var(--space-5);
-		background: var(--color-surface-subtle);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
+		padding: var(--space-5) 0 0;
+		border-top: 1px solid var(--color-border);
 	}
 
 	.split-labels {
@@ -837,9 +836,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-		padding: var(--space-5);
-		background: var(--color-surface-subtle);
-		border-radius: var(--radius-md);
+		padding: var(--space-5) 0 0;
+		border-top: 1px solid var(--color-border);
 	}
 
 	.drift-head {
