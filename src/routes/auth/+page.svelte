@@ -105,17 +105,13 @@
 
 			{#if mailState === 'sent'}
 				<div class="sent-state">
-					<p class="sent-heading">Check your email</p>
-					<p class="sent-body">
-						Sent to <strong>{email}</strong>. Expires in 15 minutes.
-					</p>
 					{#if devToken}
-						<div class="dev-token" role="note">
-							<p class="dev-label">Sign-in link (no email sent):</p>
-							<a href="/api/auth/verify?token={devToken}" class="dev-link">
-								/api/auth/verify?token={devToken.slice(0, 16)}…
-							</a>
-						</div>
+						<p class="sent-heading">Your sign-in link</p>
+						<p class="sent-body">Tap to sign in as <strong>{email}</strong>. Expires in 15 minutes.</p>
+						<a href="/api/auth/verify?token={devToken}" class="reveal-link" role="button">Sign in</a>
+					{:else}
+						<p class="sent-heading">Check your email</p>
+						<p class="sent-body">Sent to <strong>{email}</strong>. Expires in 15 minutes.</p>
 					{/if}
 					<button class="link-btn" onclick={() => { mailState = 'idle'; devToken = null; }}>
 						Use a different email
@@ -444,29 +440,16 @@
 		line-height: 1.5;
 	}
 
-	.dev-token {
-		padding: var(--space-3) var(--space-4);
-		background: color-mix(in srgb, var(--color-gold) 10%, transparent);
-		border: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
-		border-radius: var(--radius-sm);
+	.reveal-link {
 		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.dev-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-	}
-
-	.dev-link {
-		font-size: 0.8125rem;
-		color: var(--color-text);
-		word-break: break-all;
-		font-family: monospace;
+		align-items: center;
+		justify-content: center;
+		height: 48px;
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+		border-radius: var(--radius-md);
+		text-decoration: none;
 	}
 
 	.link-btn {
