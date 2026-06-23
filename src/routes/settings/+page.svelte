@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { Tags, CalendarClock, TrendingUp } from 'lucide-svelte';
+	import { Tags, CalendarClock, TrendingUp, Trash2, X } from 'lucide-svelte';
 	import MenuLink from '$lib/components/MenuLink.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { installPrompt } from '$lib/stores/install';
@@ -266,6 +267,55 @@
 	let inviteResult = $state<{ invite_url: string } | null>(null);
 	let inviteError = $state<string | null>(null);
 
+	// ── Household admin (manage members + invites) ───────────────────────────
+	let isAdmin = $derived(
+		data.members.find((m) => m.user_id === data.currentUserId)?.role === 'admin'
+	);
+	let adminCount = $derived(data.members.filter((m) => m.role === 'admin').length);
+	let memberBusyId = $state<string | null>(null);
+	let removeMember = $state<{ id: string; name: string } | null>(null);
+	let copiedInviteId = $state<string | null>(null);
+
+	async function changeRole(memberId: string, role: string) {
+		memberBusyId = memberId;
+		inviteError = null;
+		const res = await fetch(`/api/household/members/${memberId}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ role })
+		});
+		memberBusyId = null;
+		if (res.ok) await invalidateAll();
+		else {
+			const b = (await res.json().catch(() => ({}))) as { message?: string };
+			inviteError = b.message ?? 'Could not update the role.';
+		}
+	}
+
+	async function doRemoveMember(id: string) {
+		memberBusyId = id;
+		inviteError = null;
+		const res = await fetch(`/api/household/members/${id}`, { method: 'DELETE' });
+		memberBusyId = null;
+		removeMember = null;
+		if (res.ok) await invalidateAll();
+		else {
+			const b = (await res.json().catch(() => ({}))) as { message?: string };
+			inviteError = b.message ?? 'Could not remove the member.';
+		}
+	}
+
+	async function revokeInvite(id: string) {
+		const res = await fetch(`/api/household/invites/${id}`, { method: 'DELETE' });
+		if (res.ok) await invalidateAll();
+	}
+
+	function copyInviteLink(token: string, id: string) {
+		navigator.clipboard.writeText(`${window.location.origin}/join?token=${token}`);
+		copiedInviteId = id;
+		setTimeout(() => { if (copiedInviteId === id) copiedInviteId = null; }, 1500);
+	}
+
 	async function sendInvite() {
 		inviteBusy = true;
 		inviteError = null;
@@ -464,12 +514,34 @@
 							{#if m.avatar}<img src={m.avatar} alt="" class="avatar-img" />{:else}{initials(m.display_name, m.email)}{/if}
 						</span>
 						<span class="member-main">
-							<span class="member-name">{m.display_name || (m.email ?? '').split('@')[0]}</span>
+							<span class="member-name">
+								{m.display_name || (m.email ?? '').split('@')[0]}
+								{#if m.user_id === data.currentUserId}<span class="member-you">you</span>{/if}
+							</span>
 							<span class="member-email-sub">{m.email}</span>
 						</span>
-						<span class="member-role">{m.role}</span>
-						{#if m.user_id === data.currentUserId}
-							<span class="member-you">you</span>
+						{#if isAdmin}
+							{@const lastAdmin = m.role === 'admin' && adminCount <= 1}
+							<select
+								class="role-select"
+								value={m.role}
+								onchange={(e) => changeRole(m.id, e.currentTarget.value)}
+								disabled={memberBusyId === m.id || lastAdmin}
+								aria-label="Role for {m.display_name || m.email}"
+							>
+								<option value="member">Member</option>
+								<option value="admin">Admin</option>
+							</select>
+							<button
+								class="member-remove"
+								onclick={() => (removeMember = { id: m.id, name: m.display_name || (m.email ?? '').split('@')[0] })}
+								disabled={memberBusyId === m.id || lastAdmin}
+								aria-label="Remove {m.display_name || m.email}"
+							>
+								<Trash2 size={16} aria-hidden="true" />
+							</button>
+						{:else}
+							<span class="member-role">{m.role}</span>
 						{/if}
 					</li>
 				{/each}
@@ -477,7 +549,24 @@
 		{/if}
 
 		{#if data.pendingInvites.length > 0}
-			<p class="settings-hint">Pending: {data.pendingInvites.map(i => i.email).join(', ')}</p>
+			<ul class="invite-list" aria-label="Pending invites">
+				{#each data.pendingInvites as inv (inv.id)}
+					<li class="invite-item">
+						<span class="member-main">
+							<span class="member-name">{inv.email}</span>
+							<span class="member-email-sub">Invited as {inv.role} · pending</span>
+						</span>
+						{#if isAdmin}
+							<button class="copy-btn" onclick={() => copyInviteLink(inv.token, inv.id)}>
+								{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
+							</button>
+							<button class="member-remove" onclick={() => revokeInvite(inv.id)} aria-label="Revoke invite for {inv.email}">
+								<X size={16} aria-hidden="true" />
+							</button>
+						{/if}
+					</li>
+				{/each}
+			</ul>
 		{/if}
 
 		<!-- Invite form: only for admins -->
@@ -523,6 +612,15 @@
 			{/if}
 		{/if}
 	</section>
+
+	<ConfirmDialog
+		open={removeMember !== null}
+		title="Remove member?"
+		message={removeMember ? `${removeMember.name} will lose access to this household. Their past entries stay in the ledger.` : ''}
+		confirmLabel="Remove"
+		onconfirm={() => { const id = removeMember?.id; removeMember = null; if (id) doRemoveMember(id); }}
+		oncancel={() => (removeMember = null)}
+	/>
 
 	<!-- Export -->
 	<section class="settings-section">
@@ -848,10 +946,64 @@
 
 	.member-you {
 		flex: none;
-		font-size: 0.75rem;
+		font-size: 0.6875rem;
 		color: var(--color-text-muted);
 		font-style: italic;
+		margin-left: var(--space-1);
 	}
+
+	/* Admin controls on a member row */
+	.role-select {
+		flex: none;
+		width: auto;
+		height: 36px;
+		padding: 0 var(--space-7) 0 var(--space-3);
+		font-size: 0.8125rem;
+		border-radius: var(--radius-md);
+	}
+
+	.member-remove {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--tap-target);
+		height: var(--tap-target);
+		min-width: var(--tap-target);
+		border: none;
+		background: transparent;
+		color: var(--color-text-subtle);
+		border-radius: var(--radius-full);
+		cursor: pointer;
+		opacity: 0.6;
+		transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+	}
+
+	.member-remove:hover:not(:disabled) {
+		opacity: 1;
+		color: var(--color-clay);
+	}
+
+	.member-remove:disabled {
+		opacity: 0.25;
+		cursor: not-allowed;
+	}
+
+	.invite-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.invite-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3) 0;
+		border-bottom: 1px solid var(--color-border);
+	}
+
+	.invite-item:last-child { border-bottom: none; }
 
 	.invite-row {
 		display: flex;
