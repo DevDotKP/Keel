@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Mic, Square, X } from 'lucide-svelte';
+	import { Mic, Square, X, Check } from 'lucide-svelte';
+	import { fly, fade } from 'svelte/transition';
 	import Spinner from './Spinner.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
@@ -32,8 +33,12 @@
 	let showNote = $state(false);
 	let occurredAt = $state(nowIso().slice(0, 10)); // YYYY-MM-DD
 	let submitting = $state(false);
+	let saved = $state(false); // brief success beat before the sheet closes
 	let listening = $state(false);
 	let error = $state<string | null>(null);
+
+	// Honour reduced-motion for the open/close transition and the success beat.
+	const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 	// Voice metadata: held between capture and submit for logging.
 	let pendingVoice = $state<{ raw_transcript: string; parsed_json: string } | null>(null);
@@ -266,11 +271,14 @@
 				pendingVoice = null;
 			}
 
-			reset();
+			// A short, calm confirmation beat, then a smooth close (the open=false
+			// effect resets the form). Avoids the jarring instant disappear.
+			submitting = false;
+			saved = true;
+			await new Promise((r) => setTimeout(r, reduce ? 0 : 550));
 			onclose();
 		} catch {
 			error = 'Could not save. Try again.';
-		} finally {
 			submitting = false;
 		}
 	}
@@ -288,6 +296,7 @@
 		pendingVoice = null;
 		duplicate = null;
 		dupAcknowledged = false;
+		saved = false;
 	}
 
 	// ── Auto-categorize typed description (new entries only) ─────────────────
@@ -381,6 +390,7 @@
 		aria-label="Close"
 		onclick={onclose}
 		onkeydown={(e) => e.key === 'Escape' && onclose()}
+		transition:fade={{ duration: reduce ? 0 : 150 }}
 	></div>
 
 	<!-- Sheet -->
@@ -390,6 +400,7 @@
 		aria-modal="true"
 		aria-label="Add entry"
 		use:focusTrap
+		transition:fly={{ y: 40, duration: reduce ? 0 : 240 }}
 	>
 		<div class="sheet-header">
 			<span class="sheet-title">{editingTx ? 'Edit' : 'Add'} {entryKind === 'income' ? 'income' : 'expense'}</span>
@@ -561,8 +572,10 @@
 					</div>
 				</div>
 			{:else}
-				<button type="submit" class="submit-btn" disabled={submitting || !amountPaise}>
-					{#if submitting}
+				<button type="submit" class="submit-btn" class:submit-btn--saved={saved} disabled={submitting || saved || !amountPaise}>
+					{#if saved}
+						<Check size={18} aria-hidden="true" /> Saved
+					{:else if submitting}
 						<Spinner size={18} label="Saving" />
 					{:else}
 						{editingTx ? 'Save changes' : 'Save'}
@@ -579,7 +592,6 @@
 		inset: 0;
 		background: rgba(12, 35, 64, 0.4);
 		z-index: var(--z-sheet);
-		animation: fade-in var(--duration-fast) var(--ease-out);
 	}
 
 	.sheet {
@@ -591,7 +603,6 @@
 		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		z-index: calc(var(--z-sheet) + 1);
 		padding-bottom: env(safe-area-inset-bottom, 0px);
-		animation: slide-up var(--duration-normal) var(--ease-out);
 		max-height: 90dvh;
 		overflow-y: auto;
 		overscroll-behavior: contain;
@@ -845,6 +856,17 @@
 		cursor: not-allowed;
 	}
 
+	/* Success beat: a calm teal confirm, not dimmed like a disabled button. */
+	.submit-btn--saved {
+		background: var(--color-positive);
+		color: #fff;
+	}
+
+	.submit-btn--saved:disabled {
+		opacity: 1;
+		cursor: default;
+	}
+
 	.error {
 		color: var(--color-clay);
 		font-size: 0.875rem;
@@ -974,13 +996,4 @@
 		font-family: inherit;
 	}
 
-	@keyframes fade-in {
-		from { opacity: 0; }
-		to   { opacity: 1; }
-	}
-
-	@keyframes slide-up {
-		from { transform: translateY(100%); }
-		to   { transform: translateY(0); }
-	}
 </style>
