@@ -4,11 +4,20 @@
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 
-	// Which weekly series the trend chart shows (toggled by the stat cards).
-	let series = $state<'activeUsers' | 'newUsers'>('activeUsers');
+	// Which metric's weekly series the trend chart shows (set by clicking a card).
+	type SeriesKey = 'new' | 'wau' | 'mau' | 'total' | 'pau' | 'churn';
+	let selected = $state<SeriesKey>('wau');
+	const SERIES_LABEL: Record<SeriesKey, string> = {
+		new: 'New users',
+		wau: 'Weekly active',
+		mau: 'Monthly active (MAU)',
+		total: 'Total users',
+		pau: 'Paid active (PAU)',
+		churn: 'Churn'
+	};
 
-	let weeks = $derived(data.metrics?.weeks ?? []);
-	let maxVal = $derived(Math.max(1, ...weeks.map((w) => w[series])));
+	let points = $derived(data.metrics?.series?.[selected] ?? []);
+	let maxVal = $derived(Math.max(1, ...points.map((p) => p.value)));
 
 	function fmtTime(s: string): string {
 		// Stored UTC "YYYY-MM-DD HH:MM:SS" → compact "DD MMM, HH:MM".
@@ -53,48 +62,48 @@
 			</form>
 		</header>
 
-		<!-- Stat cards -->
+		<!-- Stat cards. Click any to chart its 8-week history below. -->
 		<section class="cards" aria-label="Metrics">
-			<button class="card" class:card--active={series === 'newUsers'} onclick={() => (series = 'newUsers')}>
+			<button class="card" class:card--active={selected === 'total'} onclick={() => (selected = 'total')}>
+				<span class="card-label">Total users</span>
+				<span class="card-value">{m.totalUsers}</span>
+			</button>
+			<button class="card" class:card--active={selected === 'new'} onclick={() => (selected = 'new')}>
 				<span class="card-label">New users (30d)</span>
 				<span class="card-value">{m.newUsers30}</span>
 			</button>
-			<button class="card" class:card--active={series === 'activeUsers'} onclick={() => (series = 'activeUsers')}>
-				<span class="card-label">Active (30d / MAU)</span>
-				<span class="card-value">{m.mau}</span>
-			</button>
-			<div class="card card--static">
-				<span class="card-label">Total users</span>
-				<span class="card-value">{m.totalUsers}</span>
-			</div>
-			<div class="card card--static">
-				<span class="card-label">DAU</span>
-				<span class="card-value">{m.dau}</span>
-			</div>
-			<div class="card card--static">
+			<button class="card" class:card--active={selected === 'wau'} onclick={() => (selected = 'wau')}>
 				<span class="card-label">WAU</span>
 				<span class="card-value">{m.wau}</span>
-			</div>
-			<div class="card card--static">
+			</button>
+			<button class="card" class:card--active={selected === 'mau'} onclick={() => (selected = 'mau')}>
+				<span class="card-label">MAU</span>
+				<span class="card-value">{m.mau}</span>
+			</button>
+			<button class="card" class:card--active={selected === 'pau'} onclick={() => (selected = 'pau')}>
 				<span class="card-label">PAU (paid)</span>
 				<span class="card-value">{m.pau}</span>
-			</div>
-			<div class="card card--static">
+			</button>
+			<button class="card" class:card--active={selected === 'churn'} onclick={() => (selected = 'churn')}>
 				<span class="card-label">Churn (30d)</span>
 				<span class="card-value">{m.churn30}</span>
+			</button>
+			<div class="card card--static">
+				<span class="card-label">DAU (today)</span>
+				<span class="card-value">{m.dau}</span>
 			</div>
 		</section>
 
-		<!-- Weekly trend for the selected series -->
+		<!-- Weekly trend for the selected metric -->
 		<section class="trend" aria-label="Weekly trend">
-			<h2 class="section-head">{series === 'newUsers' ? 'New users' : 'Active users'}, last 8 weeks</h2>
+			<h2 class="section-head">{SERIES_LABEL[selected]}, last 8 weeks</h2>
 			<div class="trend-chart" aria-hidden="true">
-				{#each weeks as w (w.label)}
-					{@const h = Math.max(2, Math.round((w[series] / maxVal) * 56))}
+				{#each points as p (p.label)}
+					{@const h = Math.max(2, Math.round((p.value / maxVal) * 56))}
 					<div class="trend-col">
-						<span class="trend-val">{w[series]}</span>
+						<span class="trend-val">{p.value}</span>
 						<div class="trend-bar" style="height:{h}px"></div>
-						<span class="trend-label">{w.label}</span>
+						<span class="trend-label">{p.label}</span>
 					</div>
 				{/each}
 			</div>
