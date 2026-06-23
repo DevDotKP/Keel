@@ -154,24 +154,41 @@
 	{/if}
 
 	<div class="actions">
-		<button
-			class="primary-btn"
-			disabled={submitting || enteredPaise === null}
-			onclick={() => handleHarbour(false)}
-		>
-			{#if submitting}
-				<Spinner size={18} label="Closing period" />
-			{:else}
-				Close this period
-			{/if}
-		</button>
 		{#if data.openPeriods > 1}
+			<!-- Amnesty: behind by several periods. Start fresh is the recommended,
+			     forgiving path; it seals them all at once. Settling one is secondary. -->
+			<p class="amnesty-note">
+				You're {data.openPeriods} periods behind. Starting fresh seals them all in one step, no need to settle each.
+			</p>
 			<button
-				class="secondary-btn"
+				class="primary-btn"
 				disabled={submitting || enteredPaise === null}
 				onclick={() => handleHarbour(true)}
 			>
-				Start fresh from today
+				{#if submitting}
+					<Spinner size={18} label="Starting fresh" />
+				{:else}
+					Start fresh from today
+				{/if}
+			</button>
+			<button
+				class="secondary-btn"
+				disabled={submitting || enteredPaise === null}
+				onclick={() => handleHarbour(false)}
+			>
+				Settle just this period
+			</button>
+		{:else}
+			<button
+				class="primary-btn"
+				disabled={submitting || enteredPaise === null}
+				onclick={() => handleHarbour(false)}
+			>
+				{#if submitting}
+					<Spinner size={18} label="Closing period" />
+				{:else}
+					Close this period
+				{/if}
 			</button>
 		{/if}
 	</div>
@@ -393,6 +410,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+	}
+
+	.amnesty-note {
+		font-size: 0.875rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
 	}
 
 	.primary-btn {
