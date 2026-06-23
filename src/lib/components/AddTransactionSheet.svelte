@@ -450,15 +450,20 @@
 					{/if}
 				</div>
 				{#if listening}
+					<div class="listening" role="status" aria-live="assertive">
+						<span class="listening-wave" aria-hidden="true">
+							<span></span><span></span><span></span>
+						</span>
+						<span class="listening-text">Listening… speak now</span>
+					</div>
 					<button
 						type="button"
 						class="stop-btn"
 						onclick={stopVoice}
 						aria-label="Stop recording"
-						aria-live="polite"
 					>
 						<Square size={16} fill="currentColor" />
-						Stop recording
+						Stop
 					</button>
 				{:else if amountPaise && amountPaise > 0}
 					<p class="amount-formatted" aria-live="polite">
@@ -745,6 +750,44 @@
 		font-variant-numeric: tabular-nums lining-nums;
 	}
 
+	/* Explicit "we're listening" state: an equaliser cue + a clear prompt. */
+	.listening {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+		color: var(--color-text);
+		font-size: 0.9375rem;
+		font-weight: 600;
+	}
+
+	.listening-wave {
+		display: inline-flex;
+		align-items: flex-end;
+		gap: 3px;
+		height: 16px;
+	}
+
+	.listening-wave span {
+		width: 3px;
+		height: 6px;
+		background: var(--color-gold);
+		border-radius: var(--radius-full);
+		animation: listening-bounce 1s ease-in-out infinite;
+	}
+
+	.listening-wave span:nth-child(2) { animation-delay: 0.15s; }
+	.listening-wave span:nth-child(3) { animation-delay: 0.3s; }
+
+	@keyframes listening-bounce {
+		0%, 100% { height: 6px; }
+		50%      { height: 16px; }
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.listening-wave span { animation: none; height: 12px; }
+	}
+
 	.stop-btn {
 		display: flex;
 		align-items: center;
@@ -760,12 +803,6 @@
 		border: none;
 		border-radius: var(--radius-md);
 		cursor: pointer;
-		animation: pulse 1.2s ease-in-out infinite;
-	}
-
-	@keyframes pulse {
-		0%, 100% { opacity: 1; }
-		50%       { opacity: 0.75; }
 	}
 
 	.icon-btn {
