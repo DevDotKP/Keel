@@ -17,13 +17,15 @@
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 
-	// Derived: show payday input only when cadence is monthly and harbour_day looks numeric.
+	// Payday alignment: monthly cycles can start on a working-day anchor or a set day.
 	let currentCadence = $derived(data.settings?.harbour_cadence ?? 'monthly');
 	let currentHarbourDay = $derived(data.settings?.harbour_day ?? 'sunday');
-	let paydayAligned = $derived(
-		currentCadence === 'monthly' && /^\d+$/.test(currentHarbourDay)
-	);
-	let paydayDayValue = $derived(paydayAligned ? currentHarbourDay : '');
+	const isPaydayAnchor = (d: string) =>
+		d === 'last_working_day' || d === 'first_working_day' || /^\d+$/.test(d);
+	let paydayAligned = $derived(currentCadence === 'monthly' && isPaydayAnchor(currentHarbourDay));
+	// 'last_working_day' | 'first_working_day' | 'specific'
+	let paydayAnchor = $derived(/^\d+$/.test(currentHarbourDay) ? 'specific' : currentHarbourDay);
+	let paydayDayValue = $derived(/^\d+$/.test(currentHarbourDay) ? currentHarbourDay : '25');
 
 	async function patch(fields: Record<string, unknown>) {
 		saving = true;
@@ -48,16 +50,18 @@
 	}
 
 	async function handlePaydayToggle(checked: boolean) {
-		if (checked) {
-			await patch({ harbour_day: '25' });
-		} else {
-			await patch({ harbour_day: 'sunday' });
-		}
+		// Default to last working day: the common Indian salary cadence.
+		await patch({ harbour_day: checked ? 'last_working_day' : 'sunday' });
+	}
+
+	async function handlePaydayAnchorChange(anchor: string) {
+		// 'specific' opens the day picker; the working-day anchors store directly.
+		await patch({ harbour_day: anchor === 'specific' ? '25' : anchor });
 	}
 
 	async function handlePaydayDayChange(day: string) {
 		const n = parseInt(day, 10);
-		if (isNaN(n) || n < 1 || n > 28) return;
+		if (isNaN(n) || n < 1 || n > 31) return;
 		await patch({ harbour_day: String(n) });
 	}
 
@@ -76,12 +80,6 @@
 
 	async function handleRolloverChange(policy: string) {
 		await patch({ budget_rollover: policy });
-	}
-
-	function ordinal(n: number): string {
-		const s = ['th', 'st', 'nd', 'rd'];
-		const v = n % 100;
-		return s[(v - 20) % 10] ?? s[v] ?? s[0];
 	}
 
 	async function handleSignOut() {
@@ -387,19 +385,35 @@
 			</label>
 			{#if paydayAligned}
 				<div class="field">
-					<label for="payday-day">Payday — day of month</label>
+					<label for="payday-anchor">When you're paid</label>
 					<select
-						id="payday-day"
-						value={paydayDayValue}
-						onchange={(e) => handlePaydayDayChange(e.currentTarget.value)}
+						id="payday-anchor"
+						value={paydayAnchor}
+						onchange={(e) => handlePaydayAnchorChange(e.currentTarget.value)}
 						disabled={saving}
 					>
-						{#each Array.from({ length: 28 }, (_, i) => i + 1) as day}
-							<option value={String(day)}>{day}</option>
-						{/each}
+						<option value="last_working_day">Last working day of the month</option>
+						<option value="first_working_day">First working day of the month</option>
+						<option value="specific">A specific date</option>
 					</select>
-					<p class="field-hint">Periods run from the {paydayDayValue}{ordinal(Number(paydayDayValue))} to the day before your next payday.</p>
 				</div>
+				{#if paydayAnchor === 'specific'}
+					<div class="field">
+						<label for="payday-day">Day of month</label>
+						<select
+							id="payday-day"
+							value={paydayDayValue}
+							onchange={(e) => handlePaydayDayChange(e.currentTarget.value)}
+							disabled={saving}
+						>
+							{#each Array.from({ length: 31 }, (_, i) => i + 1) as day}
+								<option value={String(day)}>{day}</option>
+							{/each}
+						</select>
+						<p class="field-hint">In shorter months this falls back to the last day.</p>
+					</div>
+				{/if}
+				<p class="field-hint">Your cycle starts on this day, skipping weekends so it lands on a real payday.</p>
 			{/if}
 		{/if}
 

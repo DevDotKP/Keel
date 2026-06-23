@@ -11,7 +11,20 @@
 	// Seed editable form state from the loaded defaults once.
 	let balance = $state('');
 	let cadence = $state<'weekly' | 'fortnightly' | 'monthly'>(untrack(() => data.cadence ?? 'monthly'));
-	let payday = $state(untrack(() => /^\d+$/.test(data.harbourDay ?? '')));
+	let payday = $state(
+		untrack(() => {
+			const d = data.harbourDay ?? '';
+			return /^\d+$/.test(d) || d === 'last_working_day' || d === 'first_working_day';
+		})
+	);
+	let paydayAnchor = $state(
+		untrack(() => {
+			const d = data.harbourDay ?? '';
+			if (d === 'first_working_day') return 'first_working_day';
+			if (/^\d+$/.test(d)) return 'specific';
+			return 'last_working_day';
+		})
+	);
 	let paydayDay = $state(untrack(() => (/^\d+$/.test(data.harbourDay ?? '') ? Number(data.harbourDay) : 25)));
 	let submitting = $state(false);
 
@@ -89,13 +102,24 @@
 			</label>
 			{#if payday}
 				<section class="field">
-					<label for="payday_day">Payday — day of month</label>
-					<select id="payday_day" name="payday_day" bind:value={paydayDay}>
-						{#each Array.from({ length: 28 }, (_, i) => i + 1) as day (day)}
-							<option value={day}>{day}</option>
-						{/each}
+					<label for="payday_anchor">When you're paid</label>
+					<select id="payday_anchor" name="payday_anchor" bind:value={paydayAnchor}>
+						<option value="last_working_day">Last working day of the month</option>
+						<option value="first_working_day">First working day of the month</option>
+						<option value="specific">A specific date</option>
 					</select>
 				</section>
+				{#if paydayAnchor === 'specific'}
+					<section class="field">
+						<label for="payday_day">Day of month</label>
+						<select id="payday_day" name="payday_day" bind:value={paydayDay}>
+							{#each Array.from({ length: 31 }, (_, i) => i + 1) as day (day)}
+								<option value={day}>{day}</option>
+							{/each}
+						</select>
+					</section>
+				{/if}
+				<p class="field-hint">Keel starts your cycle then, skipping weekends so it lands on a real payday.</p>
 			{/if}
 		{/if}
 

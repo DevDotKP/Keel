@@ -41,12 +41,17 @@ export const actions: Actions = {
 		const cadence = String(form.get('cadence') ?? 'monthly');
 		if (!CADENCES.has(cadence)) return fail(400, { message: 'Pick how often to settle up.' });
 
-		// Payday alignment only applies to monthly. A numeric harbour_day means payday.
+		// Payday alignment (monthly only): a working-day anchor or a specific day.
 		let harbourDay = 'sunday';
 		if (cadence === 'monthly' && form.get('payday') === 'on') {
-			const day = parseInt(String(form.get('payday_day') ?? ''), 10);
-			if (isNaN(day) || day < 1 || day > 28) return fail(400, { message: 'Pick a payday between 1 and 28.' });
-			harbourDay = String(day);
+			const anchor = String(form.get('payday_anchor') ?? 'last_working_day');
+			if (anchor === 'last_working_day' || anchor === 'first_working_day') {
+				harbourDay = anchor;
+			} else {
+				const day = parseInt(String(form.get('payday_day') ?? ''), 10);
+				if (isNaN(day) || day < 1 || day > 31) return fail(400, { message: 'Pick a valid payday.' });
+				harbourDay = String(day);
+			}
 		}
 
 		// Starting balance is optional. Empty or zero just skips the anchor.

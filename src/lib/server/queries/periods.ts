@@ -34,21 +34,49 @@ function computePeriod(
 	now: Date
 ): { start: string; end: string } {
 	if (cadence === 'monthly') {
-		const dayNum = parseInt(harbourDay, 10);
-		if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 28) {
-			// Payday-aligned: period runs from payday to (payday-1) of the following month.
-			const year = now.getFullYear();
-			const month = now.getMonth();
-			const today = now.getDate();
+		// Resolve the payday day-of-month for a given month from the anchor:
+		//  'last_working_day' | 'first_working_day' | a specific day (1-31, clamped).
+		// Working-day anchors skip Sat/Sun so the cycle lands on a real payday.
+		const boundaryDom = (yy: number, mm: number): number | null => {
+			const total = new Date(yy, mm + 1, 0).getDate();
+			const isWeekend = (d: number) => {
+				const w = new Date(yy, mm, d).getDay();
+				return w === 0 || w === 6;
+			};
+			if (harbourDay === 'last_working_day') {
+				let d = total;
+				while (isWeekend(d)) d--;
+				return d;
+			}
+			if (harbourDay === 'first_working_day') {
+				let d = 1;
+				while (isWeekend(d)) d++;
+				return d;
+			}
+			const n = parseInt(harbourDay, 10);
+			if (!isNaN(n) && n >= 1 && n <= 31) return Math.min(n, total);
+			return null; // not a payday anchor → calendar month
+		};
+
+		const y = now.getFullYear();
+		const m = now.getMonth();
+		const today = now.getDate();
+		const thisDom = boundaryDom(y, m);
+
+		if (thisDom !== null) {
 			// If today is before this month's payday, we're still in last month's period.
-			const startMonth = today < dayNum ? month - 1 : month;
-			const startYear = startMonth < 0 ? year - 1 : year;
-			const normalizedStartMonth = startMonth < 0 ? 11 : startMonth;
-			const start = new Date(startYear, normalizedStartMonth, dayNum);
-			// new Date(y, m+1, dayNum-1): when dayNum=1 this yields last day of startMonth.
-			const end = new Date(startYear, normalizedStartMonth + 1, dayNum - 1);
+			const prev = today < thisDom;
+			const startY = prev ? (m === 0 ? y - 1 : y) : y;
+			const startM = prev ? (m === 0 ? 11 : m - 1) : m;
+			const startDom = boundaryDom(startY, startM)!;
+			const start = new Date(startY, startM, startDom);
+			// End = day before the next month's payday.
+			const nextY = startM === 11 ? startY + 1 : startY;
+			const nextM = startM === 11 ? 0 : startM + 1;
+			const end = new Date(nextY, nextM, boundaryDom(nextY, nextM)! - 1);
 			return { start: ymdLocal(start), end: ymdLocal(end) };
 		}
+
 		// Default: calendar month (1st to last day).
 		const start = new Date(now.getFullYear(), now.getMonth(), 1);
 		const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
