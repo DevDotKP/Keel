@@ -97,13 +97,14 @@ export async function settleObligation(
 	if (!categoryId) throw new Error('No category available for obligation payment');
 
 	// Create the transaction (expense, negative), assigned to the current period.
+	// Stamp entered_by so the entry is attributed to the member who settled it.
 	const tx = await db
 		.prepare(
 			`INSERT INTO transactions
-			   (account_id, category_id, period_id, amount_paise, description, occurred_at, source)
-			 VALUES (?, ?, ?, ?, ?, ?, 'tap') RETURNING id`
+			   (account_id, category_id, period_id, amount_paise, description, occurred_at, source, entered_by)
+			 VALUES (?, ?, ?, ?, ?, ?, 'tap', ?) RETURNING id`
 		)
-		.bind(account_id, categoryId, period_id, -Math.abs(obl.amount_paise), obl.name, occurred_at)
+		.bind(account_id, categoryId, period_id, -Math.abs(obl.amount_paise), obl.name, occurred_at, user_id)
 		.first<{ id: string }>();
 	if (!tx) throw new Error('Failed to create obligation transaction');
 
