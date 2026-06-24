@@ -12,5 +12,6 @@ Where Claude's output differs from what I expected. I flag the mismatch; Claude 
 | 4 | 2026-06-22 | A visual, attention-grabbing landing | A wall of text | Target users won't read; weak first impression | Open |
 | 5 | 2026-06-22 | "Check Notion for critical items" to return the real open set | Relied on a 25-row search that hides status/severity and missed several Critical items | Missed P0/P1 work; I had to screenshot them | Open |
 | 6 | 2026-06-23 | Editing an entry to work, or be correctly diagnosed | Claimed the edit code was correct and asked for a repro, missing that updateTransaction wrote a non-existent updated_at column | Delayed a real fix; over-claimed correctness | Open |
+| 7 | 2026-06-24 | Verify the deploy at the real URL before declaring prod broken | Spent a whole session diagnosing a "dead worker / static-only prod" against keel.pages.dev, which is a stranger's site; our real URL is keel-aba.pages.dev and was working fine | Burned a session on a non-bug; never checked `wrangler pages project list` for the actual domain | Open |
 
 <!-- New gaps appended below this line. -->
