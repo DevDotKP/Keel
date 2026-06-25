@@ -45,6 +45,8 @@ export interface InsightsData {
 	budget_rollover: BudgetRollover;
 	/** Previous completed period's spend per category, for change-vs-last-period. */
 	prev_by_category: PrevCategorySpend[];
+	/** Spend over time at three zooms, for the Day/Month/Year chart. */
+	spend_trends: SpendTrends;
 }
 
 export interface PrevCategorySpend {
@@ -52,6 +54,17 @@ export interface PrevCategorySpend {
 	name: string;
 	color: string;
 	spent_paise: number;
+}
+
+export interface SpendTrendPoint {
+	label: string; // axis label (day, month, or year)
+	paise: number; // expense magnitude in that bucket
+}
+
+export interface SpendTrends {
+	daily: SpendTrendPoint[]; // last 30 days
+	monthly: SpendTrendPoint[]; // last 12 months
+	yearly: SpendTrendPoint[]; // last 4 years
 }
 
 /**
@@ -170,6 +183,8 @@ export async function getInsightsData(
 		}
 	}
 
+	const spend_trends = await getSpendTrends(readDb, account_id);
+
 	return {
 		period_start: period.period_start,
 		period_end: period.period_end,
@@ -183,6 +198,72 @@ export async function getInsightsData(
 		base_budget_paise,
 		carryover_paise,
 		budget_rollover,
-		prev_by_category
+		prev_by_category,
+		spend_trends
 	};
+}
+
+// Spend over time at three zooms, for the Day/Month/Year chart. Expense only
+// (amount < 0), excluding the Harbour reconciling adjustment so the trend
+// reflects real spending. Each series is zero-filled across the full range so
+// the chart shows a continuous timeline, not just the buckets that had spend.
+export async function getSpendTrends(db: D1Database, account_id: string): Promise<SpendTrends> {
+	const EXPENSE = `account_id = ?1 AND deleted_at IS NULL AND amount_paise < 0
+		AND NOT (is_uncategorized_fallback = 1 AND description = 'Harbour adjustment')`;
+
+	const [dRes, mRes, yRes] = await db.batch([
+		db
+			.prepare(
+				`SELECT date(occurred_at) AS k, COALESCE(SUM(-amount_paise), 0) AS p
+				 FROM transactions WHERE ${EXPENSE} AND occurred_at >= date('now', '-29 days') GROUP BY k`
+			)
+			.bind(account_id),
+		db
+			.prepare(
+				`SELECT strftime('%Y-%m', occurred_at) AS k, COALESCE(SUM(-amount_paise), 0) AS p
+				 FROM transactions WHERE ${EXPENSE} AND occurred_at >= date('now', 'start of month', '-11 months') GROUP BY k`
+			)
+			.bind(account_id),
+		db
+			.prepare(
+				`SELECT strftime('%Y', occurred_at) AS k, COALESCE(SUM(-amount_paise), 0) AS p
+				 FROM transactions WHERE ${EXPENSE} AND occurred_at >= date('now', 'start of year', '-3 years') GROUP BY k`
+			)
+			.bind(account_id)
+	]);
+
+	const toMap = (res: { results?: unknown[] }): Map<string, number> => {
+		const m = new Map<string, number>();
+		for (const r of (res.results ?? []) as { k: string; p: number }[]) m.set(r.k, r.p);
+		return m;
+	};
+	const dMap = toMap(dRes);
+	const mMap = toMap(mRes);
+	const yMap = toMap(yRes);
+
+	const now = new Date();
+	const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const pad = (n: number): string => String(n).padStart(2, '0');
+
+	const daily: SpendTrendPoint[] = [];
+	for (let i = 29; i >= 0; i--) {
+		const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
+		const key = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+		daily.push({ label: String(d.getUTCDate()), paise: dMap.get(key) ?? 0 });
+	}
+
+	const monthly: SpendTrendPoint[] = [];
+	for (let i = 11; i >= 0; i--) {
+		const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+		const key = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+		monthly.push({ label: MONTHS[d.getUTCMonth()], paise: mMap.get(key) ?? 0 });
+	}
+
+	const yearly: SpendTrendPoint[] = [];
+	for (let i = 3; i >= 0; i--) {
+		const y = now.getUTCFullYear() - i;
+		yearly.push({ label: String(y), paise: yMap.get(String(y)) ?? 0 });
+	}
+
+	return { daily, monthly, yearly };
 }

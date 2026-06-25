@@ -9,6 +9,9 @@
 	let { data }: { data: PageData } = $props();
 
 	let showDetail = $state(false);
+	// Spend-over-time zoom: day-over-day, month-over-month, or year-over-year.
+	let trendZoom = $state<'day' | 'month' | 'year'>('month');
+	const ZOOM_UNIT = { day: 'day', month: 'month', year: 'year' } as const;
 
 	// Days elapsed in the current period (1-based, clamped to the period length).
 	function daysElapsed(startIso: string, endIso: string): number {
@@ -388,7 +391,70 @@
 								</div>
 							{/if}
 						{/if}
-						<p class="detail-foot">Year-over-year comparison is coming next.</p>
+						<!-- Spend over time: day-over-day, month-over-month, year-over-year -->
+						{@const series = trendZoom === 'day'
+							? insights.spend_trends.daily
+							: trendZoom === 'month'
+								? insights.spend_trends.monthly
+								: insights.spend_trends.yearly}
+						{@const maxS = Math.max(...series.map((p) => p.paise), 1)}
+						{@const lastP = series[series.length - 1]?.paise ?? 0}
+						{@const prevP = series[series.length - 2]?.paise ?? 0}
+						{@const sDelta = lastP - prevP}
+						{@const sPct = prevP > 0 ? Math.round((sDelta / prevP) * 100) : 0}
+						<div class="overtime-block">
+							<div class="overtime-head">
+								<h3 class="group-head">Spend over time</h3>
+								<div class="zoom-toggle" role="group" aria-label="Compare by">
+									<button
+										class="zoom-btn"
+										class:zoom-btn--on={trendZoom === 'day'}
+										aria-pressed={trendZoom === 'day'}
+										onclick={() => (trendZoom = 'day')}>Day</button
+									>
+									<button
+										class="zoom-btn"
+										class:zoom-btn--on={trendZoom === 'month'}
+										aria-pressed={trendZoom === 'month'}
+										onclick={() => (trendZoom = 'month')}>Month</button
+									>
+									<button
+										class="zoom-btn"
+										class:zoom-btn--on={trendZoom === 'year'}
+										aria-pressed={trendZoom === 'year'}
+										onclick={() => (trendZoom = 'year')}>Year</button
+									>
+								</div>
+							</div>
+							<p class="overtime-summary" aria-live="polite">
+								{#if lastP === 0 && prevP === 0}
+									No spend recorded yet for this view.
+								{:else if sDelta === 0}
+									This {ZOOM_UNIT[trendZoom]}: {formatPaiseLedger(lastP)}, same as the last.
+								{:else}
+									This {ZOOM_UNIT[trendZoom]}: {formatPaiseLedger(lastP)},
+									<span class:overtime-up={sDelta > 0} class:overtime-down={sDelta < 0}
+										>{Math.abs(sPct)}% {sDelta > 0 ? 'higher' : 'lower'}</span
+									> than the last {ZOOM_UNIT[trendZoom]}.
+								{/if}
+							</p>
+							<div class="trend-chart overtime-chart" aria-hidden="true">
+								{#each series as p, i (i)}
+									{@const h = Math.max(2, Math.round((p.paise / maxS) * 56))}
+									<div class="trend-col">
+										<div
+											class="trend-bar"
+											class:trend-bar--current={i === series.length - 1}
+											style="height:{h}px"
+											title="{p.label}: {formatPaiseLedger(p.paise)}"
+										></div>
+										{#if series.length <= 12 || i % 5 === 0}
+											<span class="trend-label">{p.label}</span>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
 					{/if}
 				</section>
 			{/if}
@@ -1065,6 +1131,70 @@
 	}
 
 	.trend-bar--current { background: var(--color-navy); }
+
+	/* Spend over time (Day/Month/Year) */
+	.overtime-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
+	}
+
+	.overtime-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+	}
+
+	.zoom-toggle {
+		display: inline-flex;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+	}
+
+	.zoom-btn {
+		padding: 10px var(--space-3);
+		background: transparent;
+		border: none;
+		color: var(--color-text-muted);
+		font-family: inherit;
+		font-size: 0.8125rem;
+		cursor: pointer;
+	}
+
+	.zoom-btn + .zoom-btn {
+		border-left: 1px solid var(--color-border);
+	}
+
+	.zoom-btn--on {
+		background: var(--color-surface-subtle);
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.overtime-summary {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		line-height: 1.5;
+	}
+
+	.overtime-up {
+		color: var(--color-clay);
+		font-weight: 600;
+	}
+
+	.overtime-down {
+		color: var(--color-positive);
+		font-weight: 600;
+	}
+
+	/* Daily view packs 30 bars, so tighten the gap. */
+	.overtime-chart {
+		gap: 3px;
+	}
 
 	.trend-label {
 		font-size: 0.6875rem;
