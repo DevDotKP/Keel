@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { precacheAndRoute } from 'workbox-precaching';
+import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
@@ -10,7 +10,17 @@ declare const self: ServiceWorkerGlobalScope & {
 	__WB_MANIFEST: Array<{ url: string; revision: string | null }>;
 };
 
+cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
+
+// Activate a new version immediately and take control of open pages, instead of
+// waiting for every tab/PWA window to close. Without this, an installed PWA kept
+// serving the old cached app, so deploys appeared not to land. Pairs with
+// registerType 'autoUpdate', which then reloads the page onto the new version.
+self.skipWaiting();
+self.addEventListener('activate', (event) => {
+	event.waitUntil(self.clients.claim());
+});
 
 // API: network-first with a short timeout, so repeat views and brief offline
 // windows still resolve. Mirrors the previous generateSW runtimeCaching rule.
