@@ -303,6 +303,21 @@ export async function getAccountSummary(
 	}
 	if (!row) throw new Error('getAccountSummary: period upsert returned no row');
 
+	// Self-heal a stale boundary: if the open current period was created under a
+	// different cadence or harbour day, its stored end is wrong (for example a
+	// weekly Sunday left behind after switching to monthly). Re-point the open
+	// period to the current boundary so a cadence change reflects immediately.
+	if (row.harboured_at === null && (row.period_end !== end || row.cadence !== cadence)) {
+		await db
+			.prepare(
+				'UPDATE reconciliation_periods SET period_end = ?, cadence = ? WHERE id = ? AND harboured_at IS NULL'
+			)
+			.bind(end, cadence, row.id)
+			.run();
+		row.period_end = end;
+		row.cadence = cadence;
+	}
+
 	const period: ReconciliationPeriod = {
 		id: row.id,
 		account_id: row.account_id,

@@ -1,4 +1,27 @@
 import { describe, it, expect } from 'vitest';
+import { computePeriod } from './periods';
+
+// Direct tests of the real period engine, so cadence boundaries are guaranteed.
+describe('computePeriod boundaries', () => {
+	const thu25Jun = new Date(2026, 5, 25); // Thu 25 Jun 2026
+
+	it('monthly + non-payday day = full calendar month (ends month-end)', () => {
+		const { start, end } = computePeriod('monthly', 'sunday', thu25Jun);
+		expect(start).toBe('2026-06-01');
+		expect(end).toBe('2026-06-30'); // month end, NOT a weekly Sunday
+	});
+
+	it('weekly ends on the Sunday of the current week', () => {
+		const { start, end } = computePeriod('weekly', 'sunday', thu25Jun);
+		expect(start).toBe('2026-06-22'); // Monday
+		expect(end).toBe('2026-06-28'); // Sunday — this is where "28 Jun" came from
+	});
+
+	it('monthly + payday day-of-month ends the day before next payday', () => {
+		const { end } = computePeriod('monthly', '25', thu25Jun);
+		expect(end).toBe('2026-07-24');
+	});
+});
 
 /**
  * Unit tests for the harbour drift mechanism.
