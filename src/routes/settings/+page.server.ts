@@ -32,6 +32,8 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		household: householdRes ?? null,
 		members: membersRes.results ?? [],
 		pendingInvites: invitesRes.results ?? [],
-		currentUserId: locals.userId
+		currentUserId: locals.userId,
+		// Public key the browser needs to subscribe to push. Null if not configured.
+		vapidPublicKey: platform?.env?.VAPID_PUBLIC_KEY ?? null
 	};
 };

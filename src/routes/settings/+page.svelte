@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, onMount } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { Tags, CalendarClock, TrendingUp, Trash2, X } from 'lucide-svelte';
 	import MenuLink from '$lib/components/MenuLink.svelte';
@@ -9,6 +9,13 @@
 	import { installPrompt } from '$lib/stores/install';
 	import { INDIAN_STATES } from '$lib/holidays';
 	import Combobox from '$lib/components/Combobox.svelte';
+	import {
+		isPushSupported,
+		iosNeedsInstall,
+		isSubscribed,
+		subscribeToPush,
+		unsubscribeFromPush
+	} from '$lib/utils/push';
 
 	let { data }: { data: PageData } = $props();
 
@@ -38,6 +45,35 @@
 		saving = false;
 		if (!res.ok) error = 'Could not save. Try again.';
 		else await invalidateAll();
+	}
+
+	// ── Notifications (Web Push) ─────────────────────────────────────────────
+	let pushSupported = $state(false);
+	let pushSubscribed = $state(false);
+	let pushBusy = $state(false);
+	let pushMsg = $state<string | null>(null);
+	let needsInstall = $state(false);
+
+	onMount(async () => {
+		pushSupported = isPushSupported() && !!data.vapidPublicKey;
+		needsInstall = iosNeedsInstall();
+		if (pushSupported) pushSubscribed = await isSubscribed();
+	});
+
+	async function togglePush() {
+		pushBusy = true;
+		pushMsg = null;
+		if (pushSubscribed) {
+			await unsubscribeFromPush();
+			pushSubscribed = false;
+		} else {
+			const r = await subscribeToPush(data.vapidPublicKey ?? '');
+			if (r === 'ok') pushSubscribed = true;
+			else if (r === 'denied')
+				pushMsg = 'Notifications are blocked. Allow them in your browser settings.';
+			else pushMsg = "Couldn't enable notifications. Try again.";
+		}
+		pushBusy = false;
 	}
 
 	async function handleCadenceChange(cadence: string) {
@@ -435,6 +471,53 @@
 		{/if}
 	</section>
 
+	<!-- Notifications: opt-in Web Push. Never a daily nag. -->
+	{#if pushSupported || needsInstall}
+		<section class="settings-section">
+			<h2 class="settings-section-head">Notifications</h2>
+			{#if needsInstall && !pushSubscribed}
+				<p class="settings-hint">
+					On iPhone, add Keel to your Home Screen first, then turn notifications on from there.
+				</p>
+			{/if}
+			<div class="notify-row">
+				<div class="notify-text">
+					<span class="notify-title">Push on this device</span>
+					<span class="settings-hint">A calm reminder each cycle, and a ping when a household member adds an entry. Nothing daily.</span>
+				</div>
+				<button
+					type="button"
+					class="secondary-btn"
+					onclick={togglePush}
+					disabled={pushBusy || (!pushSupported && needsInstall)}
+				>
+					{pushBusy ? 'Working…' : pushSubscribed ? 'Turn off' : 'Turn on'}
+				</button>
+			</div>
+			{#if pushSubscribed}
+				<label class="notify-opt">
+					<input
+						type="checkbox"
+						checked={(data.settings?.notify_harbour ?? 1) === 1}
+						onchange={(e) => patch({ notify_harbour: e.currentTarget.checked ? 1 : 0 })}
+					/>
+					<span>Harbour reminder, once per cycle</span>
+				</label>
+				<label class="notify-opt">
+					<input
+						type="checkbox"
+						checked={(data.settings?.notify_partner ?? 1) === 1}
+						onchange={(e) => patch({ notify_partner: e.currentTarget.checked ? 1 : 0 })}
+					/>
+					<span>When a household member adds an entry</span>
+				</label>
+			{/if}
+			{#if pushMsg}
+				<p class="error" role="alert">{pushMsg}</p>
+			{/if}
+		</section>
+	{/if}
+
 	<!-- Cycle budget: how the Insights target carries between cycles -->
 	<section class="settings-section">
 		<h2 class="settings-section-head">Cycle budget</h2>
@@ -775,6 +858,39 @@
 	.settings-hint {
 		font-size: 0.9375rem;
 		color: var(--color-text-muted);
+	}
+
+	.notify-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		flex-wrap: wrap;
+	}
+
+	.notify-text {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		flex: 1 1 200px;
+	}
+
+	.notify-title {
+		font-weight: 500;
+	}
+
+	.notify-opt {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		margin-top: var(--space-3);
+		font-size: 0.9375rem;
+	}
+
+	.notify-opt input {
+		width: 18px;
+		height: 18px;
+		flex: none;
 	}
 
 	.field {

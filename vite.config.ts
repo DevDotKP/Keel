@@ -19,7 +19,9 @@ export default defineConfig({
 		}),
 		VitePWA({
 			registerType: 'autoUpdate',
-			strategies: 'generateSW',
+			strategies: 'injectManifest',
+			srcDir: 'src',
+			filename: 'sw.ts',
 			manifest: {
 				name: 'Keel',
 				short_name: 'Keel',
@@ -45,19 +47,8 @@ export default defineConfig({
 					}
 				]
 			},
-			workbox: {
-				globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-				runtimeCaching: [
-					{
-						urlPattern: /^\/api\//,
-						handler: 'NetworkFirst',
-						options: {
-							cacheName: 'api-cache',
-							networkTimeoutSeconds: 4,
-							expiration: { maxAgeSeconds: 60 * 60 * 24 }
-						}
-					}
-				]
+			injectManifest: {
+				globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
 			}
 		})
 	],

@@ -28,7 +28,7 @@ export function nextDay(ymd: string): string {
 	return ymdLocal(d);
 }
 
-function computePeriod(
+export function computePeriod(
 	cadence: HarbourCadence,
 	harbourDay: string,
 	now: Date

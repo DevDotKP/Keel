@@ -17,6 +17,13 @@ declare global {
 		// Owner-only admin panel (/admin). Set via: wrangler secret put ADMIN_USER / ADMIN_PASS
 		ADMIN_USER?: string;
 		ADMIN_PASS?: string;
+		// Web Push (VAPID). Public key is also served to the client to subscribe.
+		// Set via: wrangler pages secret put VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
+		VAPID_PUBLIC_KEY?: string;
+		VAPID_PRIVATE_KEY?: string;
+		VAPID_SUBJECT?: string;
+		// Shared secret for the scheduled Harbour-reminder endpoint (GitHub Action).
+		CRON_SECRET?: string;
 	}
 
 	namespace App {

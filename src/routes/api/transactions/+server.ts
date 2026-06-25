@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getDb } from '$lib/server/db';
 import { listTransactions, insertTransaction } from '$lib/server/queries/transactions';
 import { getDefaultAccount } from '$lib/server/queries/accounts';
+import { notifyHouseholdOfEntry } from '$lib/server/queries/notify';
 
 const NewTransactionSchema = z.object({
 	category_id: z.string().optional(),
@@ -70,5 +71,16 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		source: parsed.data.source,
 		entered_by: locals.userId
 	});
+
+	// Let other household members know, in the background (never blocks the save).
+	const waitUntil = platform?.context?.waitUntil?.bind(platform.context);
+	const notify = notifyHouseholdOfEntry(db, platform?.env ?? {}, {
+		householdId: hid,
+		adderId: locals.userId,
+		amountPaise: amount_paise,
+		description: parsed.data.description
+	}).catch(() => {});
+	if (waitUntil) waitUntil(notify);
+
 	return json(tx, { status: 201 });
 };

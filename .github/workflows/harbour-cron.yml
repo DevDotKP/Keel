@@ -1,0 +1,19 @@
+name: Harbour reminders
+
+# Cloudflare Pages has no native cron, so an hourly GitHub schedule pings a
+# secured endpoint. The endpoint only sends to users who are due this cycle and
+# is idempotent, so hourly runs never double-send or nag daily.
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly, on the hour (UTC)
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Harbour reminder endpoint
+        run: |
+          curl -fsS -X POST "https://keel-aba.pages.dev/api/cron/harbour" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            -H "content-type: application/json"
