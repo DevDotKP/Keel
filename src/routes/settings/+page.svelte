@@ -857,6 +857,7 @@
 		align-items: center;
 		justify-content: center;
 		height: 44px;
+		padding: 0 var(--space-4);
 		background: transparent;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
@@ -1126,12 +1127,14 @@
 	.profile-row {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-4);
 	}
 
 	.profile-actions {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-3);
 	}
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import HelpTip from '$lib/components/HelpTip.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { formatPaise, formatPaiseLedger, parseToPaise } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
@@ -68,6 +69,10 @@
 	<header class="page-header">
 		<div class="harbour-title-row">
 			<h1 class="section-head">Harbour</h1>
+			<HelpTip
+				term="Harbour"
+				text="A quick check-in where you confirm your real balance. Keel squares any gap, so a missed entry never breaks your total."
+			/>
 			{#if data.harbourVisits > 0}
 				<span class="visits-badge" aria-label="{data.harbourVisits} harbour visits">
 					{data.harbourVisits} {data.harbourVisits === 1 ? 'visit' : 'visits'}

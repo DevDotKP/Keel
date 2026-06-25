@@ -3,6 +3,7 @@
 	import { parseToPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate, today } from '$lib/utils/date';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import HelpTip from '$lib/components/HelpTip.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -149,7 +150,13 @@
 						<section class="split-card" aria-label="Committed and flexible spend">
 							<div class="split-labels">
 								<span class="split-col">
-									<span class="split-kind">Committed</span>
+									<span class="split-kind"
+										>Committed<HelpTip
+											term="Committed"
+											align="start"
+											text="Spending you can't easily avoid, like rent and bills. Flexible is everything else."
+										/></span
+									>
 									<span class="split-amount money">{formatPaiseLedger(insights.committed_paise)}</span>
 									<span class="split-pct">{committedPct}%</span>
 								</span>

@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import HelpTip from '$lib/components/HelpTip.svelte';
 	import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import { formatPaise, formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
@@ -293,7 +294,10 @@
 			{@const label = runwayLabel(runway!)}
 			{@const extra = runwayExtra(runway!)}
 			<section class="runway-card" aria-label="Runway estimate">
-				<p class="runway-label">Runway</p>
+				<p class="runway-label">
+					Runway
+					<HelpTip term="Runway" text="How many days your money lasts at your recent spending pace." />
+				</p>
 				<p class="runway-days">{label}</p>
 				{#if extra !== null}
 					<p class="runway-extra">+{formatRunwayDays(extra)} days if you cut discretionary</p>
