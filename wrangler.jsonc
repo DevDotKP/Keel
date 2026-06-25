@@ -14,6 +14,10 @@
 		}
 	],
 
+	"ai": {
+		"binding": "AI"
+	},
+
 	"env": {
 		"preview": {
 			"d1_databases": [
@@ -23,7 +27,10 @@
 					"database_id": "eacc7feb-df14-4a2e-a2e4-a572bb00ed1a",
 					"migrations_dir": "migrations"
 				}
-			]
+			],
+			"ai": {
+				"binding": "AI"
+			}
 		}
 	}
 }

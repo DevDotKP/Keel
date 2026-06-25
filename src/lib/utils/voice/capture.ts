@@ -17,6 +17,21 @@ export function isSpeechSupported(): boolean {
 	return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 }
 
+/** True when we can record audio for server-side transcription (works on iOS). */
+export function isRecorderSupported(): boolean {
+	if (typeof window === 'undefined') return false;
+	return (
+		typeof MediaRecorder !== 'undefined' &&
+		!!navigator.mediaDevices &&
+		typeof navigator.mediaDevices.getUserMedia === 'function'
+	);
+}
+
+/** Voice works if either Web Speech (Android/Chrome) or audio recording is available. */
+export function isVoiceSupported(): boolean {
+	return isSpeechSupported() || isRecorderSupported();
+}
+
 /**
  * Start a voice capture session.
  * Recognises Indian English (en-IN), which also copes with Hinglish, and returns
@@ -149,4 +164,81 @@ export function captureOnce(options: { signal?: AbortSignal } = {}): Promise<Cap
 			finish(() => reject(e instanceof Error ? e : new Error(String(e))));
 		}
 	});
+}
+
+/**
+ * Record a short clip and transcribe it server-side (Whisper on Workers AI).
+ * Used where Web Speech is unreliable (notably iOS Safari). Records until the
+ * user stops (abort signal) or MAX_MS, then posts the audio to
+ * /api/voice/transcribe. Returns the same shape as captureOnce so the add sheet
+ * treats both paths identically. onTranscribing fires once recording ends and
+ * the upload begins, so the UI can switch from "Listening" to "Transcribing".
+ */
+export async function captureViaRecorder(
+	options: { signal?: AbortSignal; onTranscribing?: () => void } = {}
+): Promise<CaptureResult> {
+	if (!isRecorderSupported()) throw new Error('Recording not available on this device');
+	if (options.signal?.aborted) throw new Error('cancelled');
+
+	let stream: MediaStream;
+	try {
+		stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+	} catch {
+		throw new Error('not-allowed');
+	}
+
+	const chunks: Blob[] = [];
+	const rec = new MediaRecorder(stream);
+	let userStopped = false;
+
+	const recorded = new Promise<Blob>((resolve, reject) => {
+		rec.ondataavailable = (e) => {
+			if (e.data && e.data.size > 0) chunks.push(e.data);
+		};
+		rec.onerror = () => reject(new Error('Recording failed'));
+		rec.onstop = () => resolve(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+	});
+
+	function stop() {
+		if (rec.state !== 'inactive') {
+			try {
+				rec.stop();
+			} catch {
+				/* ignore */
+			}
+		}
+	}
+
+	const onAbort = () => {
+		userStopped = true;
+		stop();
+	};
+	options.signal?.addEventListener('abort', onAbort, { once: true });
+	const hardCap = setTimeout(stop, MAX_MS);
+
+	let blob: Blob;
+	try {
+		rec.start();
+		blob = await recorded;
+	} finally {
+		clearTimeout(hardCap);
+		options.signal?.removeEventListener('abort', onAbort);
+		stream.getTracks().forEach((t) => t.stop());
+	}
+
+	if (blob.size === 0) throw new Error(userStopped ? 'cancelled' : 'No speech detected');
+
+	options.onTranscribing?.();
+	const res = await fetch('/api/voice/transcribe', {
+		method: 'POST',
+		headers: { 'Content-Type': blob.type || 'application/octet-stream' },
+		body: blob
+	});
+	if (!res.ok) throw new Error(res.status === 401 ? 'not-allowed' : 'transcribe-failed');
+
+	const data = (await res.json().catch(() => ({}))) as { text?: string };
+	const transcript = (data.text ?? '').trim();
+	if (!transcript) throw new Error('No speech detected');
+
+	return { transcript: transcript.toLowerCase(), confidence: 1 };
 }

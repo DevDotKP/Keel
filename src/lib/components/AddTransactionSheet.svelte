@@ -5,7 +5,12 @@
 	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { parseFlexDate, nowIso, formatIstTime } from '$lib/utils/date';
-	import { isSpeechSupported, captureOnce } from '$lib/utils/voice/capture';
+	import {
+		isSpeechSupported,
+		isVoiceSupported,
+		captureOnce,
+		captureViaRecorder
+	} from '$lib/utils/voice/capture';
 	import { parse, matchCategory } from '$lib/anchors';
 	import type { TransactionDraft, Category, Transaction } from '$lib/types';
 
@@ -35,6 +40,7 @@
 	let submitting = $state(false);
 	let saved = $state(false); // brief success beat before the sheet closes
 	let listening = $state(false);
+	let transcribing = $state(false);
 	let error = $state<string | null>(null);
 
 	// Honour reduced-motion for the open/close transition and the success beat.
@@ -49,7 +55,7 @@
 	let newCatName = $state('');
 	let creatingCat = $state(false);
 
-	const speechSupported = isSpeechSupported();
+	const voiceSupported = isVoiceSupported();
 
 	// Derived: parsed paise from the amount field
 	let amountPaise = $derived(parseToPaise(amountRaw));
@@ -141,7 +147,14 @@
 		voiceAbort = new AbortController();
 
 		try {
-			const capture = await captureOnce({ signal: voiceAbort.signal });
+			// Android/Chrome use the instant, free Web Speech API. Where it's
+			// unreliable (iOS Safari), record audio and transcribe server-side.
+			const capture = isSpeechSupported()
+				? await captureOnce({ signal: voiceAbort.signal })
+				: await captureViaRecorder({
+						signal: voiceAbort.signal,
+						onTranscribing: () => (transcribing = true)
+					});
 			const categoryNames = categories.map((c) => c.name);
 			const result = parse(capture.transcript, categoryNames);
 
@@ -182,6 +195,7 @@
 			}
 		} finally {
 			listening = false;
+			transcribing = false;
 			voiceAbort = null;
 		}
 	}
@@ -448,7 +462,7 @@
 						autocomplete="off"
 						required
 					/>
-					{#if speechSupported && !listening && !editingTx}
+					{#if voiceSupported && !listening && !editingTx}
 						<button
 							type="button"
 							class="icon-btn voice-btn"
@@ -465,17 +479,16 @@
 						<span class="listening-wave" aria-hidden="true">
 							<span></span><span></span><span></span>
 						</span>
-						<span class="listening-text">Listening… speak now</span>
+						<span class="listening-text"
+							>{transcribing ? 'Transcribing…' : 'Listening… speak now'}</span
+						>
 					</div>
-					<button
-						type="button"
-						class="stop-btn"
-						onclick={stopVoice}
-						aria-label="Stop recording"
-					>
-						<Square size={16} fill="currentColor" />
-						Stop
-					</button>
+					{#if !transcribing}
+						<button type="button" class="stop-btn" onclick={stopVoice} aria-label="Stop recording">
+							<Square size={16} fill="currentColor" />
+							Stop
+						</button>
+					{/if}
 				{:else if amountPaise && amountPaise > 0}
 					<p class="amount-formatted" aria-live="polite">
 						{formatPaise(amountPaise)}{#if amountInWordsIndian(amountPaise)} · {amountInWordsIndian(amountPaise)}{/if}
