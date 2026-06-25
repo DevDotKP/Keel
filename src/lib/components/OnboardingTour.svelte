@@ -15,20 +15,17 @@
 		placement?: 'above' | 'below'; // tooltip position relative to spotlight
 	}
 
+	// Four essentials only, so the user reaches their first entry fast. The cycle,
+	// the gold dot, and the closing recap are discoverable in context (ledger dot,
+	// the HelpTips on Runway/Harbour/Committed, and the About section in Settings).
 	const STEPS: TourStep[] = [
 		{
 			title: 'Welcome to Keel',
-			body: 'A one-minute tour of the three things that matter. Skip anytime.'
+			body: 'A few seconds on the three things that matter. Skip anytime.'
 		},
 		{
 			title: 'Safe to spend',
 			body: "What's left after what you still owe this cycle. Not your bank balance.",
-			target: '[aria-label="Safe to spend"]',
-			placement: 'below'
-		},
-		{
-			title: 'The cycle',
-			body: 'Keel works in cycles: weekly, fortnightly, or monthly. Each one starts fresh.',
 			target: '[aria-label="Safe to spend"]',
 			placement: 'below'
 		},
@@ -43,14 +40,6 @@
 		{
 			title: 'The Harbour',
 			body: 'At cycle end, type your real balance. Keel squares the books. No guilt.'
-		},
-		{
-			title: 'The gold dot',
-			body: 'A gold dot means an entry is uncategorized. It waits for Harbour and never breaks your totals.'
-		},
-		{
-			title: "That's Keel",
-			body: 'Log as you spend. Square up at Harbour. Forgiving by design.'
 		}
 	];
 
