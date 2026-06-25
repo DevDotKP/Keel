@@ -25,6 +25,12 @@
 		if (isNaN(d.getTime())) return s;
 		return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 	}
+
+	// Null means "no data yet" (e.g. no cohort is old enough). Show a dash, not 0%.
+	const pd = (v: number | null, suffix = '%'): string => (v === null ? '—' : `${v}${suffix}`);
+
+	let uncatPoints = $derived(data.habit?.uncategorizedSeries ?? []);
+	let uncatMax = $derived(Math.max(1, ...uncatPoints.map((p) => p.value)));
 </script>
 
 <svelte:head>
@@ -108,6 +114,69 @@
 				{/each}
 			</div>
 		</section>
+
+		<!-- Habit & retention: the North Star and its leading indicators -->
+		{#if data.habit}
+			{@const h = data.habit}
+			<section class="block" aria-label="Habit and retention">
+				<h2 class="section-head">Habit & retention</h2>
+				<p class="section-note">
+					North Star: weeks the user keeps tracking. {h.usersWithEntries} of {h.totalUsers} users have
+					logged at least once. A dash means no data yet.
+				</p>
+				<div class="cards">
+					<div class="card card--static card--star">
+						<span class="card-label">Avg active weeks / user</span>
+						<span class="card-value">{h.avgActiveWeeks}</span>
+						<span class="card-sub">North Star (last 12 wks)</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Harbour completion</span>
+						<span class="card-value">{pd(h.harbourCompletionRate)}</span>
+						<span class="card-sub">ended periods closed</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Activation</span>
+						<span class="card-value">{h.activationLoggedPct}%</span>
+						<span class="card-sub">users who logged ≥1</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Retention W1 / W2 / W4</span>
+						<span class="card-value card-value--sm"
+							>{pd(h.retention.w1)} · {pd(h.retention.w2)} · {pd(h.retention.w4)}</span
+						>
+						<span class="card-sub">active that week after signup</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Voice share</span>
+						<span class="card-value">{pd(h.voiceSharePct)}</span>
+						<span class="card-sub">entries by voice (30d)</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Voice corrections</span>
+						<span class="card-value">{pd(h.voiceCorrectionPct)}</span>
+						<span class="card-sub">samples user fixed</span>
+					</div>
+					<div class="card card--static">
+						<span class="card-label">Entries / active week</span>
+						<span class="card-value">{h.entriesPerActiveWeek}</span>
+						<span class="card-sub">capture frequency</span>
+					</div>
+				</div>
+
+				<h2 class="section-head section-head--sub">% uncategorized, last 8 weeks (churn signal)</h2>
+				<div class="trend-chart" aria-hidden="true">
+					{#each uncatPoints as p (p.label)}
+						{@const bh = Math.max(2, Math.round((p.value / uncatMax) * 56))}
+						<div class="trend-col">
+							<span class="trend-val">{p.value}%</span>
+							<div class="trend-bar trend-bar--warn" style="height:{bh}px"></div>
+							<span class="trend-label">{p.label}</span>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<!-- Releases / app-change annotations -->
 		<section class="block" aria-label="Releases">
@@ -308,6 +377,34 @@
 		letter-spacing: 0.06em;
 		color: var(--color-text-subtle);
 		margin-bottom: var(--space-3);
+	}
+
+	.section-head--sub {
+		margin-top: var(--space-5);
+	}
+
+	.section-note {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		line-height: 1.5;
+		margin-bottom: var(--space-3);
+	}
+
+	.card-sub {
+		font-size: 0.6875rem;
+		color: var(--color-text-subtle);
+	}
+
+	.card-value--sm {
+		font-size: 1.125rem;
+	}
+
+	.card--star {
+		border-color: var(--color-gold);
+	}
+
+	.trend-bar--warn {
+		background: var(--color-clay);
 	}
 
 	.trend-chart {

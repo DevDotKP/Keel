@@ -3,6 +3,7 @@ import { fail } from '@sveltejs/kit';
 import { dev } from '$app/environment';
 import { getDb, getReadDb } from '$lib/server/db';
 import { getAdminMetrics } from '$lib/server/queries/admin-metrics';
+import { getHabitMetrics } from '$lib/server/queries/habit-metrics';
 import { ADMIN_COOKIE, checkCredentials, makeToken, verifyToken } from '$lib/server/admin';
 
 export const load: PageServerLoad = async ({ platform, cookies, setHeaders }) => {
@@ -14,8 +15,9 @@ export const load: PageServerLoad = async ({ platform, cookies, setHeaders }) =>
 	const authed = await verifyToken(cookies.get(ADMIN_COOKIE), envPass);
 	if (!authed) return { authed: false, configured };
 
-	const metrics = await getAdminMetrics(getReadDb(platform));
-	return { authed: true, configured, metrics };
+	const rdb = getReadDb(platform);
+	const [metrics, habit] = await Promise.all([getAdminMetrics(rdb), getHabitMetrics(rdb)]);
+	return { authed: true, configured, metrics, habit };
 };
 
 export const actions: Actions = {
