@@ -54,6 +54,13 @@
 	// Show attribution and time only when the household has more than one member.
 	let isShared = $derived(Object.keys(data.memberEmails ?? {}).length > 1);
 
+	// Account clarity: who am I, and is this a shared or solo account. Surfaced at
+	// the top of the dashboard so a wrong-account login is immediately obvious.
+	let memberCount = $derived(Object.keys(data.memberEmails ?? {}).length);
+	let selfEmail = $derived(data.memberEmails?.[data.currentUserId] ?? '');
+	let selfName = $derived(data.memberNames?.[data.currentUserId] ?? selfEmail.split('@')[0]);
+	let selfAvatar = $derived(data.memberAvatars?.[data.currentUserId] ?? '');
+
 	function periodRange(p: ReconciliationPeriod): string {
 		return `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`;
 	}
@@ -177,6 +184,29 @@
 		{@const showBalanceNudge = !!summary && summary.balance_paise === 0 && transactions.length === 0 && summary.harbour_visits === 0}
 
 	<div class="dashboard">
+		<!-- Account clarity: which account am I, and is it shared. Tap to manage. -->
+		<a
+			class="account-bar"
+			href="/settings"
+			aria-label="Signed in as {selfEmail}{isShared ? `, shared with ${memberCount} people` : ', just you'}. Open settings."
+		>
+			<span class="account-avatar" aria-hidden="true">
+				{#if selfAvatar}
+					<img src={selfAvatar} alt="" class="account-avatar-img" />
+				{:else}
+					{(selfName || '?').charAt(0).toUpperCase()}
+				{/if}
+			</span>
+			<span class="account-id">
+				<span class="account-name">{selfName}</span>
+				<span class="account-email">{selfEmail}</span>
+			</span>
+			<span class="account-pill" class:account-pill--shared={isShared}>
+				{isShared ? `Shared · ${memberCount}` : 'Just you'}
+			</span>
+			<ChevronRight size={16} class="account-chev" aria-hidden="true" />
+		</a>
+
 		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
 		<section class="hero" aria-label="Safe to spend">
 			<p class="hero-label">Safe to spend</p>
@@ -445,6 +475,86 @@
 			margin: 0 auto;
 			padding: var(--space-8);
 		}
+	}
+
+	/* Account bar: calm, tappable identity strip so a wrong-account login shows. */
+	.account-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2) var(--space-3);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		text-decoration: none;
+		color: inherit;
+		min-height: var(--tap-target);
+	}
+
+	.account-avatar {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-full);
+		background: color-mix(in srgb, var(--color-text) 10%, transparent);
+		color: var(--color-text-muted);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		overflow: hidden;
+		text-transform: uppercase;
+	}
+
+	.account-avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.account-id {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.account-name {
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.account-email {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.account-pill {
+		flex: none;
+		padding: 2px var(--space-3);
+		border-radius: var(--radius-full);
+		font-size: 0.75rem;
+		font-weight: 600;
+		background: color-mix(in srgb, var(--color-text) 8%, transparent);
+		color: var(--color-text-muted);
+	}
+
+	.account-pill--shared {
+		background: color-mix(in srgb, var(--color-positive) 16%, transparent);
+		color: var(--color-positive);
+	}
+
+	.account-bar :global(.account-chev) {
+		flex: none;
+		color: var(--color-text-subtle);
 	}
 
 	.hero {
