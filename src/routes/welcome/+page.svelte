@@ -43,6 +43,7 @@
 	<header class="welcome-head">
 		<span class="brand-mark" aria-hidden="true"><Anchor size={22} /></span>
 		<h1 class="welcome-title">Welcome to Keel</h1>
+		<p class="welcome-meaning">A keel keeps a boat steady. You will come to Harbour now and then to settle up.</p>
 		<p class="welcome-sub">Two quick things, so your numbers are real from day one.</p>
 	</header>
 
@@ -170,6 +171,12 @@
 		font-weight: 700;
 		color: var(--color-text);
 		line-height: 1.1;
+	}
+
+	.welcome-meaning {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		line-height: 1.5;
 	}
 
 	.welcome-sub {

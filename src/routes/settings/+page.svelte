@@ -76,6 +76,16 @@
 		pushBusy = false;
 	}
 
+	// Re-show the one-time onboarding tour: clear its flag and return to the dashboard.
+	function replayTour() {
+		try {
+			localStorage.removeItem('keel_tour_v1');
+		} catch {
+			/* ignore */
+		}
+		location.href = '/';
+	}
+
 	async function handleCadenceChange(cadence: string) {
 		// When switching away from monthly, clear any payday alignment.
 		if (cadence !== 'monthly') {
@@ -379,17 +389,221 @@
 <div class="settings-page">
 	<h1 class="section-head">Settings</h1>
 
-	<!-- Manage: the most-used destinations, lifted to the top -->
+	<!-- ── You: identity and who shares this account ── -->
+	<h2 class="settings-group">You</h2>
+
+	<!-- Profile -->
 	<section class="settings-section">
-		<nav class="manage-links" aria-label="Manage">
-			<MenuLink href="/categories" title="Categories" sub="Spending and income categories, budgets, colours">
-				{#snippet icon()}<Tags size={20} />{/snippet}
-			</MenuLink>
-			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
-				{#snippet icon()}<CalendarClock size={20} />{/snippet}
-			</MenuLink>
-		</nav>
+		<h2 class="settings-section-head">Profile</h2>
+		<div class="profile-row">
+			<span class="avatar avatar--lg" aria-hidden="true">
+				{#if data.user?.avatar}
+					<img src={data.user.avatar} alt="" class="avatar-img" />
+				{:else}
+					{initials(data.user?.display_name, data.user?.email)}
+				{/if}
+			</span>
+			<div class="profile-actions">
+				<label class="secondary-btn avatar-btn">
+					{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
+					<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
+				</label>
+				{#if data.user?.avatar}
+					<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
+				{/if}
+			</div>
+		</div>
+		<p class="settings-hint">Up to 8 MB. Position and zoom it after choosing. Stored privately.</p>
+		<div class="field">
+			<label for="display-name">Display name</label>
+			<input
+				id="display-name"
+				type="text"
+				placeholder="Your name"
+				bind:value={displayName}
+				onblur={saveDisplayName}
+				maxlength="60"
+			/>
+		</div>
+		{#if profileError}
+			<p class="error" role="alert">{profileError}</p>
+		{/if}
 	</section>
+
+	{#if cropOpen}
+		<div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Position your photo">
+			<div class="crop-card">
+				<h2 class="crop-title">Position your photo</h2>
+				<div
+					class="crop-viewport"
+					role="application"
+					aria-label="Drag to reposition your photo"
+					onpointerdown={cropPointerDown}
+					onpointermove={cropPointerMove}
+					onpointerup={cropPointerUp}
+					onpointercancel={cropPointerUp}
+				>
+					<img
+						class="crop-img"
+						src={cropSrc}
+						alt=""
+						draggable="false"
+						style="width:{renderW}px; height:{renderH}px; transform:translate({offX}px, {offY}px)"
+					/>
+				</div>
+				<label class="crop-zoom">
+					<span class="sr-only">Zoom</span>
+					<input
+						type="range"
+						min="1"
+						max="3"
+						step="0.01"
+						value={zoom}
+						oninput={(e) => onZoom(parseFloat(e.currentTarget.value))}
+					/>
+				</label>
+				<div class="crop-actions">
+					<button class="secondary-btn" onclick={cancelCrop} disabled={cropBusy}>Cancel</button>
+					<button class="crop-use" onclick={useCrop} disabled={cropBusy}>
+						{cropBusy ? 'Saving…' : 'Use photo'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Account -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Account</h2>
+		<p class="settings-hint">Signed in as <strong>{data.user?.email || 'user'}</strong>. No password needed.</p>
+		{#if error}
+			<p class="error" role="alert">{error}</p>
+		{/if}
+		<button class="secondary-btn" onclick={handleSignOut} disabled={saving}>Sign out</button>
+	</section>
+
+	<!-- Household -->
+	<section class="settings-section">
+		<h2 class="settings-section-head">Household</h2>
+
+		{#if data.members.length > 0}
+			<ul class="member-list">
+				{#each data.members as m}
+					<li class="member-row">
+						<span class="avatar" aria-hidden="true">
+							{#if m.avatar}<img src={m.avatar} alt="" class="avatar-img" />{:else}{initials(m.display_name, m.email)}{/if}
+						</span>
+						<span class="member-main">
+							<span class="member-name">
+								{m.display_name || (m.email ?? '').split('@')[0]}
+								{#if m.user_id === data.currentUserId}<span class="member-you">you</span>{/if}
+							</span>
+							<span class="member-email-sub">{m.email}</span>
+						</span>
+						{#if isAdmin}
+							{@const lastAdmin = m.role === 'admin' && adminCount <= 1}
+							<select
+								class="role-select"
+								value={m.role}
+								onchange={(e) => changeRole(m.id, e.currentTarget.value)}
+								disabled={memberBusyId === m.id || lastAdmin}
+								aria-label="Role for {m.display_name || m.email}"
+							>
+								<option value="member">Member</option>
+								<option value="admin">Admin</option>
+							</select>
+							<button
+								class="member-remove"
+								onclick={() => (removeMember = { id: m.id, name: m.display_name || (m.email ?? '').split('@')[0] })}
+								disabled={memberBusyId === m.id || lastAdmin}
+								aria-label="Remove {m.display_name || m.email}"
+							>
+								<Trash2 size={16} aria-hidden="true" />
+							</button>
+						{:else}
+							<span class="member-role">{m.role}</span>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		{#if data.pendingInvites.length > 0}
+			<ul class="invite-list" aria-label="Pending invites">
+				{#each data.pendingInvites as inv (inv.id)}
+					<li class="invite-item">
+						<span class="member-main">
+							<span class="member-name">{inv.email}</span>
+							<span class="member-email-sub">Invited as {inv.role} · pending</span>
+						</span>
+						{#if isAdmin}
+							<button class="copy-btn" onclick={() => copyInviteLink(inv.token, inv.id)}>
+								{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
+							</button>
+							<button class="member-remove" onclick={() => revokeInvite(inv.id)} aria-label="Revoke invite for {inv.email}">
+								<X size={16} aria-hidden="true" />
+							</button>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		<!-- Invite form: only for admins -->
+		{#if data.members.find(m => m.user_id === data.currentUserId)?.role === 'admin'}
+			<div class="invite-row">
+				<input
+					type="email"
+					placeholder="Email to invite"
+					bind:value={inviteEmail}
+					class="invite-input"
+					disabled={inviteBusy}
+				/>
+				<select bind:value={inviteRole} class="invite-role" disabled={inviteBusy}>
+					<option value="member">Member</option>
+					<option value="admin">Admin</option>
+				</select>
+				<button class="secondary-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
+					{inviteBusy ? 'Sending…' : 'Invite'}
+				</button>
+			</div>
+			<p class="settings-hint">
+				Admins can invite and manage the household. Members can add and view entries.
+			</p>
+
+			{#if inviteError}
+				<p class="error" role="alert">{inviteError}</p>
+			{/if}
+			{#if inviteResult}
+				{@const fullLink = `${window.location.origin}${inviteResult.invite_url}`}
+				<p class="invite-link-hint">
+					Share this link with {inviteEmail || 'the invitee'}:
+				</p>
+				<div class="invite-link-row">
+					<code class="invite-link">{fullLink}</code>
+					<button
+						class="copy-btn"
+						onclick={() => navigator.clipboard.writeText(fullLink)}
+						aria-label="Copy invite link"
+					>
+						Copy
+					</button>
+				</div>
+			{/if}
+		{/if}
+	</section>
+
+	<ConfirmDialog
+		open={removeMember !== null}
+		title="Remove member?"
+		message={removeMember ? `${removeMember.name} will lose access to this household. Their past entries stay in the ledger.` : ''}
+		confirmLabel="Remove"
+		onconfirm={() => { const id = removeMember?.id; removeMember = null; if (id) doRemoveMember(id); }}
+		oncancel={() => (removeMember = null)}
+	/>
+
+	<!-- ── Your money cycle ── -->
+	<h2 class="settings-group">Your money cycle</h2>
 
 	<!-- Harbour cadence -->
 	<section class="settings-section">
@@ -558,24 +772,19 @@
 		</div>
 	</section>
 
-	<!-- Install: shown only when the browser signals the app is installable -->
-	{#if $installPrompt}
-		<section class="settings-section">
-			<h2 class="settings-section-head">App</h2>
-			<p class="settings-hint">Add Keel to your home screen for faster access and offline use.</p>
-			<button
-				class="secondary-btn"
-				onclick={async () => {
-					const prompt = $installPrompt;
-					if (!prompt) return;
-					await prompt.prompt();
-					installPrompt.set(null);
-				}}
-			>
-				Add to home screen
-			</button>
-		</section>
-	{/if}
+	<!-- ── Manage ── -->
+	<h2 class="settings-group">Manage</h2>
+
+	<section class="settings-section">
+		<nav class="manage-links" aria-label="Manage">
+			<MenuLink href="/categories" title="Categories" sub="Spending and income categories, budgets, colours">
+				{#snippet icon()}<Tags size={20} />{/snippet}
+			</MenuLink>
+			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
+				{#snippet icon()}<CalendarClock size={20} />{/snippet}
+			</MenuLink>
+		</nav>
+	</section>
 
 	<!-- Portfolio (opt-in, hidden by default) -->
 	<section class="settings-section">
@@ -599,125 +808,27 @@
 		{/if}
 	</section>
 
-	<!-- Household -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Household</h2>
+	<!-- ── App ── -->
+	<h2 class="settings-group">App</h2>
 
-		{#if data.members.length > 0}
-			<ul class="member-list">
-				{#each data.members as m}
-					<li class="member-row">
-						<span class="avatar" aria-hidden="true">
-							{#if m.avatar}<img src={m.avatar} alt="" class="avatar-img" />{:else}{initials(m.display_name, m.email)}{/if}
-						</span>
-						<span class="member-main">
-							<span class="member-name">
-								{m.display_name || (m.email ?? '').split('@')[0]}
-								{#if m.user_id === data.currentUserId}<span class="member-you">you</span>{/if}
-							</span>
-							<span class="member-email-sub">{m.email}</span>
-						</span>
-						{#if isAdmin}
-							{@const lastAdmin = m.role === 'admin' && adminCount <= 1}
-							<select
-								class="role-select"
-								value={m.role}
-								onchange={(e) => changeRole(m.id, e.currentTarget.value)}
-								disabled={memberBusyId === m.id || lastAdmin}
-								aria-label="Role for {m.display_name || m.email}"
-							>
-								<option value="member">Member</option>
-								<option value="admin">Admin</option>
-							</select>
-							<button
-								class="member-remove"
-								onclick={() => (removeMember = { id: m.id, name: m.display_name || (m.email ?? '').split('@')[0] })}
-								disabled={memberBusyId === m.id || lastAdmin}
-								aria-label="Remove {m.display_name || m.email}"
-							>
-								<Trash2 size={16} aria-hidden="true" />
-							</button>
-						{:else}
-							<span class="member-role">{m.role}</span>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		{#if data.pendingInvites.length > 0}
-			<ul class="invite-list" aria-label="Pending invites">
-				{#each data.pendingInvites as inv (inv.id)}
-					<li class="invite-item">
-						<span class="member-main">
-							<span class="member-name">{inv.email}</span>
-							<span class="member-email-sub">Invited as {inv.role} · pending</span>
-						</span>
-						{#if isAdmin}
-							<button class="copy-btn" onclick={() => copyInviteLink(inv.token, inv.id)}>
-								{copiedInviteId === inv.id ? 'Copied' : 'Copy link'}
-							</button>
-							<button class="member-remove" onclick={() => revokeInvite(inv.id)} aria-label="Revoke invite for {inv.email}">
-								<X size={16} aria-hidden="true" />
-							</button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-
-		<!-- Invite form: only for admins -->
-		{#if data.members.find(m => m.user_id === data.currentUserId)?.role === 'admin'}
-			<div class="invite-row">
-				<input
-					type="email"
-					placeholder="Email to invite"
-					bind:value={inviteEmail}
-					class="invite-input"
-					disabled={inviteBusy}
-				/>
-				<select bind:value={inviteRole} class="invite-role" disabled={inviteBusy}>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
-				</select>
-				<button class="secondary-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
-					{inviteBusy ? 'Sending…' : 'Invite'}
-				</button>
-			</div>
-			<p class="settings-hint">
-				Admins can invite and manage the household. Members can add and view entries.
-			</p>
-
-			{#if inviteError}
-				<p class="error" role="alert">{inviteError}</p>
-			{/if}
-			{#if inviteResult}
-				{@const fullLink = `${window.location.origin}${inviteResult.invite_url}`}
-				<p class="invite-link-hint">
-					Share this link with {inviteEmail || 'the invitee'}:
-				</p>
-				<div class="invite-link-row">
-					<code class="invite-link">{fullLink}</code>
-					<button
-						class="copy-btn"
-						onclick={() => navigator.clipboard.writeText(fullLink)}
-						aria-label="Copy invite link"
-					>
-						Copy
-					</button>
-				</div>
-			{/if}
-		{/if}
-	</section>
-
-	<ConfirmDialog
-		open={removeMember !== null}
-		title="Remove member?"
-		message={removeMember ? `${removeMember.name} will lose access to this household. Their past entries stay in the ledger.` : ''}
-		confirmLabel="Remove"
-		onconfirm={() => { const id = removeMember?.id; removeMember = null; if (id) doRemoveMember(id); }}
-		oncancel={() => (removeMember = null)}
-	/>
+	<!-- Install: shown only when the browser signals the app is installable -->
+	{#if $installPrompt}
+		<section class="settings-section">
+			<h2 class="settings-section-head">Install</h2>
+			<p class="settings-hint">Add Keel to your home screen for faster access and offline use.</p>
+			<button
+				class="secondary-btn"
+				onclick={async () => {
+					const prompt = $installPrompt;
+					if (!prompt) return;
+					await prompt.prompt();
+					installPrompt.set(null);
+				}}
+			>
+				Add to home screen
+			</button>
+		</section>
+	{/if}
 
 	<!-- Export -->
 	<section class="settings-section">
@@ -729,94 +840,13 @@
 		</div>
 	</section>
 
-	<!-- Profile -->
+	<!-- About: what Keel and Harbour mean -->
 	<section class="settings-section">
-		<h2 class="settings-section-head">Profile</h2>
-		<div class="profile-row">
-			<span class="avatar avatar--lg" aria-hidden="true">
-				{#if data.user?.avatar}
-					<img src={data.user.avatar} alt="" class="avatar-img" />
-				{:else}
-					{initials(data.user?.display_name, data.user?.email)}
-				{/if}
-			</span>
-			<div class="profile-actions">
-				<label class="secondary-btn avatar-btn">
-					{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
-					<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
-				</label>
-				{#if data.user?.avatar}
-					<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
-				{/if}
-			</div>
-		</div>
-		<p class="settings-hint">Up to 8 MB. Position and zoom it after choosing. Stored privately.</p>
-		<div class="field">
-			<label for="display-name">Display name</label>
-			<input
-				id="display-name"
-				type="text"
-				placeholder="Your name"
-				bind:value={displayName}
-				onblur={saveDisplayName}
-				maxlength="60"
-			/>
-		</div>
-		{#if profileError}
-			<p class="error" role="alert">{profileError}</p>
-		{/if}
-	</section>
-
-	{#if cropOpen}
-		<div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Position your photo">
-			<div class="crop-card">
-				<h2 class="crop-title">Position your photo</h2>
-				<div
-					class="crop-viewport"
-					role="application"
-					aria-label="Drag to reposition your photo"
-					onpointerdown={cropPointerDown}
-					onpointermove={cropPointerMove}
-					onpointerup={cropPointerUp}
-					onpointercancel={cropPointerUp}
-				>
-					<img
-						class="crop-img"
-						src={cropSrc}
-						alt=""
-						draggable="false"
-						style="width:{renderW}px; height:{renderH}px; transform:translate({offX}px, {offY}px)"
-					/>
-				</div>
-				<label class="crop-zoom">
-					<span class="sr-only">Zoom</span>
-					<input
-						type="range"
-						min="1"
-						max="3"
-						step="0.01"
-						value={zoom}
-						oninput={(e) => onZoom(parseFloat(e.currentTarget.value))}
-					/>
-				</label>
-				<div class="crop-actions">
-					<button class="secondary-btn" onclick={cancelCrop} disabled={cropBusy}>Cancel</button>
-					<button class="crop-use" onclick={useCrop} disabled={cropBusy}>
-						{cropBusy ? 'Saving…' : 'Use photo'}
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
-
-	<!-- Account -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Account</h2>
-		<p class="settings-hint">Signed in as <strong>{data.user?.email || 'user'}</strong>. No password needed.</p>
-		{#if error}
-			<p class="error" role="alert">{error}</p>
-		{/if}
-		<button class="secondary-btn" onclick={handleSignOut} disabled={saving}>Sign out</button>
+		<h2 class="settings-section-head">About</h2>
+		<p class="settings-hint">
+			Keel is the part of a boat that keeps it steady. You log as you spend, then come to Harbour now and then to settle up. Forgiving by design.
+		</p>
+		<button class="secondary-btn" onclick={replayTour}>Replay the tour</button>
 	</section>
 
 	<!-- Attribution -->
@@ -853,6 +883,20 @@
 		color: var(--color-text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
+	}
+
+	/* Group label: one level above the section heads, so Settings scans as
+	   four clusters (You, Your money cycle, Manage, App) not a flat list. */
+	.settings-group {
+		font-family: var(--font-display);
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--color-text);
+		margin-top: var(--space-2);
+	}
+
+	.settings-group:first-of-type {
+		margin-top: 0;
 	}
 
 	.settings-hint {

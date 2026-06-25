@@ -81,7 +81,7 @@
 		</div>
 		<p class="page-sub">{periodRange()}</p>
 		<p class="harbour-intro">
-			Close out this period: confirm what's really in your account and Keel squares the difference, then seals it.
+			Back to harbour. Confirm what's really in your account and Keel squares the difference, then seals the period.
 		</p>
 	</header>
 
