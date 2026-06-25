@@ -58,11 +58,12 @@
 	.main {
 		max-width: 480px;
 		margin: 0 auto;
-		min-height: calc(100dvh - var(--nav-height));
+		/* svh, not dvh: dvh grows as the iOS toolbar hides, adding scroll past the page. */
+		min-height: calc(100svh - var(--nav-height));
 	}
 
 	.main.full-height {
-		min-height: 100dvh;
+		min-height: 100svh;
 		max-width: 100%;
 	}
 

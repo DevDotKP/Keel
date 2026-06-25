@@ -56,7 +56,7 @@
 
 <style>
 	.opt-out-page {
-		min-height: 100dvh;
+		min-height: 100svh;
 		display: flex;
 		flex-direction: column;
 		align-items: center;

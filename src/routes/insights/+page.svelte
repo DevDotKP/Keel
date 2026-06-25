@@ -12,6 +12,34 @@
 	// Spend-over-time zoom: day-over-day, month-over-month, or year-over-year.
 	let trendZoom = $state<'day' | 'month' | 'year'>('month');
 	const ZOOM_UNIT = { day: 'day', month: 'month', year: 'year' } as const;
+	const ZOOM_NOW = { day: 'Today', month: 'This month', year: 'This year' } as const;
+
+	// Donut for category composition ("where the money went"). Hand-built SVG: each
+	// segment is an arc of the circle, lengths proportional to spend.
+	const DONUT_R = 42;
+	const DONUT_C = 2 * Math.PI * DONUT_R;
+	function buildDonut(
+		cats: { name: string; color: string; spent_paise: number }[]
+	): { total: number; segments: Array<{ name: string; color: string; paise: number; pct: number; dash: number; offset: number }> } {
+		const spend = cats.filter((c) => c.spent_paise > 0).sort((a, b) => b.spent_paise - a.spent_paise);
+		const total = spend.reduce((s, c) => s + c.spent_paise, 0);
+		let acc = 0;
+		const segments = spend.map((c) => {
+			const frac = total > 0 ? c.spent_paise / total : 0;
+			const dash = frac * DONUT_C;
+			const seg = {
+				name: c.name,
+				color: c.color,
+				paise: c.spent_paise,
+				pct: Math.round(frac * 100),
+				dash,
+				offset: -acc
+			};
+			acc += dash;
+			return seg;
+		});
+		return { total, segments };
+	}
 
 	// Days elapsed in the current period (1-based, clamped to the period length).
 	function daysElapsed(startIso: string, endIso: string): number {
@@ -49,6 +77,16 @@
 		if (insights.total_expense_paise <= 0) return 0;
 		return pct(insights.uncategorized_paise, insights.total_expense_paise);
 	}
+
+	// Show Insights when there's anything to show: spend this period, prior closed
+	// periods, or any spend in the trend windows. Only a truly empty account (no
+	// history at all) gets the "add expenses" empty state.
+	function hasInsightsData(i: Awaited<NonNullable<typeof data.insights>>): boolean {
+		if (i.total_expense_paise > 0) return true;
+		if (i.recent_periods.length > 0) return true;
+		const t = i.spend_trends;
+		return [...t.daily, ...t.monthly, ...t.yearly].some((p) => p.paise > 0);
+	}
 </script>
 
 <svelte:head>
@@ -66,7 +104,7 @@
 		{/each}
 	</div>
 {:then insights}
-	{#if !insights || insights.total_expense_paise === 0}
+	{#if !insights || !hasInsightsData(insights)}
 		<div class="insights-page">
 			<h1 class="section-head">Insights</h1>
 			<EmptyState heading="Nothing to show yet" body="Add a few expenses to see where your money goes." />
@@ -398,10 +436,14 @@
 								? insights.spend_trends.monthly
 								: insights.spend_trends.yearly}
 						{@const maxS = Math.max(...series.map((p) => p.paise), 1)}
-						{@const lastP = series[series.length - 1]?.paise ?? 0}
-						{@const prevP = series[series.length - 2]?.paise ?? 0}
-						{@const sDelta = lastP - prevP}
-						{@const sPct = prevP > 0 ? Math.round((sDelta / prevP) * 100) : 0}
+						{@const lastIdx = series.length - 1}
+						{@const currentP = series[lastIdx]?.paise ?? 0}
+						{@const lastComplete = series[lastIdx - 1]}
+						{@const beforeComplete = series[lastIdx - 2]}
+						{@const comparable = !!lastComplete && !!beforeComplete && beforeComplete.paise > 0}
+						{@const cmpPct = comparable
+							? Math.round(((lastComplete.paise - beforeComplete.paise) / beforeComplete.paise) * 100)
+							: 0}
 						<div class="overtime-block">
 							<div class="overtime-head">
 								<h3 class="group-head">Spend over time</h3>
@@ -427,15 +469,27 @@
 								</div>
 							</div>
 							<p class="overtime-summary" aria-live="polite">
-								{#if lastP === 0 && prevP === 0}
-									No spend recorded yet for this view.
-								{:else if sDelta === 0}
-									This {ZOOM_UNIT[trendZoom]}: {formatPaiseLedger(lastP)}, same as the last.
+								{#if currentP === 0 && !comparable}
+									No spend recorded yet. This view fills in as you log.
 								{:else}
-									This {ZOOM_UNIT[trendZoom]}: {formatPaiseLedger(lastP)},
-									<span class:overtime-up={sDelta > 0} class:overtime-down={sDelta < 0}
-										>{Math.abs(sPct)}% {sDelta > 0 ? 'higher' : 'lower'}</span
-									> than the last {ZOOM_UNIT[trendZoom]}.
+									<span class="overtime-now"
+										>{ZOOM_NOW[trendZoom]}: {formatPaiseLedger(currentP)} so far.</span
+									>
+									{#if comparable}
+										<span class="overtime-cmp">
+											{lastComplete.label}: {formatPaiseLedger(lastComplete.paise)},
+											{#if cmpPct === 0}about the same as{:else}<span
+													class:overtime-up={cmpPct > 0}
+													class:overtime-down={cmpPct < 0}
+													>{Math.abs(cmpPct)}% {cmpPct > 0 ? 'higher' : 'lower'}</span
+												> than{/if}
+											{beforeComplete.label}.
+										</span>
+									{:else}
+										<span class="overtime-cmp overtime-muted"
+											>Not enough history yet to compare {ZOOM_UNIT[trendZoom]}s.</span
+										>
+									{/if}
 								{/if}
 							</p>
 							<div class="trend-chart overtime-chart" aria-hidden="true">
@@ -455,6 +509,57 @@
 								{/each}
 							</div>
 						</div>
+
+						<!-- Where it went: category composition donut -->
+						{@const donut = buildDonut(insights.by_category)}
+						{#if donut.total > 0}
+							{@const top = donut.segments.slice(0, 6)}
+							{@const restPaise = donut.segments.slice(6).reduce((s, x) => s + x.paise, 0)}
+							<div class="donut-block">
+								<h3 class="group-head">Where it went this period</h3>
+								<div class="donut-wrap">
+									<div class="donut-fig">
+										<svg class="donut" viewBox="0 0 100 100" aria-hidden="true">
+											{#each donut.segments as seg (seg.name)}
+												<circle
+													cx="50"
+													cy="50"
+													r={DONUT_R}
+													fill="none"
+													stroke={seg.color}
+													stroke-width="15"
+													stroke-dasharray="{seg.dash} {DONUT_C}"
+													stroke-dashoffset={seg.offset}
+													transform="rotate(-90 50 50)"
+												/>
+											{/each}
+										</svg>
+										<div class="donut-center">
+											<span class="donut-center-amt money">{formatPaiseLedger(donut.total)}</span>
+											<span class="donut-center-label">spent</span>
+										</div>
+									</div>
+									<ul class="donut-legend">
+										{#each top as seg (seg.name)}
+											<li class="donut-legend-row">
+												<span class="cat-dot" style="background:{seg.color}" aria-hidden="true"></span>
+												<span class="donut-legend-name">{seg.name}</span>
+												<span class="donut-legend-amt money">{formatPaiseLedger(seg.paise)}</span>
+												<span class="donut-legend-pct">{seg.pct}%</span>
+											</li>
+										{/each}
+										{#if restPaise > 0}
+											<li class="donut-legend-row">
+												<span class="cat-dot cat-dot--rest" aria-hidden="true"></span>
+												<span class="donut-legend-name">Other</span>
+												<span class="donut-legend-amt money">{formatPaiseLedger(restPaise)}</span>
+												<span class="donut-legend-pct">{Math.round((restPaise / donut.total) * 100)}%</span>
+											</li>
+										{/if}
+									</ul>
+								</div>
+							</div>
+						{/if}
 					{/if}
 				</section>
 			{/if}
@@ -1194,6 +1299,116 @@
 	/* Daily view packs 30 bars, so tighten the gap. */
 	.overtime-chart {
 		gap: 3px;
+	}
+
+	.overtime-now {
+		display: block;
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	.overtime-cmp {
+		display: block;
+		margin-top: 2px;
+	}
+
+	.overtime-muted {
+		color: var(--color-text-subtle);
+	}
+
+	/* Category composition donut */
+	.donut-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
+	}
+
+	.donut-wrap {
+		display: flex;
+		align-items: center;
+		gap: var(--space-5);
+		flex-wrap: wrap;
+	}
+
+	.donut-fig {
+		position: relative;
+		width: 140px;
+		height: 140px;
+		flex: none;
+	}
+
+	.donut {
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+
+	.donut-center {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		pointer-events: none;
+	}
+
+	.donut-center-amt {
+		font-family: var(--font-display);
+		font-size: 1.0625rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.donut-center-label {
+		font-size: 0.6875rem;
+		color: var(--color-text-subtle);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.donut-legend {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		flex: 1 1 180px;
+		min-width: 0;
+	}
+
+	.donut-legend-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: 0.875rem;
+	}
+
+	.donut-legend-name {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		color: var(--color-text);
+	}
+
+	.donut-legend-amt {
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.donut-legend-pct {
+		flex: none;
+		width: 38px;
+		text-align: right;
+		color: var(--color-text-subtle);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.cat-dot--rest {
+		background: var(--color-text-subtle);
 	}
 
 	.trend-label {

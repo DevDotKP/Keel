@@ -8,7 +8,7 @@
 
 <style>
 	.auth-shell {
-		min-height: 100dvh;
+		min-height: 100svh;
 		display: flex;
 		align-items: center;
 		justify-content: center;

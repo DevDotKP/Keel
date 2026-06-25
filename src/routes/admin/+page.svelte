@@ -225,7 +225,7 @@
 <style>
 	/* ── Login ─────────────────────────────────────────────────────────────── */
 	.login-wrap {
-		min-height: 100dvh;
+		min-height: 100svh;
 		display: flex;
 		align-items: center;
 		justify-content: center;
