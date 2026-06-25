@@ -119,6 +119,13 @@ html {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-text-size-adjust: 100%;
+  /* Tell the browser we theme both modes, so native controls (selects, time
+     pickers, checkboxes) and the iOS overscroll backdrop follow the same scheme
+     instead of rendering light-on-dark. Fixes the iOS Chrome colour mismatch. */
+  color-scheme: light dark;
+  /* Stop the iOS rubber-band overscroll that let you scroll past the page into
+     a blank/wrong-coloured band. */
+  overscroll-behavior: none;
   /* Prevent horizontal scroll at >=320px */
   overflow-x: hidden;
 }

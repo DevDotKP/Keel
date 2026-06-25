@@ -24,8 +24,11 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 			)
 			.bind(hid),
 		rdb
+			// Household owner's settings: cadence/harbour day must be shared so every
+			// member sees the same period and the same safe-to-spend on one account.
+			// (For a personal household, hid === the user's own id, so unchanged.)
 			.prepare('SELECT harbour_cadence, harbour_day, onboarded FROM settings WHERE user_id = ?')
-			.bind(locals.userId),
+			.bind(hid),
 		rdb
 			.prepare(
 				`SELECT u.id, u.email, u.display_name, u.avatar FROM household_members hm

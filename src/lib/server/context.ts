@@ -15,9 +15,13 @@ export async function resolveAccountAndCadence(
 				'SELECT * FROM accounts WHERE household_id = ? AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1'
 			)
 			.bind(hid),
+		// Cadence/harbour day define the shared account's period, so they must be the
+		// HOUSEHOLD's (owner's user_id = household_id), not the viewing member's. Else
+		// two members with different cadences see different period windows, and so
+		// different safe-to-spend, on the very same account.
 		db
 			.prepare('SELECT harbour_cadence, harbour_day FROM settings WHERE user_id = ?')
-			.bind(userId)
+			.bind(hid)
 	]);
 	const account = (accountRes.results?.[0] as Account) ?? null;
 	const row = settingsRes.results?.[0] as
