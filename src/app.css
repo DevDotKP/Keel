@@ -91,12 +91,22 @@
   --z-toast:   400;
 }
 
-/* ── Dark mode ─────────────────────────────────────────────────────────────── */
-/* Disabled for now. The dark theme was under-tested and rendered with colour
-   gaps on iOS (notably iOS Chrome). The app is locked to its fully-designed
-   warm-paper light theme via `color-scheme: only light` on <html>, so it looks
-   correct regardless of the OS setting. Reintroduce dark mode deliberately
-   later, with a full pass, then restore this block. */
+/* ── Dark mode (navy) ──────────────────────────────────────────────────────── */
+/* The app follows the OS setting. `color-scheme: light dark` on <html> (below)
+   makes native controls and the iOS overscroll backdrop follow the same scheme,
+   which is what fixes the iOS Chrome mismatch. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg:          var(--color-ink);
+    --color-surface:     #122540;
+    --color-surface-subtle: #16294A; /* lifted navy: subtle card fill in dark mode */
+    --color-border:      #1E3A5A;
+    --color-text:        #F0EDE8;
+    --color-text-muted:  var(--color-neutral-400);
+    --color-text-subtle: var(--color-neutral-500);
+    --color-navy:        #9DB4D4;
+  }
+}
 
 /* ── Reset and base ────────────────────────────────────────────────────────── */
 *, *::before, *::after {
@@ -112,10 +122,10 @@ html {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-text-size-adjust: 100%;
-  /* Lock to the designed light theme. This forces native controls (selects, time
-     pickers, checkboxes), the scrollbar, and the iOS overscroll backdrop to the
-     light scheme, so iOS Chrome can't render the page dark or mismatched. */
-  color-scheme: only light;
+  /* Support both themes. This makes native controls (selects, time pickers,
+     checkboxes), the scrollbar, and the iOS overscroll backdrop follow the OS
+     scheme, instead of rendering light-on-navy. Fixes the iOS Chrome mismatch. */
+  color-scheme: light dark;
   /* Belt-and-braces against rubber-band overscroll (main fix is svh below). */
   overscroll-behavior: none;
   /* Prevent horizontal scroll at >=320px */
