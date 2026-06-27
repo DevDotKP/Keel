@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { untrack, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { Tags, CalendarClock, TrendingUp, Trash2, X } from 'lucide-svelte';
+	import { Tags, CalendarClock, TrendingUp, Trash2, X, ChevronRight, Users } from 'lucide-svelte';
 	import MenuLink from '$lib/components/MenuLink.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -24,13 +24,11 @@
 	let saving = $state(false);
 	let error = $state<string | null>(null);
 
-	// Payday alignment: monthly cycles can start on a working-day anchor or a set day.
 	let currentCadence = $derived(data.settings?.harbour_cadence ?? 'monthly');
 	let currentHarbourDay = $derived(data.settings?.harbour_day ?? 'sunday');
 	const isPaydayAnchor = (d: string) =>
 		d === 'last_working_day' || d === 'first_working_day' || /^\d+$/.test(d);
 	let paydayAligned = $derived(currentCadence === 'monthly' && isPaydayAnchor(currentHarbourDay));
-	// 'last_working_day' | 'first_working_day' | 'specific'
 	let paydayAnchor = $derived(/^\d+$/.test(currentHarbourDay) ? 'specific' : currentHarbourDay);
 	let paydayDayValue = $derived(/^\d+$/.test(currentHarbourDay) ? currentHarbourDay : '25');
 
@@ -47,7 +45,7 @@
 		else await invalidateAll();
 	}
 
-	// ── Notifications (Web Push) ─────────────────────────────────────────────
+	// ── Notifications ────────────────────────────────────────────────────────
 	let pushSupported = $state(false);
 	let pushSubscribed = $state(false);
 	let pushBusy = $state(false);
@@ -76,18 +74,12 @@
 		pushBusy = false;
 	}
 
-	// Re-show the one-time onboarding tour: clear its flag and return to the dashboard.
 	function replayTour() {
-		try {
-			localStorage.removeItem('keel_tour_v1');
-		} catch {
-			/* ignore */
-		}
+		try { localStorage.removeItem('keel_tour_v1'); } catch { /* ignore */ }
 		location.href = '/';
 	}
 
 	async function handleCadenceChange(cadence: string) {
-		// When switching away from monthly, clear any payday alignment.
 		if (cadence !== 'monthly') {
 			await patch({ harbour_cadence: cadence, harbour_day: 'sunday' });
 		} else {
@@ -96,12 +88,10 @@
 	}
 
 	async function handlePaydayToggle(checked: boolean) {
-		// Default to last working day: the common Indian salary cadence.
 		await patch({ harbour_day: checked ? 'last_working_day' : 'sunday' });
 	}
 
 	async function handlePaydayAnchorChange(anchor: string) {
-		// 'specific' opens the day picker; the working-day anchors store directly.
 		await patch({ harbour_day: anchor === 'specific' ? '25' : anchor });
 	}
 
@@ -128,190 +118,7 @@
 		await patch({ budget_rollover: policy });
 	}
 
-	async function handleSignOut() {
-		await fetch('/api/auth/signout', { method: 'POST' });
-		location.href = '/auth';
-	}
-
-	// ── Profile (display name + avatar) ──────────────────────────────────────
-	let displayName = $state(untrack(() => data.user?.display_name ?? ''));
-	let avatarBusy = $state(false);
-	let profileError = $state<string | null>(null);
-
-	async function patchProfile(fields: Record<string, unknown>): Promise<boolean> {
-		const res = await fetch('/api/profile', {
-			method: 'PATCH',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(fields)
-		});
-		if (!res.ok) {
-			profileError = 'Could not save. Try again.';
-			return false;
-		}
-		await invalidateAll();
-		return true;
-	}
-
-	async function saveDisplayName() {
-		profileError = null;
-		const name = displayName.trim();
-		if (name === (data.user?.display_name ?? '')) return;
-		await patchProfile({ display_name: name || null });
-	}
-
-	// ── Avatar crop (position + zoom) ────────────────────────────────────────
-	const CROP_VP = 240; // crop viewport size in px
-	let cropOpen = $state(false);
-	let cropSrc = $state('');
-	let imgW = $state(0);
-	let imgH = $state(0);
-	let zoom = $state(1);
-	let offX = $state(0);
-	let offY = $state(0);
-	let cropBusy = $state(false);
-	let dragging = false;
-	let lastX = 0;
-	let lastY = 0;
-
-	let renderW = $derived(imgW ? imgW * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
-	let renderH = $derived(imgH ? imgH * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
-
-	// Keep the image covering the viewport (no gaps) as it pans/zooms.
-	function clampOffsets() {
-		offX = Math.min(0, Math.max(CROP_VP - renderW, offX));
-		offY = Math.min(0, Math.max(CROP_VP - renderH, offY));
-	}
-
-	function onAvatarFile(e: Event) {
-		const input = e.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
-		input.value = ''; // allow re-selecting the same file later
-		if (!file) return;
-		profileError = null;
-		if (!file.type.startsWith('image/')) {
-			profileError = 'Choose an image file.';
-			return;
-		}
-		if (file.size > 8 * 1024 * 1024) {
-			profileError = 'Image too large. Max 8 MB.';
-			return;
-		}
-		// Read as a data: URL (CSP allows data:, not blob:) and open the cropper.
-		const reader = new FileReader();
-		reader.onerror = () => (profileError = 'Could not read that image.');
-		reader.onload = () => {
-			const src = reader.result as string;
-			const img = new Image();
-			img.onload = () => {
-				cropSrc = src;
-				imgW = img.naturalWidth;
-				imgH = img.naturalHeight;
-				zoom = 1;
-				const ds = CROP_VP / Math.min(imgW, imgH);
-				offX = (CROP_VP - imgW * ds) / 2;
-				offY = (CROP_VP - imgH * ds) / 2;
-				cropOpen = true;
-			};
-			img.onerror = () => (profileError = 'Could not read that image. Try a JPEG or PNG.');
-			img.src = src;
-		};
-		reader.readAsDataURL(file);
-	}
-
-	function cropPointerDown(e: PointerEvent) {
-		dragging = true;
-		lastX = e.clientX;
-		lastY = e.clientY;
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-	}
-
-	function cropPointerMove(e: PointerEvent) {
-		if (!dragging) return;
-		offX += e.clientX - lastX;
-		offY += e.clientY - lastY;
-		lastX = e.clientX;
-		lastY = e.clientY;
-		clampOffsets();
-	}
-
-	function cropPointerUp() {
-		dragging = false;
-	}
-
-	function onZoom(v: number) {
-		zoom = v;
-		clampOffsets();
-	}
-
-	// Render the visible square of the cropper to a small JPEG data URL.
-	function renderCrop(out: number, quality: number): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const img = new Image();
-			img.onload = () => {
-				const ds = (CROP_VP / Math.min(imgW, imgH)) * zoom;
-				const sx = -offX / ds;
-				const sy = -offY / ds;
-				const s = CROP_VP / ds;
-				const canvas = document.createElement('canvas');
-				canvas.width = out;
-				canvas.height = out;
-				const ctx = canvas.getContext('2d');
-				if (!ctx) return reject(new Error('no-canvas'));
-				ctx.drawImage(img, sx, sy, s, s, 0, 0, out, out);
-				resolve(canvas.toDataURL('image/jpeg', quality));
-			};
-			img.onerror = () => reject(new Error('decode'));
-			img.src = cropSrc;
-		});
-	}
-
-	function cancelCrop() {
-		cropOpen = false;
-		cropSrc = '';
-	}
-
-	async function useCrop() {
-		cropBusy = true;
-		profileError = null;
-		try {
-			let dataUrl = await renderCrop(192, 0.82);
-			if (dataUrl.length > 200_000) dataUrl = await renderCrop(144, 0.72);
-			if (dataUrl.length > 200_000) {
-				profileError = 'Could not compress that image. Try another.';
-			} else {
-				await patchProfile({ avatar: dataUrl });
-				cropOpen = false;
-				cropSrc = '';
-			}
-		} catch {
-			profileError = 'Could not process the image.';
-		}
-		cropBusy = false;
-	}
-
-	async function removeAvatar() {
-		avatarBusy = true;
-		profileError = null;
-		await patchProfile({ avatar: null });
-		avatarBusy = false;
-	}
-
-	function initials(name: string | null | undefined, email: string | null | undefined): string {
-		const base = (name && name.trim()) || (email ? email.split('@')[0] : '');
-		const parts = base.trim().split(/\s+/).filter(Boolean);
-		if (parts.length === 0) return '?';
-		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-	}
-
-	// Household invite
-	let inviteEmail = $state('');
-	let inviteRole = $state<'admin' | 'member'>('member');
-	let inviteBusy = $state(false);
-	let inviteResult = $state<{ invite_url: string } | null>(null);
-	let inviteError = $state<string | null>(null);
-
-	// ── Household admin (manage members + invites) ───────────────────────────
+	// ── Household ─────────────────────────────────────────────────────────────
 	let isAdmin = $derived(
 		data.members.find((m) => m.user_id === data.currentUserId)?.role === 'admin'
 	);
@@ -319,6 +126,13 @@
 	let memberBusyId = $state<string | null>(null);
 	let removeMember = $state<{ id: string; name: string } | null>(null);
 	let copiedInviteId = $state<string | null>(null);
+
+	let inviteOpen = $state(false);
+	let inviteEmail = $state('');
+	let inviteRole = $state<'admin' | 'member'>('member');
+	let inviteBusy = $state(false);
+	let inviteResult = $state<{ invite_url: string } | null>(null);
+	let inviteError = $state<string | null>(null);
 
 	async function changeRole(memberId: string, role: string) {
 		memberBusyId = memberId;
@@ -371,14 +185,22 @@
 		});
 		inviteBusy = false;
 		if (res.ok) {
-			const data = await res.json() as { invite_url: string };
-			inviteResult = data;
+			const body = await res.json() as { invite_url: string };
+			inviteResult = body;
 			inviteEmail = '';
 			await invalidateAll();
 		} else {
 			const body = await res.json().catch(() => ({})) as { message?: string };
 			inviteError = body.message ?? 'Could not send invite';
 		}
+	}
+
+	function initials(name: string | null | undefined, email: string | null | undefined): string {
+		const base = (name && name.trim()) || (email ? email.split('@')[0] : '');
+		const parts = base.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return '?';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 	}
 </script>
 
@@ -389,97 +211,39 @@
 <div class="settings-page">
 	<h1 class="page-head">Settings</h1>
 
-	<!-- ── You: identity and who shares this account ── -->
-	<h2 class="settings-group">You</h2>
-
-	<!-- Profile + Account merged -->
-	<section class="settings-section">
-		<div class="profile-row">
-			<span class="avatar avatar--lg" aria-hidden="true">
-				{#if data.user?.avatar}
-					<img src={data.user.avatar} alt="" class="avatar-img" />
-				{:else}
-					{initials(data.user?.display_name, data.user?.email)}
-				{/if}
+	<!-- Profile nav row -->
+	<a href="/settings/profile" class="profile-row">
+		<span class="avatar" aria-hidden="true">
+			{#if data.user?.avatar}
+				<img src={data.user.avatar} alt="" class="avatar-img" />
+			{:else}
+				{initials(data.user?.display_name, data.user?.email)}
+			{/if}
+		</span>
+		<span class="profile-row-text">
+			<span class="profile-row-name">
+				{data.user?.display_name || data.user?.email?.split('@')[0] || 'You'}
 			</span>
-			<div class="profile-meta">
-				<div class="profile-actions">
-					<label class="secondary-btn avatar-btn">
-						{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
-						<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
-					</label>
-					{#if data.user?.avatar}
-						<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
-					{/if}
-				</div>
-				<span class="profile-email">{data.user?.email || ''}</span>
-			</div>
-		</div>
-		<div class="field">
-			<label for="display-name">Display name</label>
-			<input
-				id="display-name"
-				type="text"
-				placeholder="Your name"
-				bind:value={displayName}
-				onblur={saveDisplayName}
-				maxlength="60"
-			/>
-		</div>
-		{#if profileError}
-			<p class="error" role="alert">{profileError}</p>
-		{/if}
-		{#if error}
-			<p class="error" role="alert">{error}</p>
-		{/if}
-		<button class="link-btn sign-out-btn" onclick={handleSignOut} disabled={saving}>Sign out</button>
-	</section>
-
-	{#if cropOpen}
-		<div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Position your photo">
-			<div class="crop-card">
-				<h2 class="crop-title">Position your photo</h2>
-				<div
-					class="crop-viewport"
-					role="application"
-					aria-label="Drag to reposition your photo"
-					onpointerdown={cropPointerDown}
-					onpointermove={cropPointerMove}
-					onpointerup={cropPointerUp}
-					onpointercancel={cropPointerUp}
-				>
-					<img
-						class="crop-img"
-						src={cropSrc}
-						alt=""
-						draggable="false"
-						style="width:{renderW}px; height:{renderH}px; transform:translate({offX}px, {offY}px)"
-					/>
-				</div>
-				<label class="crop-zoom">
-					<span class="sr-only">Zoom</span>
-					<input
-						type="range"
-						min="1"
-						max="3"
-						step="0.01"
-						value={zoom}
-						oninput={(e) => onZoom(parseFloat(e.currentTarget.value))}
-					/>
-				</label>
-				<div class="crop-actions">
-					<button class="secondary-btn" onclick={cancelCrop} disabled={cropBusy}>Cancel</button>
-					<button class="crop-use" onclick={useCrop} disabled={cropBusy}>
-						{cropBusy ? 'Saving…' : 'Use photo'}
-					</button>
-				</div>
-			</div>
-		</div>
-	{/if}
+			<span class="profile-row-email">{data.user?.email || ''}</span>
+		</span>
+		<ChevronRight size={18} class="profile-chevron" aria-hidden="true" />
+	</a>
 
 	<!-- Household -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Family &amp; household</h2>
+	<section class="household-card" aria-label="Your household">
+		<div class="household-header">
+			<span class="household-icon" aria-hidden="true"><Users size={18} /></span>
+			<span class="household-title">Your household</span>
+			{#if isAdmin}
+				<button
+					class="invite-trigger"
+					onclick={() => { inviteOpen = !inviteOpen; inviteResult = null; inviteError = null; }}
+					aria-expanded={inviteOpen}
+				>
+					{inviteOpen ? 'Cancel' : '+ Invite'}
+				</button>
+			{/if}
+		</div>
 
 		{#if data.members.length > 0}
 			<ul class="member-list">
@@ -493,9 +257,9 @@
 								{m.display_name || (m.email ?? '').split('@')[0]}
 								{#if m.user_id === data.currentUserId}<span class="member-you">you</span>{/if}
 							</span>
-							<span class="member-email-sub">{m.email}</span>
+							<span class="member-sub">{m.email}</span>
 						</span>
-						{#if isAdmin}
+						{#if isAdmin && m.user_id !== data.currentUserId}
 							{@const lastAdmin = m.role === 'admin' && adminCount <= 1}
 							<select
 								class="role-select"
@@ -516,7 +280,7 @@
 								<Trash2 size={16} aria-hidden="true" />
 							</button>
 						{:else}
-							<span class="member-role">{m.role}</span>
+							<span class="member-role-badge">{m.role}</span>
 						{/if}
 					</li>
 				{/each}
@@ -529,7 +293,7 @@
 					<li class="invite-item">
 						<span class="member-main">
 							<span class="member-name">{inv.email}</span>
-							<span class="member-email-sub">Invited as {inv.role} · pending</span>
+							<span class="member-sub">Invited · pending</span>
 						</span>
 						{#if isAdmin}
 							<button class="copy-btn" onclick={() => copyInviteLink(inv.token, inv.id)}>
@@ -544,47 +308,40 @@
 			</ul>
 		{/if}
 
-		<!-- Invite form: only for admins -->
-		{#if data.members.find(m => m.user_id === data.currentUserId)?.role === 'admin'}
-			<div class="invite-row">
-				<input
-					type="email"
-					placeholder="Email to invite"
-					bind:value={inviteEmail}
-					class="invite-input"
-					disabled={inviteBusy}
-				/>
-				<select bind:value={inviteRole} class="invite-role" disabled={inviteBusy}>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
-				</select>
-				<button class="secondary-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
-					{inviteBusy ? 'Sending…' : 'Invite'}
-				</button>
-			</div>
-			<p class="settings-hint">
-				Admins can invite and manage the household. Members can add and view entries.
-			</p>
+		{#if data.members.length <= 1 && !inviteOpen && isAdmin}
+			<p class="household-solo">Just you. Invite a partner or family member to share expenses.</p>
+		{/if}
 
-			{#if inviteError}
-				<p class="error" role="alert">{inviteError}</p>
-			{/if}
-			{#if inviteResult}
-				{@const fullLink = `${window.location.origin}${inviteResult.invite_url}`}
-				<p class="invite-link-hint">
-					Share this link with {inviteEmail || 'the invitee'}:
-				</p>
-				<div class="invite-link-row">
-					<code class="invite-link">{fullLink}</code>
-					<button
-						class="copy-btn"
-						onclick={() => navigator.clipboard.writeText(fullLink)}
-						aria-label="Copy invite link"
-					>
-						Copy
-					</button>
+		{#if inviteOpen && isAdmin}
+			<div class="invite-form">
+				<div class="invite-row">
+					<input
+						type="email"
+						placeholder="Email address"
+						bind:value={inviteEmail}
+						class="invite-input"
+						disabled={inviteBusy}
+					/>
+					<select bind:value={inviteRole} class="invite-role" disabled={inviteBusy}>
+						<option value="member">Member</option>
+						<option value="admin">Admin</option>
+					</select>
 				</div>
-			{/if}
+				<button class="invite-send-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
+					{inviteBusy ? 'Sending…' : 'Send invite'}
+				</button>
+				<p class="field-hint">Admins can invite and manage. Members can add and view entries.</p>
+				{#if inviteError}
+					<p class="error" role="alert">{inviteError}</p>
+				{/if}
+				{#if inviteResult}
+					{@const fullLink = `${window.location.origin}${inviteResult.invite_url}`}
+					<div class="invite-link-row">
+						<code class="invite-link">{fullLink}</code>
+						<button class="copy-btn" onclick={() => navigator.clipboard.writeText(fullLink)}>Copy</button>
+					</div>
+				{/if}
+			</div>
 		{/if}
 	</section>
 
@@ -597,13 +354,12 @@
 		oncancel={() => (removeMember = null)}
 	/>
 
-	<!-- ── Your money cycle ── -->
-	<h2 class="settings-group">Money cycle</h2>
+	<!-- Cycle & Harbour -->
+	<section class="settings-section" aria-label="Your money cycle">
+		<h2 class="section-head">Money cycle</h2>
 
-	<!-- All cycle settings in one section -->
-	<section class="settings-section">
 		<div class="field">
-			<label for="cadence">Come to Harbour</label>
+			<label for="cadence">Harbour cadence</label>
 			<select
 				id="cadence"
 				value={currentCadence}
@@ -636,8 +392,8 @@
 						onchange={(e) => handlePaydayAnchorChange(e.currentTarget.value)}
 						disabled={saving}
 					>
-						<option value="last_working_day">Last working day of the month</option>
-						<option value="first_working_day">First working day of the month</option>
+						<option value="last_working_day">Last working day</option>
+						<option value="first_working_day">First working day</option>
 						<option value="specific">A specific date</option>
 					</select>
 				</div>
@@ -654,7 +410,7 @@
 								<option value={String(day)}>{day}</option>
 							{/each}
 						</select>
-						<p class="field-hint">In shorter months this falls back to the last day.</p>
+						<p class="field-hint">Shorter months fall back to the last day.</p>
 					</div>
 				{/if}
 				<p class="field-hint">Skips weekends and bank holidays to land on a real payday.</p>
@@ -672,11 +428,11 @@
 			/>
 		</div>
 
-		<div class="cycle-row">
-			<label class="cycle-label" for="rollover">When a cycle ends</label>
+		<div class="inline-row">
+			<label class="inline-label" for="rollover">When a cycle ends</label>
 			<select
 				id="rollover"
-				class="cycle-select"
+				class="inline-select"
 				value={data.settings?.budget_rollover ?? 'fresh'}
 				onchange={(e) => handleRolloverChange(e.currentTarget.value)}
 				disabled={saving}
@@ -687,9 +443,9 @@
 			</select>
 		</div>
 
-		<div class="cycle-row">
-			<label class="cycle-label" for="home-state">Your state</label>
-			<div class="cycle-combobox">
+		<div class="inline-row">
+			<label class="inline-label" for="home-state">Your state</label>
+			<div class="inline-combobox">
 				<Combobox
 					id="home-state"
 					options={stateOptions}
@@ -702,24 +458,23 @@
 		</div>
 
 		{#if saving}
-			<p class="saving-hint">
-				<Spinner size={14} label="Saving" />
-				<span>Saving…</span>
-			</p>
+			<p class="saving-hint"><Spinner size={14} label="Saving" /><span>Saving…</span></p>
 		{/if}
 
-		<!-- Notifications: opt-in Web Push, never a daily nag -->
+		{#if error}
+			<p class="error" role="alert">{error}</p>
+		{/if}
+
+		<!-- Notifications -->
 		{#if pushSupported || needsInstall}
 			<div class="section-rule"></div>
 			{#if needsInstall && !pushSubscribed}
-				<p class="settings-hint">
-					On iPhone, add Keel to your Home Screen first, then enable notifications from there.
-				</p>
+				<p class="field-hint">On iPhone, add Keel to your Home Screen first, then enable notifications.</p>
 			{/if}
 			<div class="notify-row">
 				<div class="notify-text">
 					<span class="notify-title">Notifications</span>
-					<span class="settings-hint">A reminder each cycle. A ping when a household member adds an entry. Nothing daily.</span>
+					<span class="field-hint">One reminder per cycle. A ping when someone adds an entry.</span>
 				</div>
 				<button
 					type="button"
@@ -731,21 +486,21 @@
 				</button>
 			</div>
 			{#if pushSubscribed}
-				<label class="notify-opt">
-					<input
-						type="checkbox"
+				<label class="toggle-row">
+					<input type="checkbox"
+						class="toggle-check"
 						checked={(data.settings?.notify_harbour ?? 1) === 1}
 						onchange={(e) => patch({ notify_harbour: e.currentTarget.checked ? 1 : 0 })}
 					/>
-					<span>Harbour reminder, once per cycle</span>
+					<span class="toggle-label">Harbour reminder, once per cycle</span>
 				</label>
-				<label class="notify-opt">
-					<input
-						type="checkbox"
+				<label class="toggle-row">
+					<input type="checkbox"
+						class="toggle-check"
 						checked={(data.settings?.notify_partner ?? 1) === 1}
 						onchange={(e) => patch({ notify_partner: e.currentTarget.checked ? 1 : 0 })}
 					/>
-					<span>When a household member adds an entry</span>
+					<span class="toggle-label">When a household member adds an entry</span>
 				</label>
 			{/if}
 			{#if pushMsg}
@@ -754,19 +509,18 @@
 		{/if}
 	</section>
 
-	<!-- ── Manage ── -->
-	<h2 class="settings-group">Manage</h2>
-
-	<section class="settings-section">
+	<!-- Manage -->
+	<section class="settings-section" aria-label="Manage">
+		<h2 class="section-head">Manage</h2>
 		<nav class="manage-links" aria-label="Manage">
-			<MenuLink href="/categories" title="Categories" sub="Spending and income categories, budgets, colours">
+			<MenuLink href="/categories" title="Categories" sub="Spending categories, budgets, colours">
 				{#snippet icon()}<Tags size={20} />{/snippet}
 			</MenuLink>
 			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
 				{#snippet icon()}<CalendarClock size={20} />{/snippet}
 			</MenuLink>
 			{#if data.settings?.show_portfolio === 1}
-				<MenuLink href="/portfolio" title="Portfolio" sub="Your investments and value over time">
+				<MenuLink href="/portfolio" title="Portfolio" sub="Investments and value over time">
 					{#snippet icon()}<TrendingUp size={20} />{/snippet}
 				</MenuLink>
 			{/if}
@@ -783,10 +537,9 @@
 		</label>
 	</section>
 
-	<!-- ── App ── -->
-	<h2 class="settings-group">App</h2>
-
-	<section class="settings-section">
+	<!-- App -->
+	<section class="settings-section" aria-label="App">
+		<h2 class="section-head">App</h2>
 		{#if $installPrompt}
 			<button
 				class="secondary-btn"
@@ -804,25 +557,30 @@
 			<a href="/api/export?format=csv" class="export-btn" download>Export CSV</a>
 			<a href="/api/export?format=json" class="export-btn" download>Export JSON</a>
 		</div>
-		<div class="app-actions">
-			<button class="link-btn" onclick={replayTour}>Replay the intro tour</button>
-		</div>
-		<p class="settings-hint about-hint">
-			Keel is the part of a boat that keeps it steady. You log as you go, then come to Harbour to settle up. Forgiving by design.
-		</p>
+		<button class="link-btn" onclick={replayTour}>Replay the intro tour</button>
 	</section>
 
-	<!-- Attribution -->
-	<footer class="settings-footer">
-		<p>Keel by <a href="https://annapurnalabs.in">Annapurna Labs</a></p>
-		<nav aria-label="Legal links">
+	<!-- About Keel -->
+	<section class="about-keel" aria-label="About Keel">
+		<div class="about-brand">
+			<h2 class="about-wordmark">Keel</h2>
+			<p class="about-tagline">The tracker that forgives.</p>
+		</div>
+		<p class="about-body">
+			Log as you go. Come to Harbour to settle. A missed entry becomes uncategorized — never a broken total. Named for the part of a boat that keeps it steady.
+		</p>
+		<p class="about-maker">By <a href="https://annapurnalabs.in" class="about-link">Annapurna Labs</a></p>
+		<nav class="about-legal" aria-label="Legal">
 			<a href="/legal/terms">Terms</a>
+			<span aria-hidden="true">·</span>
 			<a href="/legal/privacy">Privacy</a>
+			<span aria-hidden="true">·</span>
 			<a href="/legal/refund">Refund</a>
+			<span aria-hidden="true">·</span>
 			<a href="/legal/contact">Contact</a>
 		</nav>
-		<p class="copyright">© 2026 Annapurna Labs. All rights reserved.</p>
-	</footer>
+		<p class="about-copy">© 2026 Annapurna Labs. All rights reserved.</p>
+	</section>
 </div>
 
 <style>
@@ -830,14 +588,10 @@
 		padding: var(--space-6);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-8);
+		gap: var(--space-6);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
-	}
-
-	.settings-section {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
+		max-width: 600px;
+		margin: 0 auto;
 	}
 
 	.page-head {
@@ -847,329 +601,199 @@
 		color: var(--color-text);
 	}
 
-	.settings-section-head {
+	/* Profile nav row */
+	.profile-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-3) var(--space-4);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+		text-decoration: none;
+		min-height: 64px;
+		transition: border-color var(--duration-fast) var(--ease-out);
+	}
+
+	.profile-row:hover { border-color: var(--color-text-subtle); }
+
+	.avatar {
+		flex: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 44px;
+		height: 44px;
+		border-radius: var(--radius-full);
+		background: color-mix(in srgb, var(--color-text) 10%, transparent);
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		font-weight: 600;
+		overflow: hidden;
+		text-transform: uppercase;
+	}
+
+	.avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.profile-row-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.profile-row-name {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.profile-row-email {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.profile-row :global(.profile-chevron) {
+		flex: none;
+		color: var(--color-text-subtle);
+	}
+
+	/* Household */
+	.household-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-lg);
+	}
+
+	.household-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.household-icon {
+		display: flex;
+		align-items: center;
+		color: var(--color-text-muted);
+		flex: none;
+	}
+
+	.household-title {
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text-muted);
-	}
-
-	/* Group label: one level above the section heads, so Settings scans as
-	   four clusters (You, Your money cycle, Manage, App) not a flat list. */
-	.settings-group {
-		font-family: var(--font-display);
-		font-size: 1.125rem;
-		font-weight: 700;
-		color: var(--color-text);
-		margin-top: var(--space-2);
-	}
-
-	.settings-group:first-of-type {
-		margin-top: 0;
-	}
-
-	.settings-hint {
-		font-size: 0.9375rem;
-		color: var(--color-text-muted);
-	}
-
-	.notify-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-4);
-		flex-wrap: wrap;
-	}
-
-	.notify-text {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		flex: 1 1 200px;
-	}
-
-	.notify-title {
-		font-weight: 500;
-	}
-
-	.notify-opt {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		margin-top: var(--space-3);
-		font-size: 0.9375rem;
-	}
-
-	.notify-opt input {
-		width: 18px;
-		height: 18px;
-		flex: none;
-	}
-
-	.field {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.field label {
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: var(--color-text-muted);
-	}
-
-	.field select,
-	.field input {
-		height: 44px;
-		padding: 0 var(--space-3);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		background-color: var(--color-surface);
-		font-size: 1rem;
-		color: var(--color-text);
-	}
-
-	.field select:focus,
-	.field input:focus {
-		outline: none;
-		border-color: var(--color-gold);
-	}
-
-	.field select:disabled,
-	.field input:disabled {
-		opacity: 0.5;
-	}
-
-	.saving-hint {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		font-size: 0.8125rem;
-		color: var(--color-text-muted);
-	}
-
-	.manage-links {
-		display: flex;
-		flex-direction: column;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		overflow: hidden;
-	}
-
-
-	.export-row {
-		display: flex;
-		gap: var(--space-3);
-	}
-
-	.export-btn {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 44px;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		color: var(--color-text);
-		text-decoration: none;
-		font-weight: 500;
-		font-size: 0.9375rem;
-		transition: background var(--duration-fast) var(--ease-out);
-	}
-
-	.export-btn:hover {
-		background: var(--color-surface-subtle);
-	}
-
-	.secondary-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		height: 44px;
-		padding: 0 var(--space-4);
-		background: transparent;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		color: var(--color-text);
-		font-weight: 500;
-		cursor: pointer;
-		transition: background var(--duration-fast) var(--ease-out);
-	}
-
-	.secondary-btn:hover {
-		background: var(--color-surface-subtle);
-	}
-
-	.secondary-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.error {
-		color: var(--color-clay);
-		font-size: 0.875rem;
-	}
-
-	.settings-footer {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-		padding-top: var(--space-4);
-		border-top: 1px solid var(--color-border);
-		color: var(--color-text-muted);
-		font-size: 0.875rem;
-	}
-
-	.settings-footer nav {
-		display: flex;
-		gap: var(--space-4);
-	}
-
-	.settings-footer a {
-		color: var(--color-text-muted);
-		text-underline-offset: 3px;
-	}
-
-	.copyright {
-		color: var(--color-text-subtle);
-		font-size: 0.8125rem;
-	}
-
-	.toggle-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		cursor: pointer;
-		min-height: var(--tap-target);
-	}
-
-	.toggle-check {
-		width: 18px;
-		height: 18px;
-		flex: none;
-		accent-color: var(--color-gold);
-		cursor: pointer;
-	}
-
-	.toggle-label {
-		font-size: 0.9375rem;
-		color: var(--color-text);
-	}
-
-	.field-hint {
-		font-size: 0.8125rem;
-		color: var(--color-text-subtle);
-		margin-top: calc(var(--space-2) * -0.5);
-	}
-
-	/* Profile email shown inline below the avatar row */
-	.profile-meta {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.profile-email {
-		font-size: 0.8125rem;
-		color: var(--color-text-subtle);
-	}
-
-	/* Sign out as a subtle link, not a full button */
-	.sign-out-btn {
-		align-self: flex-start;
-		color: var(--color-clay);
-	}
-
-	/* Inline cycle setting rows: label on the left, control on the right */
-	.cycle-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-		min-height: var(--tap-target);
-	}
-
-	.cycle-label {
-		font-size: 0.9375rem;
-		color: var(--color-text);
 		flex: 1;
 	}
 
-	.cycle-select {
-		height: 36px;
-		padding: 0 var(--space-7) 0 var(--space-3);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		background-color: var(--color-surface);
+	.invite-trigger {
+		background: none;
+		border: none;
+		padding: var(--space-1) var(--space-2);
 		font-size: 0.875rem;
-		color: var(--color-text);
-		max-width: 60%;
-	}
-
-	.cycle-combobox {
-		flex: 0 0 55%;
-	}
-
-	/* Thin rule between sub-groups within a section */
-	.section-rule {
-		height: 1px;
-		background: var(--color-border);
-		margin: var(--space-2) 0;
-	}
-
-	/* App section: replay tour link */
-	.app-actions {
+		font-weight: 600;
+		color: var(--color-gold);
+		cursor: pointer;
+		font-family: inherit;
+		min-height: var(--tap-target);
 		display: flex;
-		gap: var(--space-4);
+		align-items: center;
 	}
 
-	.about-hint {
-		padding-top: var(--space-2);
-		border-top: 1px solid var(--color-border);
+	.invite-trigger:hover { opacity: 0.8; }
+
+	.household-solo {
 		font-size: 0.875rem;
+		color: var(--color-text-subtle);
+		line-height: 1.5;
+		padding: var(--space-2) 0;
 	}
 
-	.member-list {
+	.member-list,
+	.invite-list {
 		list-style: none;
 		display: flex;
 		flex-direction: column;
 	}
 
-	.member-row {
+	.member-row,
+	.invite-item {
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
-		padding: var(--space-3) 0;
+		padding: var(--space-2) 0;
 		border-bottom: 1px solid var(--color-border);
-		font-size: 0.9375rem;
 	}
 
-	.member-row:last-child { border-bottom: none; }
+	.member-row:last-child,
+	.invite-item:last-child { border-bottom: none; }
 
-	.member-role {
-		flex: none;
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.04em;
-		color: var(--color-text-subtle);
+	.member-main {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.member-name {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.member-you {
-		flex: none;
 		font-size: 0.6875rem;
 		color: var(--color-text-muted);
 		font-style: italic;
 		margin-left: var(--space-1);
 	}
 
-	/* Admin controls on a member row */
+	.member-sub {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.member-role-badge {
+		flex: none;
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-subtle);
+		padding: 2px var(--space-2);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+	}
+
 	.role-select {
 		flex: none;
-		width: auto;
 		height: 36px;
 		padding: 0 var(--space-7) 0 var(--space-3);
 		font-size: 0.8125rem;
+		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		color: var(--color-text);
 	}
 
 	.member-remove {
@@ -1185,35 +809,20 @@
 		color: var(--color-text-subtle);
 		border-radius: var(--radius-full);
 		cursor: pointer;
-		opacity: 0.6;
+		opacity: 0.5;
 		transition: opacity var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 	}
 
-	.member-remove:hover:not(:disabled) {
-		opacity: 1;
-		color: var(--color-clay);
-	}
+	.member-remove:hover:not(:disabled) { opacity: 1; color: var(--color-clay); }
+	.member-remove:disabled { opacity: 0.2; cursor: not-allowed; }
 
-	.member-remove:disabled {
-		opacity: 0.25;
-		cursor: not-allowed;
-	}
-
-	.invite-list {
-		list-style: none;
+	.invite-form {
 		display: flex;
 		flex-direction: column;
+		gap: var(--space-3);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--color-border);
 	}
-
-	.invite-item {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		padding: var(--space-3) 0;
-		border-bottom: 1px solid var(--color-border);
-	}
-
-	.invite-item:last-child { border-bottom: none; }
 
 	.invite-row {
 		display: flex;
@@ -1224,20 +833,21 @@
 	.invite-input {
 		flex: 1;
 		min-width: 160px;
-		height: 40px;
+		height: 44px;
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
 		font-size: 0.9375rem;
 		color: var(--color-text);
+		font-family: inherit;
 	}
 
 	.invite-input:focus { outline: none; border-color: var(--color-gold); }
 
 	.invite-role {
-		height: 40px;
-		padding: 0 var(--space-3);
+		height: 44px;
+		padding: 0 var(--space-7) 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
@@ -1245,17 +855,26 @@
 		color: var(--color-text);
 	}
 
-	.invite-link-hint {
-		font-size: 0.875rem;
-		color: var(--color-text-muted);
-		line-height: 1.6;
+	.invite-send-btn {
+		height: 44px;
+		padding: 0 var(--space-5);
+		background: var(--color-text);
+		color: var(--color-surface);
+		font-weight: 600;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.9375rem;
+		transition: opacity var(--duration-fast) var(--ease-out);
 	}
+
+	.invite-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 	.invite-link-row {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		margin-top: var(--space-1);
 	}
 
 	.invite-link {
@@ -1286,56 +905,194 @@
 		white-space: nowrap;
 	}
 
-	.copy-btn:hover {
-		color: var(--color-text);
-		border-color: var(--color-text-subtle);
-	}
+	.copy-btn:hover { color: var(--color-text); border-color: var(--color-text-subtle); }
 
-	.avatar {
-		flex: none;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 36px;
-		height: 36px;
-		border-radius: var(--radius-full);
-		background: color-mix(in srgb, var(--color-text) 10%, transparent);
-		color: var(--color-text-muted);
-		font-size: 0.8125rem;
-		font-weight: 600;
-		overflow: hidden;
-		text-transform: uppercase;
-	}
-
-	.avatar--lg {
-		width: 64px;
-		height: 64px;
-		font-size: 1.25rem;
-	}
-
-	.avatar-img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	.profile-row {
+	/* Section */
+	.settings-section {
 		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
+		flex-direction: column;
 		gap: var(--space-4);
 	}
 
-	.profile-actions {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-3);
+	.section-head {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--color-text-subtle);
 	}
 
-	.avatar-btn {
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.field label {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.field select,
+	.field input[type="time"] {
+		height: 44px;
+		padding: 0 var(--space-8) 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+		font-family: inherit;
+	}
+
+	.field select:focus,
+	.field input:focus { outline: none; border-color: var(--color-gold); }
+	.field select:disabled,
+	.field input:disabled { opacity: 0.5; }
+
+	.field-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
+	/* Compact inline rows (label left, control right) */
+	.inline-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		min-height: var(--tap-target);
+	}
+
+	.inline-label {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		flex: 1;
+	}
+
+	.inline-select {
+		height: 36px;
+		padding: 0 var(--space-7) 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		font-size: 0.875rem;
+		color: var(--color-text);
+		max-width: 60%;
+		font-family: inherit;
+	}
+
+	.inline-combobox { flex: 0 0 55%; }
+
+	.section-rule {
+		height: 1px;
+		background: var(--color-border);
+		margin: var(--space-1) 0;
+	}
+
+	.saving-hint {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.error { color: var(--color-clay); font-size: 0.875rem; }
+
+	/* Notifications */
+	.notify-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		flex-wrap: wrap;
+	}
+
+	.notify-text {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		flex: 1 1 200px;
+	}
+
+	.notify-title {
+		font-size: 0.9375rem;
+		font-weight: 500;
+		color: var(--color-text);
+	}
+
+	/* Manage */
+	.manage-links {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+	}
+
+	/* Toggles */
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		cursor: pointer;
+		min-height: var(--tap-target);
+	}
+
+	.toggle-check {
+		width: 18px;
+		height: 18px;
+		flex: none;
+		accent-color: var(--color-gold);
 		cursor: pointer;
 	}
+
+	.toggle-label {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+	}
+
+	/* App section */
+	.export-row { display: flex; gap: var(--space-3); }
+
+	.export-btn {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 44px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text);
+		text-decoration: none;
+		font-weight: 500;
+		font-size: 0.9375rem;
+		transition: background var(--duration-fast) var(--ease-out);
+	}
+
+	.export-btn:hover { background: var(--color-surface-subtle); }
+
+	.secondary-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		height: 44px;
+		padding: 0 var(--space-4);
+		background: transparent;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		color: var(--color-text);
+		font-weight: 500;
+		font-size: 0.9375rem;
+		font-family: inherit;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease-out);
+	}
+
+	.secondary-btn:hover { background: var(--color-surface-subtle); }
+	.secondary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 	.link-btn {
 		background: none;
@@ -1347,122 +1104,89 @@
 		text-decoration: underline;
 		text-underline-offset: 3px;
 		font-family: inherit;
-	}
-
-	.link-btn:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.member-main {
-		display: flex;
-		flex-direction: column;
-		gap: 1px;
-		flex: 1;
-		min-width: 0;
-	}
-
-	.member-name {
-		font-size: 0.9375rem;
-		color: var(--color-text);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.member-email-sub {
-		font-size: 0.75rem;
-		color: var(--color-text-subtle);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.crop-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: var(--z-sheet);
-		background: rgba(12, 35, 64, 0.5);
+		min-height: var(--tap-target);
 		display: flex;
 		align-items: center;
-		justify-content: center;
-		padding: var(--space-4);
 	}
 
-	.crop-card {
+	.link-btn:hover { color: var(--color-text); }
+
+	/* About Keel */
+	.about-keel {
 		display: flex;
 		flex-direction: column;
-		align-items: center;
 		gap: var(--space-4);
-		width: min(320px, 100%);
-		padding: var(--space-6);
-		background-color: var(--color-surface);
+		padding: var(--space-6) var(--space-6) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
 		border-radius: var(--radius-lg);
 	}
 
-	.crop-title {
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--color-text);
-	}
-
-	.crop-viewport {
-		position: relative;
-		width: 240px;
-		height: 240px;
-		border-radius: 50%;
-		overflow: hidden;
-		background: var(--color-surface-subtle);
-		touch-action: none;
-		cursor: grab;
-	}
-
-	.crop-img {
-		position: absolute;
-		top: 0;
-		left: 0;
-		max-width: none;
-		user-select: none;
-		-webkit-user-drag: none;
-	}
-
-	.crop-zoom {
-		width: 100%;
-	}
-
-	.crop-zoom input {
-		width: 100%;
-		accent-color: var(--color-gold);
-	}
-
-	.crop-actions {
+	.about-brand {
 		display: flex;
-		gap: var(--space-3);
-		width: 100%;
+		flex-direction: column;
+		gap: var(--space-1);
 	}
 
-	.crop-actions .secondary-btn {
-		flex: 1;
-	}
-
-	.crop-use {
-		flex: 1;
-		height: 44px;
-		background: var(--color-gold);
-		color: var(--color-ink);
+	.about-wordmark {
+		font-family: var(--font-display);
+		font-size: 2rem;
 		font-weight: 700;
-		border: none;
-		border-radius: var(--radius-md);
-		cursor: pointer;
-		font-family: inherit;
+		color: var(--color-text);
+		letter-spacing: -0.02em;
+		line-height: 1;
 	}
 
-	.crop-use:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+	.about-tagline {
+		font-family: var(--font-display);
+		font-size: 1rem;
+		color: var(--color-text-muted);
+		font-style: italic;
 	}
 
-	/* room for the global select chevron */
-	.field select, .invite-role {
-		padding-right: var(--space-8);
+	.about-body {
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+		line-height: 1.65;
+	}
+
+	.about-maker {
+		font-size: 0.875rem;
+		color: var(--color-text-subtle);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--color-border);
+	}
+
+	.about-link {
+		color: var(--color-text-muted);
+		text-underline-offset: 3px;
+	}
+
+	.about-link:hover { color: var(--color-text); }
+
+	.about-legal {
+		display: flex;
+		gap: var(--space-2);
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.about-legal a {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-decoration: none;
+		text-underline-offset: 3px;
+	}
+
+	.about-legal a:hover {
+		color: var(--color-text);
+		text-decoration: underline;
+	}
+
+	.about-legal span { font-size: 0.8125rem; color: var(--color-text-subtle); }
+
+	.about-copy {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
 	}
 </style>
