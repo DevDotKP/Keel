@@ -9,6 +9,9 @@
 	let displayName = $state(untrack(() => data.user?.display_name ?? ''));
 	let profileError = $state<string | null>(null);
 	let avatarBusy = $state(false);
+	let deleteConfirmOpen = $state(false);
+	let deleteConfirmText = $state('');
+	let deleteBusy = $state(false);
 
 	const CROP_VP = 240;
 	let cropOpen = $state(false);
@@ -147,6 +150,19 @@
 		await fetch('/api/auth/signout', { method: 'POST' });
 		location.href = '/auth';
 	}
+
+	async function handleDeleteAccount() {
+		deleteBusy = true;
+		profileError = null;
+		const res = await fetch('/api/auth/delete', { method: 'POST' });
+		if (res.ok) {
+			location.href = '/auth';
+		} else {
+			profileError = 'Could not delete account. Try again.';
+			deleteBusy = false;
+			deleteConfirmOpen = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -204,7 +220,49 @@
 	</div>
 
 	<button class="sign-out-btn" onclick={handleSignOut}>Sign out</button>
+
+	<div class="danger-zone">
+		<p class="danger-label">Danger zone</p>
+		<button class="delete-trigger" onclick={() => { deleteConfirmOpen = true; deleteConfirmText = ''; }}>
+			Delete my account and data
+		</button>
+	</div>
 </div>
+
+{#if deleteConfirmOpen}
+	<div class="delete-backdrop" role="dialog" aria-modal="true" aria-label="Delete account">
+		<div class="delete-card">
+			<h2 class="delete-title">Delete your account?</h2>
+			<p class="delete-body">
+				All your entries, categories, and settings will be permanently deleted.
+				We keep a small amount of anonymised data (no names, no amounts) for product analytics.
+				This cannot be undone.
+			</p>
+			<p class="delete-confirm-label">Type <strong>DELETE</strong> to confirm</p>
+			<input
+				class="delete-input"
+				type="text"
+				placeholder="DELETE"
+				bind:value={deleteConfirmText}
+				autocomplete="off"
+				autocorrect="off"
+				spellcheck="false"
+			/>
+			<div class="delete-actions">
+				<button class="secondary-btn" onclick={() => deleteConfirmOpen = false} disabled={deleteBusy}>
+					Cancel
+				</button>
+				<button
+					class="delete-confirm-btn"
+					onclick={handleDeleteAccount}
+					disabled={deleteBusy || deleteConfirmText !== 'DELETE'}
+				>
+					{deleteBusy ? 'Deleting…' : 'Delete account'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 {#if cropOpen}
 	<div class="crop-backdrop" role="dialog" aria-modal="true" aria-label="Position your photo">
@@ -487,4 +545,116 @@
 	}
 
 	.crop-use:disabled { opacity: 0.5; cursor: not-allowed; }
+
+	/* Danger zone */
+	.danger-zone {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding-top: var(--space-6);
+		border-top: 1px solid var(--color-border);
+		margin-top: var(--space-4);
+	}
+
+	.danger-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--color-text-subtle);
+	}
+
+	.delete-trigger {
+		background: none;
+		border: none;
+		padding: 0;
+		font-size: 0.9375rem;
+		color: var(--color-clay);
+		cursor: pointer;
+		font-family: inherit;
+		text-align: left;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+		min-height: var(--tap-target);
+		display: flex;
+		align-items: center;
+	}
+
+	/* Delete confirmation modal */
+	.delete-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: var(--z-sheet);
+		background: rgba(12, 35, 64, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-4);
+	}
+
+	.delete-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		width: min(360px, 100%);
+		padding: var(--space-6);
+		background: var(--color-surface);
+		border-radius: var(--radius-lg);
+		border: 1px solid var(--color-border);
+	}
+
+	.delete-title {
+		font-family: var(--font-display);
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.delete-body {
+		font-size: 0.9375rem;
+		color: var(--color-text-muted);
+		line-height: 1.6;
+	}
+
+	.delete-confirm-label {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+	}
+
+	.delete-input {
+		height: 44px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+		font-family: inherit;
+		letter-spacing: 0.1em;
+	}
+
+	.delete-input:focus { outline: none; border-color: var(--color-clay); }
+
+	.delete-actions {
+		display: flex;
+		gap: var(--space-3);
+	}
+
+	.delete-actions .secondary-btn { flex: 1; }
+
+	.delete-confirm-btn {
+		flex: 1;
+		height: 44px;
+		background: var(--color-clay);
+		color: #fff;
+		font-weight: 700;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+		font-size: 0.9375rem;
+		transition: opacity var(--duration-fast) var(--ease-out);
+	}
+
+	.delete-confirm-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

@@ -787,8 +787,10 @@
 
 	.role-select {
 		flex: none;
+		width: auto;
+		max-width: 110px;
 		height: 36px;
-		padding: 0 var(--space-7) 0 var(--space-3);
+		padding: 0 var(--space-6) 0 var(--space-2);
 		font-size: 0.8125rem;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);

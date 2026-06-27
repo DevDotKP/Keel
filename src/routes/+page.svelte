@@ -42,6 +42,18 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 
 	let { data }: { data: PageData } = $props();
 
+	function greeting(): string {
+		const name = data.currentUserId
+			? (data.memberNames[data.currentUserId] ?? data.memberEmails[data.currentUserId]?.split('@')[0] ?? '')
+			: '';
+		const firstName = name.split(' ')[0];
+		const h = new Date().getHours();
+		if (h >= 5 && h < 12) return `Good morning${firstName ? ', ' + firstName : ''}.`;
+		if (h >= 12 && h < 17) return `Good afternoon${firstName ? ', ' + firstName : ''}.`;
+		if (h >= 17 && h < 21) return `Good evening${firstName ? ', ' + firstName : ''}.`;
+		return `Hey${firstName ? ' ' + firstName : ''}.`;
+	}
+
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
 	let editingTx = $state<Transaction | null>(null);
@@ -178,6 +190,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	<div class="dashboard">
 		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
 		<section class="hero" aria-label="Safe to spend">
+			<p class="hero-greeting">{greeting()}</p>
 			<p class="hero-label">Safe to spend</p>
 			<p
 				class="money-hero"
@@ -449,6 +462,13 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		flex-direction: column;
 		gap: var(--space-2);
 		padding: var(--space-6) 0;
+	}
+
+	.hero-greeting {
+		font-size: 0.875rem;
+		color: var(--color-text-subtle);
+		font-weight: 400;
+		margin-bottom: var(--space-1);
 	}
 
 	.hero-label {
