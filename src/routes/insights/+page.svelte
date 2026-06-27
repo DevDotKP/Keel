@@ -13,6 +13,12 @@
 	let trendZoom = $state<'day' | 'month' | 'year'>('month');
 	const ZOOM_UNIT = { day: 'day', month: 'month', year: 'year' } as const;
 	const ZOOM_NOW = { day: 'Today', month: 'This month', year: 'This year' } as const;
+	// Which bar's amount is shown in the readout. null = the latest bar.
+	let selectedBar = $state<number | null>(null);
+	function pickZoom(z: 'day' | 'month' | 'year') {
+		trendZoom = z;
+		selectedBar = null;
+	}
 
 	// Donut for category composition ("where the money went"). Hand-built SVG: each
 	// segment is an arc of the circle, lengths proportional to spend.
@@ -435,7 +441,6 @@
 							: trendZoom === 'month'
 								? insights.spend_trends.monthly
 								: insights.spend_trends.yearly}
-						{@const maxS = Math.max(...series.map((p) => p.paise), 1)}
 						{@const lastIdx = series.length - 1}
 						{@const currentP = series[lastIdx]?.paise ?? 0}
 						{@const lastComplete = series[lastIdx - 1]}
@@ -444,6 +449,14 @@
 						{@const cmpPct = comparable
 							? Math.round(((lastComplete.paise - beforeComplete.paise) / beforeComplete.paise) * 100)
 							: 0}
+						<!-- Day view shows the last 14 days (30 was too sparse to read). -->
+						{@const dispSeries = trendZoom === 'day' ? series.slice(-14) : series}
+						{@const maxD = Math.max(...dispSeries.map((p) => p.paise), 1)}
+						{@const activeIdx =
+							selectedBar !== null && selectedBar < dispSeries.length
+								? selectedBar
+								: dispSeries.length - 1}
+						{@const activeBar = dispSeries[activeIdx]}
 						<div class="overtime-block">
 							<div class="overtime-head">
 								<h3 class="group-head">Spend over time</h3>
@@ -452,19 +465,19 @@
 										class="zoom-btn"
 										class:zoom-btn--on={trendZoom === 'day'}
 										aria-pressed={trendZoom === 'day'}
-										onclick={() => (trendZoom = 'day')}>Day</button
+										onclick={() => pickZoom('day')}>Day</button
 									>
 									<button
 										class="zoom-btn"
 										class:zoom-btn--on={trendZoom === 'month'}
 										aria-pressed={trendZoom === 'month'}
-										onclick={() => (trendZoom = 'month')}>Month</button
+										onclick={() => pickZoom('month')}>Month</button
 									>
 									<button
 										class="zoom-btn"
 										class:zoom-btn--on={trendZoom === 'year'}
 										aria-pressed={trendZoom === 'year'}
-										onclick={() => (trendZoom = 'year')}>Year</button
+										onclick={() => pickZoom('year')}>Year</button
 									>
 								</div>
 							</div>
@@ -492,20 +505,29 @@
 									{/if}
 								{/if}
 							</p>
-							<div class="trend-chart overtime-chart" aria-hidden="true">
-								{#each series as p, i (i)}
-									{@const h = Math.max(2, Math.round((p.paise / maxS) * 56))}
-									<div class="trend-col">
-										<div
-											class="trend-bar"
-											class:trend-bar--current={i === series.length - 1}
-											style="height:{h}px"
-											title="{p.label}: {formatPaiseLedger(p.paise)}"
-										></div>
-										{#if series.length <= 12 || i % 5 === 0}
-											<span class="trend-label">{p.label}</span>
-										{/if}
-									</div>
+							<p class="overtime-readout" aria-live="polite">
+								<span class="overtime-readout-label">{activeBar?.label ?? ''}</span>
+								<span class="overtime-readout-amt money">{formatPaiseLedger(activeBar?.paise ?? 0)}</span>
+							</p>
+							<div
+								class="trend-chart overtime-chart"
+								role="group"
+								aria-label="Spend per {ZOOM_UNIT[trendZoom]}. Select a bar to read its amount."
+							>
+								{#each dispSeries as p, i (i)}
+									{@const h = Math.max(2, Math.round((p.paise / maxD) * 56))}
+									<button
+										type="button"
+										class="trend-col trend-col--btn"
+										class:trend-col--active={i === activeIdx}
+										onpointerenter={() => (selectedBar = i)}
+										onfocus={() => (selectedBar = i)}
+										onclick={() => (selectedBar = i)}
+										aria-label="{p.label}: {formatPaiseLedger(p.paise)}"
+									>
+										<span class="trend-bar" class:trend-bar--current={i === dispSeries.length - 1} style="height:{h}px"></span>
+										<span class="trend-label">{p.label}</span>
+									</button>
 								{/each}
 							</div>
 						</div>
@@ -1296,9 +1318,47 @@
 		font-weight: 600;
 	}
 
-	/* Daily view packs 30 bars, so tighten the gap. */
 	.overtime-chart {
-		gap: 3px;
+		gap: var(--space-1);
+	}
+
+	/* Bars are buttons: tap or hover to read the amount in the readout above. */
+	.trend-col--btn {
+		background: none;
+		border: none;
+		padding: 0;
+		font: inherit;
+		cursor: pointer;
+	}
+
+	.trend-col--active .trend-bar {
+		background: var(--color-navy);
+	}
+
+	.trend-col--active .trend-label {
+		color: var(--color-text);
+		font-weight: 600;
+	}
+
+	/* Readout: the selected (or latest) bar's exact amount. */
+	.overtime-readout {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding-bottom: var(--space-1);
+	}
+
+	.overtime-readout-label {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.overtime-readout-amt {
+		font-family: var(--font-display);
+		font-size: 1.0625rem;
+		font-weight: 700;
+		color: var(--color-text);
 	}
 
 	.overtime-now {

@@ -13,7 +13,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Harbour reminder endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
+          # Skip (don't fail the run) until the CRON_SECRET repo secret is set.
+          # Add it under Settings > Secrets and variables > Actions, matching the
+          # CRON_SECRET Pages secret. Without it the endpoint correctly returns 401.
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set; skipping the Harbour reminder ping."
+            exit 0
+          fi
           curl -fsS -X POST "https://keel-aba.pages.dev/api/cron/harbour" \
-            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            -H "x-cron-key: $CRON_SECRET" \
             -H "content-type: application/json"

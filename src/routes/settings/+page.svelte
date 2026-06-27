@@ -484,7 +484,7 @@
 
 	<!-- Household -->
 	<section class="settings-section">
-		<h2 class="settings-section-head">Household</h2>
+		<h2 class="settings-section-head">Family &amp; household</h2>
 
 		{#if data.members.length > 0}
 			<ul class="member-list">
