@@ -387,14 +387,13 @@
 </svelte:head>
 
 <div class="settings-page">
-	<h1 class="section-head">Settings</h1>
+	<h1 class="page-head">Settings</h1>
 
 	<!-- ── You: identity and who shares this account ── -->
 	<h2 class="settings-group">You</h2>
 
-	<!-- Profile -->
+	<!-- Profile + Account merged -->
 	<section class="settings-section">
-		<h2 class="settings-section-head">Profile</h2>
 		<div class="profile-row">
 			<span class="avatar avatar--lg" aria-hidden="true">
 				{#if data.user?.avatar}
@@ -403,17 +402,19 @@
 					{initials(data.user?.display_name, data.user?.email)}
 				{/if}
 			</span>
-			<div class="profile-actions">
-				<label class="secondary-btn avatar-btn">
-					{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
-					<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
-				</label>
-				{#if data.user?.avatar}
-					<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
-				{/if}
+			<div class="profile-meta">
+				<div class="profile-actions">
+					<label class="secondary-btn avatar-btn">
+						{avatarBusy ? 'Saving…' : data.user?.avatar ? 'Change photo' : 'Add photo'}
+						<input type="file" accept="image/*" onchange={onAvatarFile} disabled={avatarBusy} hidden />
+					</label>
+					{#if data.user?.avatar}
+						<button class="link-btn" onclick={removeAvatar} disabled={avatarBusy}>Remove</button>
+					{/if}
+				</div>
+				<span class="profile-email">{data.user?.email || ''}</span>
 			</div>
 		</div>
-		<p class="settings-hint">Up to 8 MB. Position and zoom it after choosing. Stored privately.</p>
 		<div class="field">
 			<label for="display-name">Display name</label>
 			<input
@@ -428,6 +429,10 @@
 		{#if profileError}
 			<p class="error" role="alert">{profileError}</p>
 		{/if}
+		{#if error}
+			<p class="error" role="alert">{error}</p>
+		{/if}
+		<button class="link-btn sign-out-btn" onclick={handleSignOut} disabled={saving}>Sign out</button>
 	</section>
 
 	{#if cropOpen}
@@ -471,16 +476,6 @@
 			</div>
 		</div>
 	{/if}
-
-	<!-- Account -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Account</h2>
-		<p class="settings-hint">Signed in as <strong>{data.user?.email || 'user'}</strong>. No password needed.</p>
-		{#if error}
-			<p class="error" role="alert">{error}</p>
-		{/if}
-		<button class="secondary-btn" onclick={handleSignOut} disabled={saving}>Sign out</button>
-	</section>
 
 	<!-- Household -->
 	<section class="settings-section">
@@ -603,13 +598,12 @@
 	/>
 
 	<!-- ── Your money cycle ── -->
-	<h2 class="settings-group">Your money cycle</h2>
+	<h2 class="settings-group">Money cycle</h2>
 
-	<!-- Harbour cadence -->
+	<!-- All cycle settings in one section -->
 	<section class="settings-section">
-		<h2 class="settings-section-head">Harbour</h2>
 		<div class="field">
-			<label for="cadence">How often</label>
+			<label for="cadence">Come to Harbour</label>
 			<select
 				id="cadence"
 				value={currentCadence}
@@ -631,7 +625,7 @@
 					onchange={(e) => handlePaydayToggle(e.currentTarget.checked)}
 					disabled={saving}
 				/>
-				<span class="toggle-label">Start periods on my payday</span>
+				<span class="toggle-label">Start cycles on my payday</span>
 			</label>
 			{#if paydayAligned}
 				<div class="field">
@@ -663,7 +657,7 @@
 						<p class="field-hint">In shorter months this falls back to the last day.</p>
 					</div>
 				{/if}
-				<p class="field-hint">Your cycle starts on this day, skipping weekends so it lands on a real payday.</p>
+				<p class="field-hint">Skips weekends and bank holidays to land on a real payday.</p>
 			{/if}
 		{/if}
 
@@ -677,27 +671,55 @@
 				disabled={saving}
 			/>
 		</div>
+
+		<div class="cycle-row">
+			<label class="cycle-label" for="rollover">When a cycle ends</label>
+			<select
+				id="rollover"
+				class="cycle-select"
+				value={data.settings?.budget_rollover ?? 'fresh'}
+				onchange={(e) => handleRolloverChange(e.currentTarget.value)}
+				disabled={saving}
+			>
+				<option value="fresh">Start fresh</option>
+				<option value="surplus">Carry unspent forward</option>
+				<option value="deficit">Carry overspending forward</option>
+			</select>
+		</div>
+
+		<div class="cycle-row">
+			<label class="cycle-label" for="home-state">Your state</label>
+			<div class="cycle-combobox">
+				<Combobox
+					id="home-state"
+					options={stateOptions}
+					value={data.settings?.home_state ?? ''}
+					placeholder="For holiday calendar"
+					disabled={saving}
+					onchange={handleStateChange}
+				/>
+			</div>
+		</div>
+
 		{#if saving}
 			<p class="saving-hint">
 				<Spinner size={14} label="Saving" />
 				<span>Saving…</span>
 			</p>
 		{/if}
-	</section>
 
-	<!-- Notifications: opt-in Web Push. Never a daily nag. -->
-	{#if pushSupported || needsInstall}
-		<section class="settings-section">
-			<h2 class="settings-section-head">Notifications</h2>
+		<!-- Notifications: opt-in Web Push, never a daily nag -->
+		{#if pushSupported || needsInstall}
+			<div class="section-rule"></div>
 			{#if needsInstall && !pushSubscribed}
 				<p class="settings-hint">
-					On iPhone, add Keel to your Home Screen first, then turn notifications on from there.
+					On iPhone, add Keel to your Home Screen first, then enable notifications from there.
 				</p>
 			{/if}
 			<div class="notify-row">
 				<div class="notify-text">
-					<span class="notify-title">Push on this device</span>
-					<span class="settings-hint">A calm reminder each cycle, and a ping when a household member adds an entry. Nothing daily.</span>
+					<span class="notify-title">Notifications</span>
+					<span class="settings-hint">A reminder each cycle. A ping when a household member adds an entry. Nothing daily.</span>
 				</div>
 				<button
 					type="button"
@@ -729,47 +751,7 @@
 			{#if pushMsg}
 				<p class="error" role="alert">{pushMsg}</p>
 			{/if}
-		</section>
-	{/if}
-
-	<!-- Cycle budget: how the Insights target carries between cycles -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Cycle budget</h2>
-		<p class="settings-hint">
-			Set the amount in Insights. This controls how an unspent surplus or an overspend carries into next cycle's target. It never changes your safe to spend.
-		</p>
-		<div class="field">
-			<label for="rollover">When a cycle ends</label>
-			<select
-				id="rollover"
-				value={data.settings?.budget_rollover ?? 'fresh'}
-				onchange={(e) => handleRolloverChange(e.currentTarget.value)}
-				disabled={saving}
-			>
-				<option value="fresh">Start fresh each cycle</option>
-				<option value="surplus">Carry unspent budget forward</option>
-				<option value="deficit">Carry overspending forward</option>
-			</select>
-		</div>
-	</section>
-
-	<!-- Location: picks the bank-holiday calendar for recurring scheduling -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Location</h2>
-		<p class="settings-hint">
-			Your state. Keel uses it to skip bank holidays when scheduling recurring income.
-		</p>
-		<div class="field">
-			<label for="home-state">State</label>
-			<Combobox
-				id="home-state"
-				options={stateOptions}
-				value={data.settings?.home_state ?? ''}
-				placeholder="Search your state"
-				disabled={saving}
-				onchange={handleStateChange}
-			/>
-		</div>
+		{/if}
 	</section>
 
 	<!-- ── Manage ── -->
@@ -783,12 +765,12 @@
 			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
 				{#snippet icon()}<CalendarClock size={20} />{/snippet}
 			</MenuLink>
+			{#if data.settings?.show_portfolio === 1}
+				<MenuLink href="/portfolio" title="Portfolio" sub="Your investments and value over time">
+					{#snippet icon()}<TrendingUp size={20} />{/snippet}
+				</MenuLink>
+			{/if}
 		</nav>
-	</section>
-
-	<!-- Portfolio (opt-in, hidden by default) -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Portfolio</h2>
 		<label class="toggle-row">
 			<input
 				type="checkbox"
@@ -797,25 +779,15 @@
 				onchange={(e) => handlePortfolioToggle(e.currentTarget.checked)}
 				disabled={saving}
 			/>
-			<span class="toggle-label">Track investments (private, manual)</span>
+			<span class="toggle-label">Track investments</span>
 		</label>
-		{#if data.settings?.show_portfolio === 1}
-			<nav class="manage-links" aria-label="Portfolio">
-				<MenuLink href="/portfolio" title="Portfolio" sub="Your investments and value over time">
-					{#snippet icon()}<TrendingUp size={20} />{/snippet}
-				</MenuLink>
-			</nav>
-		{/if}
 	</section>
 
 	<!-- ── App ── -->
 	<h2 class="settings-group">App</h2>
 
-	<!-- Install: shown only when the browser signals the app is installable -->
-	{#if $installPrompt}
-		<section class="settings-section">
-			<h2 class="settings-section-head">Install</h2>
-			<p class="settings-hint">Add Keel to your home screen for faster access and offline use.</p>
+	<section class="settings-section">
+		{#if $installPrompt}
 			<button
 				class="secondary-btn"
 				onclick={async () => {
@@ -827,26 +799,17 @@
 			>
 				Add to home screen
 			</button>
-		</section>
-	{/if}
-
-	<!-- Export -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">Your data</h2>
-		<p class="settings-hint">Your data belongs to you. Export everything at any time.</p>
+		{/if}
 		<div class="export-row">
 			<a href="/api/export?format=csv" class="export-btn" download>Export CSV</a>
 			<a href="/api/export?format=json" class="export-btn" download>Export JSON</a>
 		</div>
-	</section>
-
-	<!-- About: what Keel and Harbour mean -->
-	<section class="settings-section">
-		<h2 class="settings-section-head">About</h2>
-		<p class="settings-hint">
-			Keel is the part of a boat that keeps it steady. You log as you spend, then come to Harbour now and then to settle up. Forgiving by design.
+		<div class="app-actions">
+			<button class="link-btn" onclick={replayTour}>Replay the intro tour</button>
+		</div>
+		<p class="settings-hint about-hint">
+			Keel is the part of a boat that keeps it steady. You log as you go, then come to Harbour to settle up. Forgiving by design.
 		</p>
-		<button class="secondary-btn" onclick={replayTour}>Replay the tour</button>
 	</section>
 
 	<!-- Attribution -->
@@ -877,12 +840,17 @@
 		gap: var(--space-4);
 	}
 
+	.page-head {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
 	.settings-section-head {
 		font-size: 0.875rem;
 		font-weight: 600;
 		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
 	}
 
 	/* Group label: one level above the section heads, so Settings scans as
@@ -1091,6 +1059,73 @@
 		font-size: 0.8125rem;
 		color: var(--color-text-subtle);
 		margin-top: calc(var(--space-2) * -0.5);
+	}
+
+	/* Profile email shown inline below the avatar row */
+	.profile-meta {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+	}
+
+	.profile-email {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
+	/* Sign out as a subtle link, not a full button */
+	.sign-out-btn {
+		align-self: flex-start;
+		color: var(--color-clay);
+	}
+
+	/* Inline cycle setting rows: label on the left, control on the right */
+	.cycle-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		min-height: var(--tap-target);
+	}
+
+	.cycle-label {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		flex: 1;
+	}
+
+	.cycle-select {
+		height: 36px;
+		padding: 0 var(--space-7) 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		font-size: 0.875rem;
+		color: var(--color-text);
+		max-width: 60%;
+	}
+
+	.cycle-combobox {
+		flex: 0 0 55%;
+	}
+
+	/* Thin rule between sub-groups within a section */
+	.section-rule {
+		height: 1px;
+		background: var(--color-border);
+		margin: var(--space-2) 0;
+	}
+
+	/* App section: replay tour link */
+	.app-actions {
+		display: flex;
+		gap: var(--space-4);
+	}
+
+	.about-hint {
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--color-border);
+		font-size: 0.875rem;
 	}
 
 	.member-list {
