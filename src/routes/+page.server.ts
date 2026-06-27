@@ -9,7 +9,7 @@ import type { HarbourCadence } from '$lib/types';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
-	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
+	setHeaders({ 'cache-control': 'private, no-cache' });
 	const db = getDb(platform);
 	const rdb = getReadDb(platform);
 	const hid = locals.householdId ?? locals.userId!;

@@ -5,7 +5,7 @@ import { listHoldings, listSnapshots } from '$lib/server/queries/portfolio';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
-	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
+	setHeaders({ 'cache-control': 'private, no-cache' });
 	const rdb = getReadDb(platform);
 	const hid = locals.householdId ?? locals.userId;
 	const [holdings, snapshots] = await Promise.all([listHoldings(rdb, hid), listSnapshots(rdb, hid)]);

@@ -5,7 +5,7 @@ import { listCategories, listCategoryTree } from '$lib/server/queries/categories
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
-	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=30' });
+	setHeaders({ 'cache-control': 'private, no-cache' });
 	const rdb = getReadDb(platform);
 	const [tree, categories] = await Promise.all([
 		listCategoryTree(rdb, locals.userId),

@@ -9,7 +9,7 @@ const PAGE_SIZE = 30;
 
 export const load: PageServerLoad = async ({ platform, locals, url, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
-	setHeaders({ 'cache-control': 'private, max-age=0, stale-while-revalidate=10' });
+	setHeaders({ 'cache-control': 'private, no-cache' });
 	const rdb = getReadDb(platform);
 	const db = getDb(platform);
 	const hid = locals.householdId ?? locals.userId!;
