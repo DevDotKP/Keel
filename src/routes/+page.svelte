@@ -3,8 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import HelpTip from '$lib/components/HelpTip.svelte';
-	import OnboardingTour from '$lib/components/OnboardingTour.svelte';
+import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import { formatPaise, formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
 	import { enqueueTransaction } from '$lib/utils/offline-queue';
@@ -294,13 +293,7 @@
 			{@const label = runwayLabel(runway!)}
 			{@const extra = runwayExtra(runway!)}
 			<section class="runway-card" aria-label="Runway estimate">
-				<p class="runway-label">
-					Runway
-					<HelpTip
-						term="Runway"
-						text="How many days your balance would last at your current spending pace. Calculated from your balance divided by your average daily spend over the last two periods. Not a deadline — just a calm read on where you stand."
-					/>
-				</p>
+				<p class="runway-label">Runway</p>
 				<p class="runway-days">{label}</p>
 				<p class="runway-basis">at your current pace</p>
 				{#if extra !== null}

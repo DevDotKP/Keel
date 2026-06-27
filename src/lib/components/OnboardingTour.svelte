@@ -15,9 +15,9 @@
 		placement?: 'above' | 'below'; // tooltip position relative to spotlight
 	}
 
-	// Four essentials only, so the user reaches their first entry fast. The cycle,
-	// the gold dot, and the closing recap are discoverable in context (ledger dot,
-	// the HelpTips on Runway/Harbour/Committed, and the About section in Settings).
+	// Five steps: Welcome, Safe-to-spend, Runway, Log, Harbour. Runway is here because
+	// the card isn't visible until data exists, so the tour is the only reliable place
+	// to introduce it. The gold dot and cycle details are discoverable in context.
 	const STEPS: TourStep[] = [
 		{
 			title: 'Welcome to Keel',
@@ -28,6 +28,10 @@
 			body: "What's left after what you still owe this cycle. Not your bank balance.",
 			target: '[aria-label="Safe to spend"]',
 			placement: 'below'
+		},
+		{
+			title: 'Runway',
+			body: 'Your balance divided by your average daily spend. A calm forward read — not a deadline. Cut the flexible spending and watch the number grow.'
 		},
 		{
 			title: 'Log an expense',
