@@ -297,13 +297,14 @@
 				<p class="runway-label">
 					Runway
 					<HelpTip
-					term="Runway"
-					text="How long your money would last if you keep spending at your recent pace: your balance divided by your average daily spend. A calm gauge, not a deadline."
-				/>
+						term="Runway"
+						text="How many days your balance would last at your current spending pace. Calculated from your balance divided by your average daily spend over the last two periods. Not a deadline — just a calm read on where you stand."
+					/>
 				</p>
 				<p class="runway-days">{label}</p>
+				<p class="runway-basis">at your current pace</p>
 				{#if extra !== null}
-					<p class="runway-extra">+{formatRunwayDays(extra)} days if you cut discretionary</p>
+					<p class="runway-extra">Cut discretionary: +{formatRunwayDays(extra)} days</p>
 				{/if}
 			</section>
 		{/if}
@@ -689,11 +690,12 @@
 	}
 
 	.runway-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--color-text-subtle);
+		font-size: 0.8125rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 
 	.runway-days {
@@ -705,10 +707,16 @@
 		line-height: 1.1;
 	}
 
+	.runway-basis {
+		font-size: 0.75rem;
+		color: var(--color-text-subtle);
+		margin-top: -2px;
+	}
+
 	.runway-extra {
 		font-size: 0.8125rem;
 		color: var(--color-text-muted);
-		margin-top: var(--space-1);
+		margin-top: var(--space-2);
 	}
 
 	/* Harbour: the open-loop invitation. Icon disc, two lines, chevron. Not gold. */

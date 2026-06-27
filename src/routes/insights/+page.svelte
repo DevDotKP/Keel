@@ -1239,10 +1239,12 @@
 		align-items: flex-end;
 		gap: var(--space-2);
 		height: 64px;
+		overflow: hidden;
 	}
 
 	.trend-col {
 		flex: 1;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -1475,6 +1477,8 @@
 		font-size: 0.6875rem;
 		color: var(--color-text-subtle);
 		white-space: nowrap;
+		overflow: hidden;
+		max-width: 100%;
 	}
 
 	.detail-foot {

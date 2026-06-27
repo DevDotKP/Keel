@@ -54,15 +54,24 @@
 	let showNewCategory = $state(false);
 	let newCatName = $state('');
 	let creatingCat = $state(false);
+	// Optimistically added categories — merged with the prop so the select is
+	// populated immediately after creation, before invalidateAll() propagates.
+	let pendingCats = $state<Category[]>([]);
 
 	const voiceSupported = isVoiceSupported();
 
 	// Derived: parsed paise from the amount field
 	let amountPaise = $derived(parseToPaise(amountRaw));
 
+	// Merge prop + any optimistically-created categories (deduped by id).
+	let allCategories = $derived([
+		...categories,
+		...pendingCats.filter((p) => !categories.some((c) => c.id === p.id))
+	]);
+
 	// Categories matching the chosen kind (income vs spending), minus the fallbacks.
 	let pickableCategories = $derived(
-		categories.filter(
+		allCategories.filter(
 			(c) =>
 				c.kind === entryKind &&
 				!(c.is_system && (c.name === 'Uncategorized' || c.name === 'Income'))
@@ -73,7 +82,7 @@
 	function setKind(kind: 'expense' | 'income') {
 		if (entryKind === kind) return;
 		entryKind = kind;
-		const stillValid = categories.find((c) => c.id === categoryId && c.kind === kind);
+		const stillValid = allCategories.find((c) => c.id === categoryId && c.kind === kind);
 		if (!stillValid) categoryId = '';
 	}
 
@@ -108,10 +117,12 @@
 			error = res.status === 409 ? 'That category already exists' : 'Could not create category';
 			return;
 		}
-		const created = (await res.json()) as { id: string };
-		await invalidateAll();
+		const created = (await res.json()) as Category;
+		// Immediately available in the dropdown — don't wait for invalidateAll().
+		pendingCats = [...pendingCats, created];
 		categoryId = created.id;
 		categoryManuallySet = true;
+		invalidateAll(); // background sync; pendingCats dedupes once prop catches up
 		showNewCategory = false;
 		newCatName = '';
 	}
@@ -155,13 +166,13 @@
 						signal: voiceAbort.signal,
 						onTranscribing: () => (transcribing = true)
 					});
-			const categoryNames = categories.map((c) => c.name);
+			const categoryNames = allCategories.map((c) => c.name);
 			const result = parse(capture.transcript, categoryNames);
 
 			// Resolve category_hint → category ID
 			let resolvedCategoryId: string | null = null;
 			if (result.category_hint) {
-				const match = categories.find(
+				const match = allCategories.find(
 					(c) => c.name.toLowerCase() === result.category_hint!.toLowerCase()
 				);
 				resolvedCategoryId = match?.id ?? null;
@@ -249,7 +260,7 @@
 		// Income for income. The category's kind sets the sign server-side.
 		const fallbackName = entryKind === 'income' ? 'Income' : 'Uncategorized';
 		const resolvedCategory =
-			categoryId || categories.find((c) => c.is_system && c.name === fallbackName)?.id || '';
+			categoryId || allCategories.find((c) => c.is_system && c.name === fallbackName)?.id || '';
 
 		submitting = true;
 		error = null;
