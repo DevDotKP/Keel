@@ -127,6 +127,7 @@
 	let removeMember = $state<{ id: string; name: string } | null>(null);
 	let copiedInviteId = $state<string | null>(null);
 
+	let cycleAdvancedOpen = $state(false);
 	let inviteOpen = $state(false);
 	let inviteEmail = $state('');
 	let inviteRole = $state<'admin' | 'member'>('member');
@@ -326,10 +327,10 @@
 						<option value="member">Member</option>
 						<option value="admin">Admin</option>
 					</select>
+					<button class="invite-send-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
+						{inviteBusy ? 'Sending…' : 'Send'}
+					</button>
 				</div>
-				<button class="invite-send-btn" onclick={sendInvite} disabled={inviteBusy || !inviteEmail}>
-					{inviteBusy ? 'Sending…' : 'Send invite'}
-				</button>
 				<p class="field-hint">Admins can invite and manage. Members can add and view entries.</p>
 				{#if inviteError}
 					<p class="error" role="alert">{inviteError}</p>
@@ -428,34 +429,47 @@
 			/>
 		</div>
 
-		<div class="inline-row">
-			<label class="inline-label" for="rollover">When a cycle ends</label>
-			<select
-				id="rollover"
-				class="inline-select"
-				value={data.settings?.budget_rollover ?? 'fresh'}
-				onchange={(e) => handleRolloverChange(e.currentTarget.value)}
-				disabled={saving}
-			>
-				<option value="fresh">Start fresh</option>
-				<option value="surplus">Carry unspent forward</option>
-				<option value="deficit">Carry overspending forward</option>
-			</select>
-		</div>
+		<button
+			class="advanced-toggle"
+			onclick={() => (cycleAdvancedOpen = !cycleAdvancedOpen)}
+			aria-expanded={cycleAdvancedOpen}
+		>
+			{cycleAdvancedOpen ? 'Fewer options' : 'More options'}
+			<span class="advanced-chevron" class:open={cycleAdvancedOpen} aria-hidden="true">
+				<ChevronRight size={14} />
+			</span>
+		</button>
 
-		<div class="inline-row">
-			<label class="inline-label" for="home-state">Your state</label>
-			<div class="inline-combobox">
-				<Combobox
-					id="home-state"
-					options={stateOptions}
-					value={data.settings?.home_state ?? ''}
-					placeholder="For holiday calendar"
+		{#if cycleAdvancedOpen}
+			<div class="inline-row">
+				<label class="inline-label" for="rollover">When a cycle ends</label>
+				<select
+					id="rollover"
+					class="inline-select"
+					value={data.settings?.budget_rollover ?? 'fresh'}
+					onchange={(e) => handleRolloverChange(e.currentTarget.value)}
 					disabled={saving}
-					onchange={handleStateChange}
-				/>
+				>
+					<option value="fresh">Start fresh</option>
+					<option value="surplus">Carry unspent forward</option>
+					<option value="deficit">Carry overspending forward</option>
+				</select>
 			</div>
-		</div>
+
+			<div class="inline-row">
+				<label class="inline-label" for="home-state">Your state</label>
+				<div class="inline-combobox">
+					<Combobox
+						id="home-state"
+						options={stateOptions}
+						value={data.settings?.home_state ?? ''}
+						placeholder="For holiday calendar"
+						disabled={saving}
+						onchange={handleStateChange}
+					/>
+				</div>
+			</div>
+		{/if}
 
 		{#if saving}
 			<p class="saving-hint"><Spinner size={14} label="Saving" /><span>Saving…</span></p>
@@ -572,11 +586,8 @@
 		<p class="about-maker">By <a href="https://annapurnalabs.in" class="about-link">Annapurna Labs</a></p>
 		<nav class="about-legal" aria-label="Legal">
 			<a href="/legal/terms">Terms</a>
-			<span aria-hidden="true">·</span>
 			<a href="/legal/privacy">Privacy</a>
-			<span aria-hidden="true">·</span>
 			<a href="/legal/refund">Refund</a>
-			<span aria-hidden="true">·</span>
 			<a href="/legal/contact">Contact</a>
 		</nav>
 		<p class="about-copy">© 2026 Annapurna Labs. All rights reserved.</p>
@@ -828,19 +839,19 @@
 
 	.invite-row {
 		display: flex;
+		align-items: center;
 		gap: var(--space-2);
-		flex-wrap: wrap;
 	}
 
 	.invite-input {
 		flex: 1;
-		min-width: 160px;
-		height: 44px;
+		min-width: 0;
+		height: 40px;
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
-		font-size: 0.9375rem;
+		font-size: 0.875rem;
 		color: var(--color-text);
 		font-family: inherit;
 	}
@@ -848,18 +859,22 @@
 	.invite-input:focus { outline: none; border-color: var(--color-gold); }
 
 	.invite-role {
-		height: 44px;
-		padding: 0 var(--space-7) 0 var(--space-3);
+		flex: none;
+		width: auto;
+		height: 40px;
+		padding: 0 var(--space-6) 0 var(--space-2);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
-		font-size: 0.9375rem;
+		font-size: 0.875rem;
 		color: var(--color-text);
+		font-family: inherit;
 	}
 
 	.invite-send-btn {
-		height: 44px;
-		padding: 0 var(--space-5);
+		flex: none;
+		height: 40px;
+		padding: 0 var(--space-4);
 		background: var(--color-text);
 		color: var(--color-surface);
 		font-weight: 600;
@@ -867,7 +882,8 @@
 		border-radius: var(--radius-md);
 		cursor: pointer;
 		font-family: inherit;
-		font-size: 0.9375rem;
+		font-size: 0.875rem;
+		white-space: nowrap;
 		transition: opacity var(--duration-fast) var(--ease-out);
 	}
 
@@ -986,6 +1002,32 @@
 	}
 
 	.inline-combobox { flex: 0 0 55%; }
+
+	.advanced-toggle {
+		background: none;
+		border: none;
+		padding: 0;
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		cursor: pointer;
+		font-family: inherit;
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-height: var(--tap-target);
+	}
+
+	.advanced-toggle:hover { color: var(--color-text-muted); }
+
+	.advanced-chevron {
+		display: inline-flex;
+		align-items: center;
+		transition: transform var(--duration-fast) var(--ease-out);
+	}
+
+	.advanced-chevron.open {
+		transform: rotate(90deg);
+	}
 
 	.section-rule {
 		height: 1px;
@@ -1168,7 +1210,7 @@
 
 	.about-legal {
 		display: flex;
-		gap: var(--space-2);
+		gap: 0;
 		align-items: center;
 		flex-wrap: wrap;
 	}
@@ -1178,14 +1220,17 @@
 		color: var(--color-text-muted);
 		text-decoration: none;
 		text-underline-offset: 3px;
+		padding: var(--space-1) 0;
 	}
 
-	.about-legal a:hover {
-		color: var(--color-text);
-		text-decoration: underline;
+	/* Separator lives inside the second+ link so it never orphans on its own line */
+	.about-legal a + a::before {
+		content: '·';
+		margin: 0 var(--space-2);
+		color: var(--color-text-subtle);
 	}
 
-	.about-legal span { font-size: 0.8125rem; color: var(--color-text-subtle); }
+	.about-legal a:hover { color: var(--color-text); text-decoration: underline; }
 
 	.about-copy {
 		font-size: 0.75rem;

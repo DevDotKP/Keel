@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Plus, Trash2, Anchor, ChevronRight, ChevronDown } from 'lucide-svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 import OnboardingTour from '$lib/components/OnboardingTour.svelte';
@@ -53,6 +54,18 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		if (h >= 17 && h < 21) return `Good evening${firstName ? ', ' + firstName : ''}.`;
 		return `Hey${firstName ? ' ' + firstName : ''}.`;
 	}
+
+	let greetingVisible = $state(false);
+	let greetingExiting = $state(false);
+
+	onMount(() => {
+		if (!sessionStorage.getItem('keel_greeted')) {
+			sessionStorage.setItem('keel_greeted', '1');
+			greetingVisible = true;
+			setTimeout(() => { greetingExiting = true; }, 1600);
+			setTimeout(() => { greetingVisible = false; greetingExiting = false; }, 2200);
+		}
+	});
 
 	let sheetOpen = $state(false);
 	let essentialsOpen = $state(false);
@@ -190,7 +203,6 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	<div class="dashboard">
 		<!-- Hero: what is actually safe to spend, after obligations and essentials -->
 		<section class="hero" aria-label="Safe to spend">
-			<p class="hero-greeting">{greeting()}</p>
 			<p class="hero-label">Safe to spend</p>
 			<p
 				class="money-hero"
@@ -411,6 +423,17 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	/>
 
 	<OnboardingTour />
+
+	{#if greetingVisible}
+		<div
+			class="greeting-splash"
+			class:greeting-splash--exit={greetingExiting}
+			aria-live="polite"
+			aria-label={greeting()}
+		>
+			<p class="greeting-splash-text">{greeting()}</p>
+		</div>
+	{/if}
 {:else if loadError}
 	<div class="dashboard">
 		<p class="load-error">
@@ -462,13 +485,6 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		flex-direction: column;
 		gap: var(--space-2);
 		padding: var(--space-6) 0;
-	}
-
-	.hero-greeting {
-		font-size: 0.875rem;
-		color: var(--color-text-subtle);
-		font-weight: 400;
-		margin-bottom: var(--space-1);
 	}
 
 	.hero-label {
@@ -1041,6 +1057,42 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	.retry-btn:hover {
 		border-color: var(--color-text-subtle);
 		color: var(--color-text);
+	}
+
+	/* Greeting splash — appears once per session, fades quickly */
+	.greeting-splash {
+		position: fixed;
+		inset: 0;
+		z-index: 700;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--color-surface);
+		pointer-events: none;
+		animation: greeting-in 0.25s ease-out forwards;
+	}
+
+	.greeting-splash--exit {
+		animation: greeting-out 0.6s ease-in forwards;
+	}
+
+	.greeting-splash-text {
+		font-family: var(--font-display);
+		font-size: clamp(1.5rem, 6vw, 2.25rem);
+		font-weight: 700;
+		color: var(--color-text);
+		text-align: center;
+		padding: var(--space-6);
+	}
+
+	@keyframes greeting-in {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	@keyframes greeting-out {
+		from { opacity: 1; }
+		to { opacity: 0; }
 	}
 
 	.ledger-header {
