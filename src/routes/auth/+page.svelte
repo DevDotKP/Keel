@@ -89,6 +89,12 @@
 			<p class="error-msg" role="alert">{formError}</p>
 		{/if}
 
+		<form method="POST" action="/api/demo" class="demo-cta">
+			<button type="submit" class="demo-btn">Try the live demo</button>
+		</form>
+		<p class="demo-note">No sign-up. A sandbox with sample data and voice entry. Nothing is saved.</p>
+		<div class="divider"><span>or sign in</span></div>
+
 		<a href="/api/auth/google{data.next ? `?next=${encodeURIComponent(data.next)}` : ''}" class="google-btn" role="button">
 			<svg class="google-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 				<path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -324,6 +330,30 @@
 		padding: var(--space-3) var(--space-4);
 		background: color-mix(in srgb, var(--color-clay) 8%, transparent);
 		border-radius: var(--radius-sm);
+	}
+
+	.demo-cta {
+		display: flex;
+	}
+
+	.demo-btn {
+		flex: 1;
+		height: 52px;
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-size: 1rem;
+		font-weight: 700;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.demo-note {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-align: center;
+		line-height: 1.4;
 	}
 
 	/* Google's official button spec: white bg, border, G logo */

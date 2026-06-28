@@ -32,6 +32,13 @@
 
 <OfflineBanner />
 
+{#if data.isDemo && showChrome}
+	<div class="demo-banner" role="status">
+		<span>Demo mode. Sample data, cleared automatically.</span>
+		<a href="/auth">Sign up to keep yours</a>
+	</div>
+{/if}
+
 <main class="main" class:full-height={!showChrome}>
 	{@render children()}
 </main>
@@ -59,6 +66,26 @@
 		0%   { width: 0%;  opacity: 1; }
 		60%  { width: 75%; opacity: 1; }
 		100% { width: 90%; opacity: 0.9; }
+	}
+
+	.demo-banner {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-wrap: wrap;
+		gap: var(--space-2) var(--space-3);
+		padding: var(--space-2) var(--space-4);
+		background: color-mix(in srgb, var(--color-gold) 16%, var(--color-bg));
+		border-bottom: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+		font-size: 0.8125rem;
+		color: var(--color-text);
+		text-align: center;
+	}
+
+	.demo-banner a {
+		font-weight: 700;
+		color: var(--color-text);
+		text-underline-offset: 3px;
 	}
 
 	.main {
