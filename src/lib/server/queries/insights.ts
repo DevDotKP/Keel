@@ -94,6 +94,8 @@ export async function getInsightsData(
 
 	const [catRes, settingsRes, historyRes] = await readDb.batch([
 		// Current-period spend per expense category, with bucket and budget.
+		// Scoped by household_id (not user_id) so shared-household members see
+		// the same categories as the admin who created them.
 		db
 			.prepare(
 				`SELECT c.id AS category_id, c.name, c.color, c.bucket, c.is_system, c.budget_paise,
@@ -102,12 +104,12 @@ export async function getInsightsData(
 				 LEFT JOIN transactions t
 				   ON t.category_id = c.id AND t.account_id = ?1 AND t.deleted_at IS NULL
 				   AND t.occurred_at >= ?2 AND t.occurred_at < ?3
-				 WHERE c.user_id = ?4 AND c.deleted_at IS NULL AND c.kind = 'expense'
+				 WHERE c.household_id = ?4 AND c.deleted_at IS NULL AND c.kind = 'expense'
 				 GROUP BY c.id
 				 HAVING spent_paise > 0 OR c.budget_paise > 0
 				 ORDER BY spent_paise DESC, c.name ASC`
 			)
-			.bind(account_id, from, to, user_id),
+			.bind(account_id, from, to, household_id ?? user_id),
 
 		db
 			.prepare('SELECT cycle_budget_paise, budget_rollover FROM settings WHERE user_id = ?')
@@ -167,11 +169,11 @@ export async function getInsightsData(
 				 FROM categories c
 				 LEFT JOIN transactions t
 				   ON t.category_id = c.id AND t.period_id = ? AND t.deleted_at IS NULL
-				 WHERE c.user_id = ? AND c.deleted_at IS NULL AND c.kind = 'expense'
+				 WHERE c.household_id = ? AND c.deleted_at IS NULL AND c.kind = 'expense'
 				 GROUP BY c.id
 				 HAVING spent_paise > 0`
 			)
-			.bind(prevPeriodId, user_id)
+			.bind(prevPeriodId, household_id ?? user_id)
 			.all<PrevCategorySpend>();
 		prev_by_category = (prevRes.results ?? []) as PrevCategorySpend[];
 	}
