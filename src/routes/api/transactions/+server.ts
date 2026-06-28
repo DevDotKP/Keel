@@ -8,7 +8,7 @@ import { notifyHouseholdOfEntry } from '$lib/server/queries/notify';
 
 const NewTransactionSchema = z.object({
 	category_id: z.string().optional(),
-	amount_paise: z.number().int(),
+	amount_paise: z.number().int().positive(),
 	description: z.string().default(''),
 	note: z.string().max(500).default(''),
 	occurred_at: z.string().datetime({ offset: true }),

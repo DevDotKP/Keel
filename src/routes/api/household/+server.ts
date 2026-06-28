@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { getDb } from '$lib/server/db';
+import { sha256 } from '$lib/server/auth';
 import type { HouseholdMember, HouseholdInvite } from '$lib/types';
 
 const InviteSchema = z.object({
@@ -64,7 +65,10 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		.first();
 	if (existing) throw error(409, 'Already a member');
 
-	const token = crypto.randomUUID();
+	const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+		.map((b) => b.toString(16).padStart(2, '0'))
+		.join('');
+	const tokenHash = await sha256(token);
 	const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
 
 	const invite = await db
@@ -72,10 +76,11 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 			`INSERT INTO household_invites (household_id, email, token, invited_by, role, expires_at)
 			 VALUES (?, ?, ?, ?, ?, ?) RETURNING *`
 		)
-		.bind(hid, body.data.email, token, locals.userId, body.data.role, expiresAt)
+		.bind(hid, body.data.email, tokenHash, locals.userId, body.data.role, expiresAt)
 		.first<HouseholdInvite>();
 
 	// TODO(P7): send invite email via Resend when email infra is wired.
-	// For now, return the token in the response so the admin can share the link manually.
+	// For now, return the raw token so the admin can share the link manually.
+	// The DB only holds the hash — the raw token is never persisted.
 	return json({ ...invite, invite_url: `/join?token=${token}` }, { status: 201 });
 };

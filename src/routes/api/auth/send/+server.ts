@@ -32,9 +32,9 @@ export const POST: RequestHandler = async ({ platform, request, url }) => {
 		fromEmail: platform?.env?.MAGIC_LINK_FROM_EMAIL
 	});
 
-	// In dev only: return the token so the developer can paste it locally.
-	// Reveal the link to the client only in dev or closed-testing reveal mode.
-	// In normal production the email is the only delivery vector.
-	const reveal = dev || platform?.env?.MAGIC_LINK_REVEAL === 'true';
+	// Only reveal the raw token in local dev (npm run dev / wrangler dev).
+	// The MAGIC_LINK_REVEAL env var is intentionally ignored in deployed builds
+	// so a misconfigured production secret can never expose tokens in responses.
+	const reveal = dev;
 	return json({ ok: true, ...(reveal && result.token ? { token: result.token } : {}) });
 };

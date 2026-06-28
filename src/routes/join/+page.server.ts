@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { redirect, fail } from '@sveltejs/kit';
 import { getDb, getReadDb } from '$lib/server/db';
+import { sha256 } from '$lib/server/auth';
 
 const INVITE_SQL = `SELECT hi.id, hi.household_id, hi.role, hi.email, h.name AS household_name
 	 FROM household_invites hi
@@ -20,7 +21,8 @@ export const load: PageServerLoad = async ({ platform, locals, url }) => {
 	const token = url.searchParams.get('token');
 	if (!token) return { status: 'invalid' as const };
 
-	const invite = await getReadDb(platform).prepare(INVITE_SQL).bind(token).first<InviteRow>();
+	const tokenHash = await sha256(token);
+	const invite = await getReadDb(platform).prepare(INVITE_SQL).bind(tokenHash).first<InviteRow>();
 	if (!invite) return { status: 'expired' as const };
 
 	// Must be signed in to join. Carry a clean next back to this exact invite.
@@ -45,7 +47,8 @@ export const actions: Actions = {
 		}
 
 		const db = getDb(platform);
-		const invite = await db.prepare(INVITE_SQL).bind(token).first<InviteRow>();
+		const tokenHash = await sha256(token);
+		const invite = await db.prepare(INVITE_SQL).bind(tokenHash).first<InviteRow>();
 		if (!invite) return fail(410, { message: 'Invite expired or already used' });
 
 		// Join with the invited role; mark the invite used. Idempotent via the

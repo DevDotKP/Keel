@@ -9,7 +9,7 @@ export const COOKIE_MAX_AGE = 60 * 60 * 24 * 30; // 30 days in seconds
 const MAGIC_LINK_TTL = 15 * 60; // 15 minutes in seconds
 
 // SHA-256 of a raw string; returns lowercase hex.
-async function sha256(input: string): Promise<string> {
+export async function sha256(input: string): Promise<string> {
 	const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
 	return Array.from(new Uint8Array(buf))
 		.map((b) => b.toString(16).padStart(2, '0'))
