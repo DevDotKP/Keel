@@ -110,7 +110,7 @@ export interface Account {
 	id: string;
 	user_id: string;
 	name: string;
-	currency: 'INR';
+	currency: string;
 	balance_paise: number;
 	created_at: string;
 	updated_at: string;

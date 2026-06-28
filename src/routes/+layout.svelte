@@ -6,8 +6,14 @@
 	import ClarityLoader from '$lib/components/ClarityLoader.svelte';
 	import InstallPrompt from '$lib/components/InstallPrompt.svelte';
 	import Toast from '$lib/components/Toast.svelte';
+	import { setCurrency } from '$lib/utils/money';
+	import type { LayoutData } from './$types';
 
-	let { children } = $props();
+	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
+
+	// Sync the money formatter whenever the account's currency changes
+	// (layout data re-runs after PATCH /api/account + invalidateAll).
+	$effect(() => { setCurrency(data.currency ?? 'INR'); });
 
 	const showChrome = $derived(
 		!page.url.pathname.startsWith('/auth') &&

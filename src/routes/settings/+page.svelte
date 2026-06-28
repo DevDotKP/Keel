@@ -5,6 +5,19 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { PageData } from './$types';
 	import { installPrompt } from '$lib/stores/install';
+	import { setCurrency } from '$lib/utils/money';
+
+	const CURRENCIES = [
+		{ code: 'INR', label: '₹ INR — Indian Rupee' },
+		{ code: 'USD', label: '$ USD — US Dollar' },
+		{ code: 'EUR', label: '€ EUR — Euro' },
+		{ code: 'GBP', label: '£ GBP — British Pound' },
+		{ code: 'AED', label: 'AED — UAE Dirham' },
+		{ code: 'SGD', label: 'S$ SGD — Singapore Dollar' },
+		{ code: 'JPY', label: '¥ JPY — Japanese Yen' },
+		{ code: 'CAD', label: 'CA$ CAD — Canadian Dollar' },
+		{ code: 'AUD', label: 'A$ AUD — Australian Dollar' }
+	];
 
 	let { data }: { data: PageData } = $props();
 
@@ -31,6 +44,20 @@
 
 	async function handlePortfolioToggle(checked: boolean) {
 		await patch({ show_portfolio: checked ? 1 : 0 });
+	}
+
+	async function handleCurrencyChange(code: string) {
+		saving = true;
+		error = null;
+		const res = await fetch('/api/account', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ currency: code })
+		});
+		saving = false;
+		if (!res.ok) { error = 'Could not save. Try again.'; return; }
+		setCurrency(code);
+		await invalidateAll();
 	}
 
 	// ── Household ─────────────────────────────────────────────────────────────
@@ -275,6 +302,22 @@
 			{#snippet icon()}<CalendarClock size={20} />{/snippet}
 		</MenuLink>
 	</nav>
+
+	<!-- Currency -->
+	<div class="inline-field">
+		<label class="inline-field-label" for="currency">Currency</label>
+		<select
+			id="currency"
+			class="inline-select"
+			value={data.accountCurrency ?? 'INR'}
+			onchange={(e) => handleCurrencyChange(e.currentTarget.value)}
+			disabled={saving}
+		>
+			{#each CURRENCIES as c}
+				<option value={c.code}>{c.label}</option>
+			{/each}
+		</select>
+	</div>
 
 	<!-- Manage -->
 	<section class="settings-section" aria-label="Manage">
@@ -699,6 +742,36 @@
 	}
 
 	.error { color: var(--color-clay); font-size: 0.875rem; }
+
+	/* Currency inline field */
+	.inline-field {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		min-height: var(--tap-target);
+	}
+
+	.inline-field-label {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		flex: 1;
+	}
+
+	.inline-select {
+		height: 36px;
+		padding: 0 var(--space-7) 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		font-size: 0.875rem;
+		color: var(--color-text);
+		font-family: inherit;
+		max-width: 60%;
+	}
+
+	.inline-select:focus { outline: none; border-color: var(--color-gold); }
+	.inline-select:disabled { opacity: 0.5; }
 
 	/* Cycle nav (single MenuLink, same border treatment as manage-links) */
 	.cycle-nav {

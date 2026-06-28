@@ -1,5 +1,11 @@
 // Money utilities. All values are integer paise. No floats near money.
 
+// Module-level active currency. Initialised at layout load via setCurrency().
+// Module state is per-client-session in the Vite/SvelteKit bundle — safe for client-only use.
+let _currency = 'INR';
+export function setCurrency(c: string): void { _currency = c; }
+export function activeCurrency(): string { return _currency; }
+
 // Intl.NumberFormat('en-IN') is unreliable on older Android WebViews — it
 // sometimes returns digits with no grouping separators at all. We probe once
 // and fall back to a hand-rolled en-IN formatter when needed.
@@ -37,34 +43,62 @@ function formatINR(rupees: number, fracDigits: number): string {
 	}).format(rupees);
 }
 
+function formatAmount(rupees: number, fracDigits: number, currency: string): string {
+	if (currency === 'INR') return formatINR(rupees, fracDigits);
+	return new Intl.NumberFormat('en-US', {
+		style: 'currency',
+		currency,
+		minimumFractionDigits: fracDigits,
+		maximumFractionDigits: fracDigits
+	}).format(rupees);
+}
+
 /**
- * Format paise as a human-readable INR string.
- * 15000 → "₹150" or "₹150.50" when paise are non-zero.
+ * Format paise as a human-readable currency string.
+ * 15000 → "₹150" or "$1.50" depending on active currency.
  */
-export function formatPaise(paise: number): string {
+export function formatPaise(paise: number, currency = _currency): string {
 	const rupees = paise / 100;
-	return formatINR(rupees, paise % 100 === 0 ? 0 : 2);
+	return formatAmount(rupees, paise % 100 === 0 ? 0 : 2, currency);
 }
 
 /**
  * Parse user input to integer paise.
- * Accepts: "12", "12.50", "12,50", "₹12.50", "1250" (bare paise not supported — always rupees).
+ * Accepts: "12", "12.50", "₹12.50", "1,250", "$12" etc.
  * Returns null if the input cannot be parsed.
  */
 export function parseToPaise(input: string): number | null {
 	if (!input || typeof input !== 'string') return null;
-	const cleaned = input.replace(/[₹,\s]/g, '');
-	// Validate: cleaned must be all digits with at most one decimal point
+	// Strip everything except digits and decimal point
+	const cleaned = input.replace(/[^\d.]/g, '');
 	if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
 	const num = parseFloat(cleaned);
 	if (!isFinite(num) || num < 0) return null;
 	return Math.round(num * 100);
 }
 
+/** en-IN digit grouping: last 3 digits, then groups of 2 from the right. */
+function groupIndianDigits(s: string): string {
+	if (s.length <= 3) return s;
+	const tail = s.slice(-3);
+	const head = s.slice(0, -3);
+	const parts: string[] = [];
+	for (let i = head.length; i > 0; i -= 2) parts.unshift(head.slice(Math.max(0, i - 2), i));
+	return parts.join(',') + ',' + tail;
+}
+
+/** Western digit grouping: groups of 3 from the right. */
+function groupWesternDigits(s: string): string {
+	if (s.length <= 3) return s;
+	const parts: string[] = [];
+	for (let i = s.length; i > 0; i -= 3) parts.unshift(s.slice(Math.max(0, i - 3), i));
+	return parts.join(',');
+}
+
 /**
- * Format a raw amount string for display in an input as the user types, with
- * en-IN grouping. Preserves a trailing dot and up to two decimals. Pair with
- * parseToPaise on submit (it ignores the commas).
+ * Format a raw amount string for display in an input as the user types.
+ * Uses Indian grouping for INR, Western grouping for all other currencies.
+ * Preserves a trailing dot and up to two decimals.
  */
 export function formatAmountInput(value: string): string {
 	const raw = value.replace(/[^\d.]/g, '');
@@ -81,27 +115,18 @@ export function formatAmountInput(value: string): string {
 		dec = raw.slice(firstDot + 1).replace(/\./g, '').slice(0, 2);
 	}
 	intDigits = intDigits.replace(/^0+(?=\d)/, '');
-	const grouped = groupIndianDigits(intDigits || '0');
+	const grouped = _currency === 'INR'
+		? groupIndianDigits(intDigits || '0')
+		: groupWesternDigits(intDigits || '0');
 	return hasDot ? `${grouped}.${dec}` : grouped;
-}
-
-/** en-IN digit grouping: last 3 digits, then groups of 2 from the right. */
-function groupIndianDigits(s: string): string {
-	if (s.length <= 3) return s;
-	const tail = s.slice(-3);
-	const head = s.slice(0, -3);
-	const parts: string[] = [];
-	for (let i = head.length; i > 0; i -= 2) parts.unshift(head.slice(Math.max(0, i - 2), i));
-	return parts.join(',') + ',' + tail;
 }
 
 /**
  * Format a paise value as a compact display string for ledger columns.
  * Always right-aligned; uses tabular lining numerals via CSS.
- * 15050 → "₹150.50"
  */
-export function formatPaiseLedger(paise: number): string {
-	return formatINR(paise / 100, 2);
+export function formatPaiseLedger(paise: number, currency = _currency): string {
+	return formatAmount(paise / 100, 2, currency);
 }
 
 /** Return true if the transaction is an expense (negative paise). */
@@ -114,19 +139,76 @@ export function absPaise(amount_paise: number): number {
 	return Math.abs(amount_paise);
 }
 
+// ── Amount in words ──────────────────────────────────────────────────────────
+
+const _ONES = [
+	'', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+	'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+	'Seventeen', 'Eighteen', 'Nineteen'
+];
+const _TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function _twoDigit(x: number): string {
+	if (x === 0) return '';
+	if (x < 20) return _ONES[x];
+	const t = Math.floor(x / 10), o = x % 10;
+	return o === 0 ? _TENS[t] : `${_TENS[t]} ${_ONES[o]}`;
+}
+
+// Indian informal style: "Three Ninety Seven" not "Three Hundred Ninety Seven".
+// Saying the hundreds digit then the two-digit remainder is how spoken amounts
+// sound in India: "ek hazaar teen sattaanave" → "One Thousand Three Ninety Seven".
+function _threeDigitIN(x: number): string {
+	if (x === 0) return '';
+	const h = Math.floor(x / 100), rem = x % 100;
+	if (h === 0) return _twoDigit(rem);
+	if (rem === 0) return `${_ONES[h]} Hundred`;
+	// Drop "Hundred" between the hundreds digit and the two-digit remainder
+	return `${_ONES[h]} ${_twoDigit(rem)}`;
+}
+
+function _spellThousandsIN(rupees: number): string {
+	const thousands = Math.floor(rupees / 1000);
+	const rest = rupees % 1000;
+	const tPart = `${_twoDigit(thousands)} Thousand`;
+	return rest > 0 ? `${tPart} ${_threeDigitIN(rest)}` : tPart;
+}
+
 /**
- * Short Indian-system words for an amount magnitude: "15 thousand", "1.5 lakh",
- * "2 crore". Empty under 1,000 (no words needed). India only for now; locale-aware
- * words are a future i18n step.
+ * Confirmation words for an amount. Used below amount inputs.
+ * INR 1,000–99,999 : "One Thousand Three Ninety Seven" (Indian informal, exact)
+ * INR 1 lakh+      : "1.5 lakh" / "2 crore" (abbreviated, acceptable at scale)
+ * Non-INR          : "1.4 thousand" / "2.5 million" (abbreviated)
+ * Under 1,000      : "" (the number is short enough to read directly)
  */
 export function amountInWordsIndian(paise: number): string {
-	const rupees = Math.abs(paise) / 100;
+	const rupees = Math.round(Math.abs(paise) / 100);
 	if (rupees < 1000) return '';
-	const fmt = (n: number): string => {
-		const r = Math.round(n * 100) / 100;
-		return Number.isInteger(r) ? String(r) : r.toFixed(2).replace(/0$/, '');
-	};
-	if (rupees < 1e5) return `${fmt(rupees / 1000)} thousand`;
-	if (rupees < 1e7) return `${fmt(rupees / 1e5)} lakh`;
-	return `${fmt(rupees / 1e7)} crore`;
+
+	if (_currency !== 'INR') {
+		// Non-INR: abbreviated Western form
+		if (rupees >= 1_000_000_000) {
+			const b = Math.round(rupees / 1e8) / 10;
+			return `${Number.isInteger(b) ? b : b.toFixed(1)} billion`;
+		}
+		if (rupees >= 1_000_000) {
+			const m = Math.round(rupees / 1e5) / 10;
+			return `${Number.isInteger(m) ? m : m.toFixed(1)} million`;
+		}
+		const k = Math.round(rupees / 100) / 10;
+		return `${Number.isInteger(k) ? k : k.toFixed(1)} thousand`;
+	}
+
+	// INR: crore and lakh abbreviated (long enough to read at a glance)
+	if (rupees >= 1e7) {
+		const cr = Math.round(rupees / 1e6) / 10;
+		return `${Number.isInteger(cr) ? cr : cr.toFixed(1)} crore`;
+	}
+	if (rupees >= 1e5) {
+		const lk = Math.round(rupees / 1e4) / 10;
+		return `${Number.isInteger(lk) ? lk : lk.toFixed(1)} lakh`;
+	}
+
+	// INR 1,000–99,999: spell out in full (Indian informal style)
+	return _spellThousandsIN(rupees);
 }

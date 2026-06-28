@@ -3,7 +3,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-	import { formatPaise, formatPaiseLedger, parseToPaise } from '$lib/utils/money';
+	import { formatPaise, formatPaiseLedger, parseToPaise, amountInWordsIndian } from '$lib/utils/money';
 	import { formatDisplayDate } from '$lib/utils/date';
 	import type { PageData } from './$types';
 
@@ -108,6 +108,9 @@
 					aria-label="Actual balance in rupees"
 				/>
 			</div>
+			{#if enteredPaise !== null && amountInWordsIndian(enteredPaise)}
+				<p class="balance-words">{amountInWordsIndian(enteredPaise)}</p>
+			{/if}
 		</div>
 
 		{#if drift !== null && drift !== 0}
@@ -399,6 +402,12 @@
 	.balance-input:focus {
 		outline: none;
 		border-bottom-color: var(--color-gold);
+	}
+
+	.balance-words {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		padding-top: var(--space-1);
 	}
 
 	.drift-note {
