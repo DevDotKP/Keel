@@ -18,7 +18,7 @@ export const GET: RequestHandler = async ({ platform, locals, url }) => {
 	const format = url.searchParams.get('format') ?? 'csv';
 
 	// Get default account
-	const account = await getDefaultAccount(db, locals.userId);
+	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) throw error(404, 'No account found');
 
 	// Query transactions with category names

@@ -32,7 +32,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 			to: toStr,
 			limit: 200
 		}),
-		listCategories(rdb, locals.userId)
+		listCategories(rdb, locals.householdId ?? locals.userId!)
 	]);
 
 	return {

@@ -278,9 +278,9 @@ export async function getAccountSummary(
 		   (SELECT COUNT(*) FROM reconciliation_periods WHERE account_id = ?1 AND harboured_at IS NOT NULL) AS harbour_visits,
 		   (SELECT COUNT(*) FROM reconciliation_periods WHERE account_id = ?1 AND harboured_at IS NULL) AS open_periods,
 		   (SELECT COALESCE(SUM(daily_reserve_paise), 0) FROM categories
-		      WHERE user_id = (SELECT user_id FROM accounts WHERE id = ?1) AND deleted_at IS NULL) AS daily_reserve_paise,
+		      WHERE household_id = (SELECT household_id FROM accounts WHERE id = ?1) AND deleted_at IS NULL) AS daily_reserve_paise,
 		   (SELECT COALESCE(SUM(o.amount_paise), 0) FROM obligations o
-		      WHERE o.user_id = (SELECT user_id FROM accounts WHERE id = ?1) AND o.is_active = 1 AND o.deleted_at IS NULL
+		      WHERE o.household_id = (SELECT household_id FROM accounts WHERE id = ?1) AND o.is_active = 1 AND o.deleted_at IS NULL
 		        AND NOT EXISTS (SELECT 1 FROM obligation_settlements s WHERE s.obligation_id = o.id AND s.period_id = rp.id)) AS locked_obligations_paise
 		 FROM reconciliation_periods rp
 		 WHERE rp.account_id = ?1 AND rp.period_start = ?4`;

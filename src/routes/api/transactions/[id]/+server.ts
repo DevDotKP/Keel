@@ -43,7 +43,7 @@ export const PATCH: RequestHandler = async ({ platform, locals, params, request 
 export const DELETE: RequestHandler = async ({ platform, locals, params }) => {
 	if (!locals.userId) throw error(401, 'Unauthorised');
 	const db = getDb(platform);
-	const account = await getDefaultAccount(db, locals.userId);
+	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) throw error(409, 'No account for user');
 	await softDeleteTransaction(db, params.id, account.id);
 	return new Response(null, { status: 204 });

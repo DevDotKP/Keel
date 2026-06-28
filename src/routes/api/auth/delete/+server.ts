@@ -44,7 +44,7 @@ export const POST: RequestHandler = async (event) => {
 			db.prepare('DELETE FROM obligations WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM recurring_income WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM holdings WHERE user_id = ?').bind(userId),
-			db.prepare('DELETE FROM portfolio_snapshots WHERE user_id = ?').bind(userId),
+			db.prepare('DELETE FROM portfolio_snapshots WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM household_invites WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM household_members WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM households WHERE id = ?').bind(hid),

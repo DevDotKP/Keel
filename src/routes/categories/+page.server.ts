@@ -7,9 +7,10 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	if (!locals.userId) redirect(302, '/auth');
 	setHeaders({ 'cache-control': 'private, no-cache' });
 	const rdb = getReadDb(platform);
+	const hid = locals.householdId ?? locals.userId!;
 	const [tree, categories] = await Promise.all([
-		listCategoryTree(rdb, locals.userId),
-		listCategories(rdb, locals.userId)
+		listCategoryTree(rdb, hid),
+		listCategories(rdb, hid)
 	]);
 	// Top-level, non-system spending categories can be parents for new subcategories.
 	const parents = categories.filter((c) => !c.parent_id && !c.is_system && c.kind === 'expense');

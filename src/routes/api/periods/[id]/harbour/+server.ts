@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ platform, locals, params, request }
 	const body = HarbourSchema.safeParse(await request.json());
 	if (!body.success) throw error(400, body.error.message);
 
-	const account = await getDefaultAccount(db, locals.userId);
+	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) throw error(409, 'No account for user');
 
 	// Verify the period belongs to this user's account.
