@@ -12,7 +12,8 @@ export async function getBudgetOverview(
 	user_id: string,
 	cadence: HarbourCadence,
 	harbourDayOrRdb?: string | D1Database,
-	rdb?: D1Database
+	rdb?: D1Database,
+	household_id?: string
 ): Promise<BudgetOverview> {
 	let harbourDay = 'sunday';
 	let readDbArg: D1Database | undefined;
@@ -37,12 +38,12 @@ export async function getBudgetOverview(
 				 LEFT JOIN transactions t
 				   ON t.category_id = c.id AND t.account_id = ? AND t.deleted_at IS NULL
 				   AND t.occurred_at >= ? AND t.occurred_at < ?
-				 WHERE c.user_id = ? AND c.deleted_at IS NULL AND c.kind = 'expense'
+				 WHERE c.household_id = ? AND c.deleted_at IS NULL AND c.kind = 'expense'
 				 GROUP BY c.id
 				 HAVING spent_paise > 0 OR c.budget_paise > 0
 				 ORDER BY spent_paise DESC, c.name ASC`
 			)
-			.bind(account_id, from, to, user_id),
+			.bind(account_id, from, to, household_id ?? user_id),
 		db.prepare('SELECT cycle_budget_paise FROM settings WHERE user_id = ?').bind(user_id)
 	]);
 

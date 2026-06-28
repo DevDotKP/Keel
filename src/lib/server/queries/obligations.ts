@@ -6,7 +6,7 @@ import type { Obligation, ObligationStatus, NewObligation } from '$lib/types';
  */
 export async function listObligations(
 	db: D1Database,
-	user_id: string,
+	household_id: string,
 	period_id: string
 ): Promise<ObligationStatus[]> {
 	const { results } = await db
@@ -16,10 +16,10 @@ export async function listObligations(
 			 FROM obligations o
 			 LEFT JOIN obligation_settlements s
 			   ON s.obligation_id = o.id AND s.period_id = ?
-			 WHERE o.user_id = ? AND o.deleted_at IS NULL
+			 WHERE o.household_id = ? AND o.deleted_at IS NULL
 			 ORDER BY o.is_active DESC, o.amount_paise DESC, o.name ASC`
 		)
-		.bind(period_id, user_id)
+		.bind(period_id, household_id)
 		.all<Obligation & { paid_flag: number }>();
 
 	return (results ?? []).map(({ paid_flag, ...o }) => ({ ...o, paid: paid_flag === 1 }));
@@ -28,11 +28,12 @@ export async function listObligations(
 export async function createObligation(db: D1Database, obl: NewObligation): Promise<Obligation> {
 	const result = await db
 		.prepare(
-			`INSERT INTO obligations (user_id, name, amount_paise, category_id, cadence)
-			 VALUES (?, ?, ?, ?, ?) RETURNING *`
+			`INSERT INTO obligations (user_id, household_id, name, amount_paise, category_id, cadence)
+			 VALUES (?, ?, ?, ?, ?, ?) RETURNING *`
 		)
 		.bind(
 			obl.user_id,
+			obl.household_id,
 			obl.name,
 			obl.amount_paise,
 			obl.category_id ?? null,
@@ -46,13 +47,13 @@ export async function createObligation(db: D1Database, obl: NewObligation): Prom
 export async function deleteObligation(
 	db: D1Database,
 	id: string,
-	user_id: string
+	household_id: string
 ): Promise<void> {
 	const res = await db
 		.prepare(
-			"UPDATE obligations SET deleted_at = datetime('now') WHERE id = ? AND user_id = ? AND deleted_at IS NULL"
+			"UPDATE obligations SET deleted_at = datetime('now') WHERE id = ? AND household_id = ? AND deleted_at IS NULL"
 		)
-		.bind(id, user_id)
+		.bind(id, household_id)
 		.run();
 	if (!res.meta.changes) throw new Error('Obligation not found');
 }
@@ -68,11 +69,13 @@ export async function settleObligation(
 	user_id: string,
 	period_id: string,
 	account_id: string,
-	occurred_at: string
+	occurred_at: string,
+	household_id?: string
 ): Promise<void> {
+	const hid = household_id ?? user_id;
 	const obl = await db
-		.prepare('SELECT * FROM obligations WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
-		.bind(id, user_id)
+		.prepare('SELECT * FROM obligations WHERE id = ? AND household_id = ? AND deleted_at IS NULL')
+		.bind(id, hid)
 		.first<Obligation>();
 	if (!obl) throw new Error('Obligation not found');
 
@@ -88,9 +91,9 @@ export async function settleObligation(
 	if (!categoryId) {
 		const uncat = await db
 			.prepare(
-				"SELECT id FROM categories WHERE user_id = ? AND name = 'Uncategorized' AND deleted_at IS NULL"
+				"SELECT id FROM categories WHERE household_id = ? AND name = 'Uncategorized' AND deleted_at IS NULL"
 			)
-			.bind(user_id)
+			.bind(hid)
 			.first<{ id: string }>();
 		categoryId = uncat?.id ?? null;
 	}

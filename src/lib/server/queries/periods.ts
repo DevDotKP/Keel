@@ -176,7 +176,7 @@ export async function harbourPeriod(
 	if (drift !== 0) {
 		const uncat = await db
 			.prepare(
-				"SELECT id FROM categories WHERE user_id = (SELECT user_id FROM accounts WHERE id = ?) AND name = 'Uncategorized' AND deleted_at IS NULL"
+				"SELECT id FROM categories WHERE household_id = (SELECT household_id FROM accounts WHERE id = ?) AND name = 'Uncategorized' AND deleted_at IS NULL"
 			)
 			.bind(account_id)
 			.first<{ id: string }>();

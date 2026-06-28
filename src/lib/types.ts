@@ -140,6 +140,7 @@ export interface CategoryTree extends Category {
 export interface Obligation {
 	id: string;
 	user_id: string;
+	household_id: string;
 	name: string;
 	amount_paise: number;
 	category_id: string | null;
@@ -254,6 +255,7 @@ export interface NewCategory {
 
 export interface NewObligation {
 	user_id: string;
+	household_id: string;
 	name: string;
 	amount_paise: number;
 	category_id?: string | null;

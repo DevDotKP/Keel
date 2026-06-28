@@ -19,7 +19,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 
 	const period = await getOrCreateCurrentPeriod(db, account.id, cadence, harbourDay);
 	const [obligations, categories, recurringIncome, settingsRow] = await Promise.all([
-		listObligations(rdb, locals.userId, period.id),
+		listObligations(rdb, hid, period.id),
 		listCategories(rdb, locals.userId),
 		listRecurringIncome(rdb, hid),
 		rdb

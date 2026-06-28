@@ -19,9 +19,10 @@ export const POST: RequestHandler = async ({ platform, locals, params, request }
 	if (!account) throw error(409, 'No account for user');
 	const period = await getOrCreateCurrentPeriod(db, account.id, cadence, harbourDay);
 
+	const hid = locals.householdId ?? locals.userId!;
 	try {
 		if (body.data.paid) {
-			await settleObligation(db, params.id, locals.userId, period.id, account.id, nowIso());
+			await settleObligation(db, params.id, locals.userId, period.id, account.id, nowIso(), hid);
 		} else {
 			await unsettleObligation(db, params.id, period.id);
 		}
