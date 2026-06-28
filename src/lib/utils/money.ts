@@ -185,8 +185,13 @@ export function amountInWordsIndian(paise: number): string {
 	const rupees = Math.round(Math.abs(paise) / 100);
 	if (rupees < 1000) return '';
 
+	// 1,000–99,999: always spell out in full Indian informal style.
+	// No currency check — the words are a useful confirmation hint for any currency,
+	// and this avoids any dependency on the module-level _currency state at render time.
+	if (rupees < 1e5) return _spellThousandsIN(rupees);
+
+	// >= 1,00,000: abbreviated. INR → lakh/crore. Non-INR → thousand/million/billion.
 	if (_currency !== 'INR') {
-		// Non-INR: abbreviated Western form
 		if (rupees >= 1_000_000_000) {
 			const b = Math.round(rupees / 1e8) / 10;
 			return `${Number.isInteger(b) ? b : b.toFixed(1)} billion`;
@@ -195,20 +200,15 @@ export function amountInWordsIndian(paise: number): string {
 			const m = Math.round(rupees / 1e5) / 10;
 			return `${Number.isInteger(m) ? m : m.toFixed(1)} million`;
 		}
+		// 1,00,000–9,99,999: e.g. "150 thousand"
 		const k = Math.round(rupees / 100) / 10;
 		return `${Number.isInteger(k) ? k : k.toFixed(1)} thousand`;
 	}
 
-	// INR: crore and lakh abbreviated (long enough to read at a glance)
 	if (rupees >= 1e7) {
 		const cr = Math.round(rupees / 1e6) / 10;
 		return `${Number.isInteger(cr) ? cr : cr.toFixed(1)} crore`;
 	}
-	if (rupees >= 1e5) {
-		const lk = Math.round(rupees / 1e4) / 10;
-		return `${Number.isInteger(lk) ? lk : lk.toFixed(1)} lakh`;
-	}
-
-	// INR 1,000–99,999: spell out in full (Indian informal style)
-	return _spellThousandsIN(rupees);
+	const lk = Math.round(rupees / 1e4) / 10;
+	return `${Number.isInteger(lk) ? lk : lk.toFixed(1)} lakh`;
 }
