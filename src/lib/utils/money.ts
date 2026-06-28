@@ -69,11 +69,12 @@ export function formatPaise(paise: number, currency = _currency): string {
  */
 export function parseToPaise(input: string): number | null {
 	if (!input || typeof input !== 'string') return null;
-	// Strip everything except digits and decimal point
-	const cleaned = input.replace(/[^\d.]/g, '');
+	// Strip only the currency symbol, grouping commas, and whitespace.
+	// Anything else left (letters, a minus sign) makes the input invalid.
+	const cleaned = input.replace(/[₹,\s]/g, '');
 	if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
 	const num = parseFloat(cleaned);
-	if (!isFinite(num) || num < 0) return null;
+	if (!isFinite(num)) return null;
 	return Math.round(num * 100);
 }
 
@@ -183,7 +184,16 @@ function _spellThousandsIN(rupees: number): string {
  */
 export function amountInWordsIndian(paise: number): string {
 	const rupees = Math.round(Math.abs(paise) / 100);
-	if (rupees < 1000) return '';
+	if (rupees === 0) return '';
+
+	// Under 1,000: spell out in full, with "Hundred" (e.g. 649 -> "Six Hundred Forty Nine").
+	// Reads naturally standalone, where the informal "drop Hundred" style would be ambiguous.
+	if (rupees < 1000) {
+		const h = Math.floor(rupees / 100);
+		const rem = rupees % 100;
+		if (h === 0) return _twoDigit(rem);
+		return rem === 0 ? `${_ONES[h]} Hundred` : `${_ONES[h]} Hundred ${_twoDigit(rem)}`;
+	}
 
 	// 1,000–99,999: always spell out in full Indian informal style.
 	// No currency check — the words are a useful confirmation hint for any currency,

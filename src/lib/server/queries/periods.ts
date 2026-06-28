@@ -358,18 +358,33 @@ export async function getAccountSummary(
  * Two windows (30-day and 7-day) bound the estimate. A committed-only 30-day
  * figure powers the "cut discretionary: +X days" secondary line.
  */
-export async function getRunway(db: D1Database, account_id: string): Promise<RunwaySummary> {
+export async function getRunway(
+	db: D1Database,
+	account_id: string,
+	cadence: HarbourCadence,
+	harbourDay = 'sunday'
+): Promise<RunwaySummary> {
 	type RunwayRow = {
 		balance_paise: number;
+		period_net: number;
 		spend_30d: number;
 		spend_7d: number;
 		committed_spend_30d: number;
 	};
 
+	// Runway is based on money actually left now (a cushion: "if income stopped,
+	// this lasts X days"), not the stale start-of-period balance. Live balance =
+	// account balance (the period opening) + net of this period's transactions.
+	const { start, end } = computePeriod(cadence, harbourDay, new Date());
+	const to = nextDay(end);
+
 	const row = await db
 		.prepare(
 			`SELECT
 			   (SELECT balance_paise FROM accounts WHERE id = ?1) AS balance_paise,
+			   (SELECT COALESCE(SUM(amount_paise), 0) FROM transactions
+			      WHERE account_id = ?1 AND deleted_at IS NULL
+			        AND occurred_at >= ?2 AND occurred_at < ?3) AS period_net,
 			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
 			      FROM transactions t
 			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
@@ -385,10 +400,10 @@ export async function getRunway(db: D1Database, account_id: string): Promise<Run
 			        AND c.bucket = 'committed'
 			        AND t.occurred_at >= datetime('now', '-30 days')) AS committed_spend_30d`
 		)
-		.bind(account_id)
+		.bind(account_id, start, to)
 		.first<RunwayRow>();
 
-	const balance = row?.balance_paise ?? 0;
+	const balance = (row?.balance_paise ?? 0) + (row?.period_net ?? 0);
 	const spend30 = row?.spend_30d ?? 0;
 	const spend7 = row?.spend_7d ?? 0;
 	const committed30 = row?.committed_spend_30d ?? 0;

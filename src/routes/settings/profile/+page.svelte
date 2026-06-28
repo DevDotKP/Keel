@@ -29,9 +29,15 @@
 	let renderW = $derived(imgW ? imgW * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
 	let renderH = $derived(imgH ? imgH * (CROP_VP / Math.min(imgW, imgH)) * zoom : 0);
 
+	// Smallest zoom that still fits the whole photo inside the circle (contain).
+	// 1 for a square; below 1 for a non-square, so the user can zoom out to fit.
+	let minZoom = $derived(imgW && imgH ? Math.min(imgW, imgH) / Math.max(imgW, imgH) : 1);
+
 	function clampOffsets() {
-		offX = Math.min(0, Math.max(CROP_VP - renderW, offX));
-		offY = Math.min(0, Math.max(CROP_VP - renderH, offY));
+		// Zoomed out past cover: centre the photo (padding shows). Otherwise keep it
+		// covering the circle so no empty edge slips in.
+		offX = renderW <= CROP_VP ? (CROP_VP - renderW) / 2 : Math.min(0, Math.max(CROP_VP - renderW, offX));
+		offY = renderH <= CROP_VP ? (CROP_VP - renderH) / 2 : Math.min(0, Math.max(CROP_VP - renderH, offY));
 	}
 
 	function initials(name: string | null | undefined, email: string | null | undefined): string {
@@ -115,6 +121,9 @@
 				canvas.width = out; canvas.height = out;
 				const ctx = canvas.getContext('2d');
 				if (!ctx) return reject(new Error('no-canvas'));
+				// Fill behind the photo so any padding (when zoomed out to fit) is white, not black.
+				ctx.fillStyle = '#FFFFFF';
+				ctx.fillRect(0, 0, out, out);
 				ctx.drawImage(img, sx, sy, s, s, 0, 0, out, out);
 				resolve(canvas.toDataURL('image/jpeg', quality));
 			};
@@ -287,7 +296,7 @@
 			</div>
 			<label class="crop-zoom">
 				<span class="sr-only">Zoom</span>
-				<input type="range" min="1" max="3" step="0.01" value={zoom}
+				<input type="range" min={minZoom} max="3" step="0.01" value={zoom}
 					oninput={(e) => onZoom(parseFloat(e.currentTarget.value))} />
 			</label>
 			<div class="crop-actions">

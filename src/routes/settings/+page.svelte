@@ -229,6 +229,10 @@
 			</ul>
 		{/if}
 
+		{#if data.members.length > 1}
+			<p class="field-hint">Admins can invite and manage the household. Members can add and view entries.</p>
+		{/if}
+
 		{#if data.pendingInvites.length > 0}
 			<ul class="invite-list" aria-label="Pending invites">
 				{#each data.pendingInvites as inv (inv.id)}

@@ -16,7 +16,9 @@ export const GET: RequestHandler = async ({ platform, locals }) => {
 	return json(summary);
 };
 
-export const SUPPORTED_CURRENCIES = [
+// Not exported: SvelteKit endpoint files may only export request handlers.
+// Exporting this const breaks the production build (postbuild route analysis).
+const SUPPORTED_CURRENCIES = [
 	'INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD', 'JPY', 'CAD', 'AUD'
 ] as const;
 

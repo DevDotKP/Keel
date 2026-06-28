@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
-	import { parseToPaise, formatPaiseLedger } from '$lib/utils/money';
+	import { parseToPaise, formatPaise, formatPaiseLedger } from '$lib/utils/money';
 	import { formatDisplayDate, today } from '$lib/utils/date';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -200,15 +200,15 @@
 							<div class="savings-row">
 								<span class="savings-item">
 									<span class="savings-label">Income</span>
-									<span class="savings-val money">{formatPaiseLedger(insights.household_income_paise)}</span>
+									<span class="savings-val money">{formatPaise(insights.household_income_paise)}</span>
 								</span>
 								<span class="savings-item">
 									<span class="savings-label">Spent</span>
-									<span class="savings-val money">{formatPaiseLedger(insights.total_expense_paise)}</span>
+									<span class="savings-val money">{formatPaise(insights.total_expense_paise)}</span>
 								</span>
 								<span class="savings-item">
 									<span class="savings-label">Saved</span>
-									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaiseLedger(Math.abs(savings))}</span>
+									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaise(Math.abs(savings))}</span>
 								</span>
 							</div>
 							<div class="savings-rate-row">
@@ -720,6 +720,7 @@
 			display: flex;
 			flex-direction: column;
 			gap: var(--space-6);
+			min-width: 0; /* let the 300px track hold; never bleed into the next column */
 		}
 
 	}
