@@ -45,16 +45,18 @@ export async function getHabitMetrics(db: D1Database): Promise<HabitMetrics> {
 		db.prepare(
 			`SELECT entered_by AS uid, entered_at AS t, source, is_uncategorized_fallback AS uncat
 			 FROM transactions
-			 WHERE entered_by IS NOT NULL AND deleted_at IS NULL
+			 WHERE entered_by IS NOT NULL AND deleted_at IS NULL AND entered_by NOT LIKE 'demo-%'
 			   AND entered_at >= datetime('now', '-${WINDOW_DAYS} days')`
 		),
-		db.prepare('SELECT id, created_at FROM users'),
+		db.prepare("SELECT id, created_at FROM users WHERE id NOT LIKE 'demo-%'"),
 		db.prepare(
 			`SELECT COUNT(*) AS total,
 			        SUM(CASE WHEN closing_balance_paise IS NOT NULL THEN 1 ELSE 0 END) AS done
-			 FROM reconciliation_periods WHERE period_end < date('now')`
+			 FROM reconciliation_periods
+				 WHERE period_end < date('now')
+				   AND account_id NOT IN (SELECT id FROM accounts WHERE user_id LIKE 'demo-%')`
 		),
-		db.prepare('SELECT COUNT(*) AS total, SUM(was_corrected) AS corrected FROM voice_samples')
+		db.prepare("SELECT COUNT(*) AS total, SUM(was_corrected) AS corrected FROM voice_samples WHERE user_id NOT LIKE 'demo-%'")
 	]);
 
 	const now = Date.now();

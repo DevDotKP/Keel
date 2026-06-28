@@ -50,11 +50,11 @@ export async function getAdminMetrics(db: D1Database): Promise<AdminMetrics> {
 		db.prepare(
 			// 130 days covers 8 weekly buckets of rolling 30d/60d windows.
 			`SELECT entered_by AS uid, entered_at FROM transactions
-			 WHERE entered_by IS NOT NULL AND deleted_at IS NULL
+			 WHERE entered_by IS NOT NULL AND deleted_at IS NULL AND entered_by NOT LIKE 'demo-%'
 			   AND entered_at >= datetime('now', '-130 days')`
 		),
-		db.prepare('SELECT id, created_at FROM users'),
-		db.prepare("SELECT user_id FROM entitlements WHERE status = 'owned'"),
+		db.prepare("SELECT id, created_at FROM users WHERE id NOT LIKE 'demo-%'"),
+		db.prepare("SELECT user_id FROM entitlements WHERE status = 'owned' AND user_id NOT LIKE 'demo-%'"),
 		db.prepare(
 			'SELECT error_id, route, status, message, created_at FROM error_logs ORDER BY created_at DESC LIMIT 20'
 		),
