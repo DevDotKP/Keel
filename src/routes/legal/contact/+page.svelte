@@ -6,13 +6,13 @@
 	<h1>Contact</h1>
 	<p class="last-updated">Operated by Annapurna Labs.</p>
 
-	<h2>Annapurna Labs</h2>
+	<h2>Get in touch</h2>
 	<p>
 		For support, billing questions, refund requests, data deletion, or anything else,
 		email us at:
 	</p>
 	<p>
-		<a href="mailto:hello@annapurnalabs.in">hello@annapurnalabs.in</a>
+		<a href="mailto:dev.kp271828@gmail.com">dev.kp271828@gmail.com</a>
 	</p>
 
 	<p>
@@ -26,8 +26,8 @@
 	<p>
 		In accordance with the Information Technology (Intermediary Guidelines and Digital
 		Media Ethics Code) Rules, 2021, the designated Grievance Officer for Keel can be
-		reached at the email address above. Grievances will be acknowledged within 24 hours
-		and resolved within 15 days of receipt.
+		reached at <a href="mailto:dev.kp271828@gmail.com">dev.kp271828@gmail.com</a>.
+		Grievances will be acknowledged within 24 hours and resolved within 15 days of receipt.
 	</p>
 
 	<p>&copy; 2026 Annapurna Labs. All rights reserved.</p>

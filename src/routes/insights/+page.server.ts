@@ -13,7 +13,8 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId, locals.householdId ?? locals.userId!);
 	if (!account) return { insights: null };
 
+	const hid = locals.householdId ?? locals.userId!;
 	return {
-		insights: getInsightsData(db, account.id, locals.userId, cadence, harbourDay, rdb)
+		insights: getInsightsData(db, account.id, locals.userId, cadence, harbourDay, rdb, hid)
 	};
 };

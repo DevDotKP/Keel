@@ -192,6 +192,44 @@
 						{/if}
 					</section>
 
+					<!-- Savings rate: income vs spend. Prompt if no income set. -->
+					{#if insights.household_income_paise > 0}
+						{@const savings = insights.household_income_paise - insights.total_expense_paise}
+						{@const savingsRate = Math.round((savings / insights.household_income_paise) * 100)}
+						<section class="savings-card" aria-label="Savings rate">
+							<div class="savings-row">
+								<span class="savings-item">
+									<span class="savings-label">Income</span>
+									<span class="savings-val money">{formatPaiseLedger(insights.household_income_paise)}</span>
+								</span>
+								<span class="savings-item">
+									<span class="savings-label">Spent</span>
+									<span class="savings-val money">{formatPaiseLedger(insights.total_expense_paise)}</span>
+								</span>
+								<span class="savings-item">
+									<span class="savings-label">Saved</span>
+									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaiseLedger(Math.abs(savings))}</span>
+								</span>
+							</div>
+							<div class="savings-rate-row">
+								<span class="savings-rate-label">Savings rate</span>
+								<span class="savings-rate-val" class:savings-rate--neg={savingsRate < 0}>{savingsRate}%</span>
+							</div>
+							<div class="prog-track" aria-hidden="true">
+								<div
+									class="prog-fill"
+									class:prog-fill--over={savings < 0}
+									style="width:{Math.min(100, Math.max(0, savingsRate))}%"
+								></div>
+							</div>
+						</section>
+					{:else}
+						<section class="savings-prompt" aria-label="Add income">
+							<p class="savings-prompt-text">Add your income in Obligations to see your savings rate.</p>
+							<a href="/obligations" class="savings-prompt-link">Add income</a>
+						</section>
+					{/if}
+
 					<!-- Committed / flexible split -->
 					{#if insights.committed_paise + insights.flexible_paise > 0}
 						<section class="split-card" aria-label="Committed and flexible spend">
@@ -349,7 +387,14 @@
 								</span>
 								<span class="cat-right">
 									<span class="cat-amount money">{formatPaiseLedger(c.spent_paise)}</span>
-									<span class="cat-pct">{barWidth}% of spend</span>
+									{#if c.prev_spent_paise > 0}
+										{@const d = c.spent_paise - c.prev_spent_paise}
+										<span class="cat-delta" class:cat-delta--up={d > 0} class:cat-delta--down={d < 0}>
+											{d > 0 ? '+' : d < 0 ? '−' : ''}{formatPaiseLedger(Math.abs(d))} vs last
+										</span>
+									{:else}
+										<span class="cat-pct">{barWidth}% of spend</span>
+									{/if}
 								</span>
 							</li>
 						{/each}
@@ -435,6 +480,48 @@
 								</div>
 							{/if}
 						{/if}
+						<!-- Non-essentials MoM: flexible spend trend -->
+						{@const flexMonths = insights.flexible_monthly}
+						{@const maxFlex = Math.max(...flexMonths.map((p) => p.paise), 1)}
+						{@const hasFlexData = flexMonths.some((p) => p.paise > 0)}
+						{#if hasFlexData}
+							{@const latestFlex = flexMonths[flexMonths.length - 1]?.paise ?? 0}
+							{@const prevFlex = flexMonths[flexMonths.length - 2]?.paise ?? 0}
+							{@const flexDelta = prevFlex > 0 ? Math.round(((latestFlex - prevFlex) / prevFlex) * 100) : 0}
+							<div class="flex-trend-block">
+								<div class="flex-trend-head">
+									<h3 class="group-head">Non-essentials over time</h3>
+									{#if prevFlex > 0 && flexDelta !== 0}
+										<span class="flex-badge" class:flex-badge--down={flexDelta < 0} class:flex-badge--up={flexDelta > 0}>
+											{flexDelta > 0 ? '+' : ''}{flexDelta}% vs last month
+										</span>
+									{/if}
+								</div>
+								<p class="flex-trend-sub">Flexible spend by month. Trending down means you're saving more.</p>
+								<div class="trend-chart" aria-label="Flexible spend by month" aria-hidden="true">
+									{#each flexMonths as p (p.label)}
+										{@const h = p.paise === 0 ? 2 : Math.max(4, Math.round((p.paise / maxFlex) * 48))}
+										<div class="trend-col">
+											<div class="trend-bar flex-bar" style="height:{h}px"></div>
+											<span class="trend-label">{p.label}</span>
+										</div>
+									{/each}
+								</div>
+								<p class="flex-trend-note">
+									This month: {formatPaiseLedger(latestFlex)} flexible.
+									{#if prevFlex > 0}
+										{#if flexDelta < 0}
+											Down {Math.abs(flexDelta)}% from last month.
+										{:else if flexDelta > 0}
+											Up {flexDelta}% from last month.
+										{:else}
+											Same as last month.
+										{/if}
+									{/if}
+								</p>
+							</div>
+						{/if}
+
 						<!-- Spend over time: day-over-day, month-over-month, year-over-year -->
 						{@const series = trendZoom === 'day'
 							? insights.spend_trends.daily
@@ -1529,4 +1616,152 @@
 
 	.mover-up { color: var(--color-clay); }
 	.mover-down { color: var(--color-positive); }
+
+	/* ── Per-category MoM delta ──────────────────────────────────────────────── */
+	.cat-delta {
+		font-size: 0.75rem;
+		font-variant-numeric: tabular-nums lining-nums;
+		white-space: nowrap;
+	}
+
+	.cat-delta--up { color: var(--color-clay); }
+	.cat-delta--down { color: var(--color-positive); }
+
+	/* ── Savings rate card ────────────────────────────────────────────────────── */
+	.savings-card {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.savings-row {
+		display: flex;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.savings-item {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.savings-label {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-subtle);
+	}
+
+	.savings-val {
+		font-family: var(--font-display);
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--color-text);
+		font-variant-numeric: tabular-nums lining-nums;
+	}
+
+	.savings-val--neg { color: var(--color-clay); }
+
+	.savings-rate-row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.savings-rate-label {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+	}
+
+	.savings-rate-val {
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--color-positive);
+	}
+
+	.savings-rate--neg { color: var(--color-clay); }
+
+	.savings-prompt {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		padding: var(--space-3) var(--space-4);
+		background: color-mix(in srgb, var(--color-text) 4%, transparent);
+		border: 1px dashed var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.savings-prompt-text {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		flex: 1;
+	}
+
+	.savings-prompt-link {
+		flex: none;
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.savings-prompt-link:hover { text-decoration: underline; }
+
+	/* ── Flexible trend block ─────────────────────────────────────────────────── */
+	.flex-trend-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		margin-top: var(--space-4);
+	}
+
+	.flex-trend-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+	}
+
+	.flex-badge {
+		font-size: 0.75rem;
+		font-weight: 600;
+		padding: 2px var(--space-2);
+		border-radius: var(--radius-full);
+	}
+
+	.flex-badge--down {
+		background: color-mix(in srgb, var(--color-positive) 15%, transparent);
+		color: var(--color-positive);
+	}
+
+	.flex-badge--up {
+		background: color-mix(in srgb, var(--color-clay) 15%, transparent);
+		color: var(--color-clay);
+	}
+
+	.flex-trend-sub {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		line-height: 1.5;
+	}
+
+	.flex-bar {
+		background: color-mix(in srgb, var(--color-text-muted) 60%, transparent);
+	}
+
+	.flex-trend-note {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
 </style>

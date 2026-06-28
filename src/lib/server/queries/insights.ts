@@ -9,6 +9,8 @@ export interface InsightCategoryRow {
 	is_system: 0 | 1;
 	spent_paise: number;
 	budget_paise: number;
+	/** Previous completed period's spend for this category (0 if none). */
+	prev_spent_paise: number;
 }
 
 export interface InsightPeriodRow {
@@ -47,6 +49,10 @@ export interface InsightsData {
 	prev_by_category: PrevCategorySpend[];
 	/** Spend over time at three zooms, for the Day/Month/Year chart. */
 	spend_trends: SpendTrends;
+	/** Sum of active recurring income entries for this household (monthly paise). Zero if none set. */
+	household_income_paise: number;
+	/** Last 6 months of flexible-only spend, oldest first. */
+	flexible_monthly: SpendTrendPoint[];
 }
 
 export interface PrevCategorySpend {
@@ -78,7 +84,8 @@ export async function getInsightsData(
 	user_id: string,
 	cadence: HarbourCadence,
 	harbourDay: string,
-	rdb?: D1Database
+	rdb?: D1Database,
+	household_id?: string
 ): Promise<InsightsData> {
 	const readDb = rdb ?? db;
 	const period = await getOrCreateCurrentPeriod(db, account_id, cadence, harbourDay);
@@ -173,7 +180,14 @@ export async function getInsightsData(
 	let flexible_paise = 0;
 	let uncategorized_paise = 0;
 
-	for (const c of by_category) {
+	// Enrich by_category with previous period spend for inline MoM delta.
+	const prevCatMap = new Map(prev_by_category.map((p) => [p.category_id, p.spent_paise]));
+	const by_category_enriched: InsightCategoryRow[] = by_category.map((c) => ({
+		...c,
+		prev_spent_paise: prevCatMap.get(c.category_id) ?? 0
+	}));
+
+	for (const c of by_category_enriched) {
 		if (c.is_system && c.name === 'Uncategorized') {
 			uncategorized_paise += c.spent_paise;
 		} else if (c.bucket === 'committed') {
@@ -183,7 +197,48 @@ export async function getInsightsData(
 		}
 	}
 
-	const spend_trends = await getSpendTrends(readDb, account_id);
+	const [spend_trends, incomeRes, flexMonthlyRes] = await Promise.all([
+		getSpendTrends(readDb, account_id),
+		// Sum of active monthly recurring income for this household.
+		readDb
+			.prepare(
+				`SELECT COALESCE(SUM(amount_paise), 0) AS income
+				 FROM recurring_income
+				 WHERE household_id = ? AND is_active = 1 AND deleted_at IS NULL`
+			)
+			.bind(household_id ?? user_id)
+			.first<{ income: number }>(),
+		// Flexible-only monthly spend for the last 6 months.
+		readDb
+			.prepare(
+				`SELECT strftime('%Y-%m', t.occurred_at) AS k, COALESCE(SUM(-t.amount_paise), 0) AS p
+				 FROM transactions t
+				 JOIN categories c ON c.id = t.category_id
+				 WHERE t.account_id = ?1
+				   AND t.deleted_at IS NULL
+				   AND t.amount_paise < 0
+				   AND NOT (t.is_uncategorized_fallback = 1 AND t.description = 'Harbour adjustment')
+				   AND c.bucket = 'flexible'
+				   AND c.is_system = 0
+				   AND t.occurred_at >= date('now', 'start of month', '-5 months')
+				 GROUP BY k`
+			)
+			.bind(account_id)
+			.all<{ k: string; p: number }>()
+	]);
+
+	const household_income_paise = incomeRes?.income ?? 0;
+
+	// Build the 6-month flexible series, zero-filling months with no spend.
+	const flexMap = new Map((flexMonthlyRes.results ?? []).map((r) => [r.k, r.p]));
+	const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const flexible_monthly: SpendTrendPoint[] = [];
+	const now = new Date();
+	for (let i = 5; i >= 0; i--) {
+		const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+		const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+		flexible_monthly.push({ label: MONTHS_SHORT[d.getUTCMonth()], paise: flexMap.get(key) ?? 0 });
+	}
 
 	return {
 		period_start: period.period_start,
@@ -192,14 +247,16 @@ export async function getInsightsData(
 		flexible_paise,
 		uncategorized_paise,
 		total_expense_paise: committed_paise + flexible_paise + uncategorized_paise,
-		by_category,
+		by_category: by_category_enriched,
 		recent_periods,
 		cycle_budget_paise,
 		base_budget_paise,
 		carryover_paise,
 		budget_rollover,
 		prev_by_category,
-		spend_trends
+		spend_trends,
+		household_income_paise,
+		flexible_monthly
 	};
 }
 

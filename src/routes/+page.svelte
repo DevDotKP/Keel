@@ -62,8 +62,8 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		if (!sessionStorage.getItem('keel_greeted')) {
 			sessionStorage.setItem('keel_greeted', '1');
 			greetingVisible = true;
-			setTimeout(() => { greetingExiting = true; }, 1600);
-			setTimeout(() => { greetingVisible = false; greetingExiting = false; }, 2200);
+			setTimeout(() => { greetingExiting = true; }, 800);
+			setTimeout(() => { greetingVisible = false; greetingExiting = false; }, 1500);
 		}
 	});
 
