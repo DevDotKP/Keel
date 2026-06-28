@@ -13,6 +13,25 @@ export function isDemoUser(userId: string | null | undefined): boolean {
 	return !!userId && userId.startsWith(DEMO_PREFIX);
 }
 
+// Generous on purpose: Indian mobile networks share IPs heavily (CGNAT), so a
+// low cap would block legitimate visitors. Cookie-reuse already stops honest
+// repeat users from creating new sessions, so this only catches scripted bursts.
+export const DEMO_CAP_PER_HOUR = 20;
+
+/** True if this IP has created too many demo sessions in the last hour. */
+export async function demoRateLimited(db: D1Database, ip: string): Promise<boolean> {
+	const row = await db
+		.prepare("SELECT COUNT(*) AS n FROM demo_throttle WHERE ip = ? AND created_at > datetime('now','-1 hour')")
+		.bind(ip)
+		.first<{ n: number }>();
+	return (row?.n ?? 0) >= DEMO_CAP_PER_HOUR;
+}
+
+/** Record a demo creation against an IP for rate-limiting. */
+export async function recordDemoCreation(db: D1Database, ip: string): Promise<void> {
+	await db.prepare('INSERT INTO demo_throttle (ip) VALUES (?)').bind(ip).run();
+}
+
 // UTC noon on a given y/m/d (clamped to the month's last day), as an ISO string.
 // Noon avoids any date-boundary drift when SQLite compares the date portion.
 function utcNoon(y: number, m: number, d: number): string {
@@ -216,6 +235,8 @@ export async function purgeOldDemoUsers(db: D1Database, maxAgeHours = 24): Promi
 		db.prepare(`DELETE FROM settings WHERE user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM household_members WHERE household_id IN ${OLD} OR user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM households WHERE id IN ${OLD}`),
-		db.prepare(`DELETE FROM users WHERE id IN ${OLD}`)
+		db.prepare(`DELETE FROM users WHERE id IN ${OLD}`),
+		// Throttle rows only matter for an hour; sweep anything older.
+		db.prepare("DELETE FROM demo_throttle WHERE created_at < datetime('now','-2 hours')")
 	]);
 }
