@@ -62,7 +62,7 @@
 	<div class="banner" role="status" aria-live="polite">
 		<WifiOff size={16} aria-hidden="true" />
 		{#if pending > 0}
-			<span>{pending} {pending === 1 ? 'entry' : 'entries'} queued — will sync when you're back online.</span>
+			<span>{pending} {pending === 1 ? 'entry' : 'entries'} queued, will sync when you're back online.</span>
 		{:else}
 			<span>You are offline. New entries will queue until you reconnect.</span>
 		{/if}

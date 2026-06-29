@@ -27,7 +27,7 @@
 	}
 
 	// Null means "no data yet" (e.g. no cohort is old enough). Show a dash, not 0%.
-	const pd = (v: number | null, suffix = '%'): string => (v === null ? '—' : `${v}${suffix}`);
+	const pd = (v: number | null, suffix = '%'): string => (v === null ? 'n/a' : `${v}${suffix}`);
 
 	let uncatPoints = $derived(data.habit?.uncategorizedSeries ?? []);
 	let uncatMax = $derived(Math.max(1, ...uncatPoints.map((p) => p.value)));

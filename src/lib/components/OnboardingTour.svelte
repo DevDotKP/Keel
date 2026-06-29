@@ -31,7 +31,7 @@
 		},
 		{
 			title: 'Runway',
-			body: 'Your balance divided by your average daily spend. A calm forward read — not a deadline. Cut the flexible spending and watch the number grow.'
+			body: 'Your balance divided by your average daily spend. A calm forward read, not a deadline. Cut the flexible spending and watch the number grow.'
 		},
 		{
 			title: 'Log an expense',

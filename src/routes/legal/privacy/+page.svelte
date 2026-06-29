@@ -33,7 +33,7 @@
 	<h2>Analytics</h2>
 	<p>
 		We use Microsoft Clarity (session analytics) in production to understand how people
-		use the app. Clarity is configured with full text and input masking — no amounts,
+		use the app. Clarity is configured with full text and input masking: no amounts,
 		descriptions, or personal text is ever captured. You can exclude your browser from
 		Clarity at <a href="/opt-out">/opt-out</a>.
 	</p>

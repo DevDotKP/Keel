@@ -381,7 +381,7 @@
 			<p class="about-tagline">The tracker that forgives.</p>
 		</div>
 		<p class="about-body">
-			Log as you go. Come to Harbour to settle. A missed entry becomes uncategorized — never a broken total. Named for the part of a boat that keeps it steady.
+			Log as you go. Come to Harbour to settle. A missed entry becomes uncategorized, never a broken total. Named for the part of a boat that keeps it steady.
 		</p>
 		<p class="about-maker">By <a href="https://annapurnalabs.in" class="about-link">Annapurna Labs</a></p>
 		<nav class="about-legal" aria-label="Legal">

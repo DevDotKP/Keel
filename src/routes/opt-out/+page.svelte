@@ -23,7 +23,7 @@
 </script>
 
 <svelte:head>
-	<title>Analytics exclusion — Keel</title>
+	<title>Analytics exclusion · Keel</title>
 </svelte:head>
 
 {#if mounted}

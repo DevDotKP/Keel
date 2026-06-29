@@ -45,7 +45,7 @@
 </script>
 
 <svelte:head>
-	<title>Keel — the tracker for people who quit trackers</title>
+	<title>Keel · the tracker for people who quit trackers</title>
 </svelte:head>
 
 <div class="landing">
