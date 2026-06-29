@@ -34,8 +34,12 @@
 
 {#if data.isDemo && showChrome}
 	<div class="demo-banner" role="status">
-		<span>Demo mode. Sample data, cleared automatically.</span>
-		<a href="/auth">Sign up to keep yours</a>
+		<span class="demo-banner-text">Demo mode. Nothing here is saved.</span>
+		<!-- Sign out first: a demo user is logged in, so a plain /auth link would
+		     bounce straight back here. Signout clears the session, then lands on /auth. -->
+		<form method="POST" action="/api/auth/signout" class="demo-banner-form">
+			<button type="submit" class="demo-banner-btn">Sign up</button>
+		</form>
 	</div>
 {/if}
 
@@ -82,10 +86,28 @@
 		text-align: center;
 	}
 
-	.demo-banner a {
+	.demo-banner-text {
+		min-width: 0;
+	}
+
+	.demo-banner-form {
+		display: flex;
+		flex: none;
+	}
+
+	.demo-banner-btn {
+		appearance: none;
+		border: none;
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-family: inherit;
+		font-size: 0.8125rem;
 		font-weight: 700;
-		color: var(--color-text);
-		text-underline-offset: 3px;
+		padding: var(--space-1) var(--space-3);
+		min-height: 28px;
+		border-radius: var(--radius-full);
+		cursor: pointer;
+		white-space: nowrap;
 	}
 
 	.main {
