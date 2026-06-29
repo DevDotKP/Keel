@@ -8,15 +8,15 @@
 	import { setCurrency } from '$lib/utils/money';
 
 	const CURRENCIES = [
-		{ code: 'INR', label: '₹ INR — Indian Rupee' },
-		{ code: 'USD', label: '$ USD — US Dollar' },
-		{ code: 'EUR', label: '€ EUR — Euro' },
-		{ code: 'GBP', label: '£ GBP — British Pound' },
-		{ code: 'AED', label: 'AED — UAE Dirham' },
-		{ code: 'SGD', label: 'S$ SGD — Singapore Dollar' },
-		{ code: 'JPY', label: '¥ JPY — Japanese Yen' },
-		{ code: 'CAD', label: 'CA$ CAD — Canadian Dollar' },
-		{ code: 'AUD', label: 'A$ AUD — Australian Dollar' }
+		{ code: 'INR', label: '₹ INR · Indian Rupee' },
+		{ code: 'USD', label: '$ USD · US Dollar' },
+		{ code: 'EUR', label: '€ EUR · Euro' },
+		{ code: 'GBP', label: '£ GBP · British Pound' },
+		{ code: 'AED', label: 'AED · UAE Dirham' },
+		{ code: 'SGD', label: 'S$ SGD · Singapore Dollar' },
+		{ code: 'JPY', label: '¥ JPY · Japanese Yen' },
+		{ code: 'CAD', label: 'CA$ CAD · Canadian Dollar' },
+		{ code: 'AUD', label: 'A$ AUD · Australian Dollar' }
 	];
 
 	let { data }: { data: PageData } = $props();
