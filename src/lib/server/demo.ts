@@ -65,6 +65,8 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		.first<{ id: string }>();
 	if (!account) return;
 	const acc = account.id;
+	// Short per-session tag so themed demo emails stay unique across concurrent demos.
+	const tag = userId.slice(5, 9);
 
 	const already = await db.prepare('SELECT 1 FROM transactions WHERE account_id = ? LIMIT 1').bind(acc).first();
 	if (already) return;
@@ -88,32 +90,38 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		db.prepare('UPDATE accounts SET balance_paise = 9200000 WHERE id = ?').bind(acc),
 		db.prepare('UPDATE categories SET daily_reserve_paise = 15000, budget_paise = 800000 WHERE id = ?').bind(C('Food & Dining')),
 		db.prepare('UPDATE categories SET budget_paise = 800000 WHERE id = ?').bind(C('Groceries')),
-		db.prepare('UPDATE categories SET daily_reserve_paise = 5000 WHERE id = ?').bind(C('Transport'))
+		db.prepare('UPDATE categories SET daily_reserve_paise = 5000 WHERE id = ?').bind(C('Transport')),
+		// The main account is Tegridy (the farm owner); the household is Tegridy Farms.
+		db
+			.prepare("UPDATE users SET display_name = 'Tegridy', email = ?, avatar = '/demo-avatars/tegridy.jpg' WHERE id = ?")
+			.bind(`tegridy.${tag}@southpark.com`, userId),
+		db.prepare("UPDATE households SET name = 'Tegridy Farms' WHERE id = ?").bind(userId)
 	]);
 
 	// Family members, each with a photo, so the shared ledger shows who logged what.
 	// Member ids are prefixed by the demo user id so they purge with it. Kenny's
 	// photo is not in static/demo-avatars yet, so he falls back to initials.
-	const FAMILY: Array<{ name: string; avatar: string | null }> = [
-		{ name: 'Erik', avatar: '/demo-avatars/erik.png' },
+	const FAMILY: Array<{ name: string; avatar: string }> = [
+		{ name: 'Eric', avatar: '/demo-avatars/eric.png' },
 		{ name: 'Stan', avatar: '/demo-avatars/stan.jpeg' },
-		{ name: 'Kyle', avatar: '/demo-avatars/kyle.png' },
+		{ name: 'Kyle', avatar: '/demo-avatars/kyle.webp' },
 		{ name: 'Butters', avatar: '/demo-avatars/butters.webp' },
-		{ name: 'Kenny', avatar: null }
+		{ name: 'Kenny', avatar: '/demo-avatars/kenny.webp' }
 	];
 	const memberIds = FAMILY.map((_, i) => `${userId}-m${i + 1}`);
 	await db.batch(
 		FAMILY.flatMap((m, i) => [
 			db
 				.prepare('INSERT OR IGNORE INTO users (id, email, display_name, avatar) VALUES (?, ?, ?, ?)')
-				.bind(memberIds[i], `${memberIds[i]}@demo.keel`, m.name, m.avatar),
+				.bind(memberIds[i], `${m.name.toLowerCase()}.${tag}@southpark.com`, m.name, m.avatar),
 			db
 				.prepare("INSERT OR IGNORE INTO household_members (household_id, user_id, role) VALUES (?, ?, 'member')")
 				.bind(userId, memberIds[i])
 		])
 	);
-	// Pick a random family member to attribute an entry to.
-	const who = () => memberIds[Math.floor(Math.random() * memberIds.length)];
+	// Attribute entries randomly across the whole household, including Tegridy (main account).
+	const pool = [userId, ...memberIds];
+	const who = () => pool[Math.floor(Math.random() * pool.length)];
 
 	const tx = (
 		catId: string | null,

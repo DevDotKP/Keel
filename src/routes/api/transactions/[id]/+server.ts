@@ -4,6 +4,10 @@ import { z } from 'zod';
 import { getDb } from '$lib/server/db';
 import { softDeleteTransaction, updateTransaction } from '$lib/server/queries/transactions';
 import { getDefaultAccount } from '$lib/server/queries/accounts';
+import { isDemoUser } from '$lib/server/demo';
+
+// The public demo keeps a floor of entries so a visitor can't empty the ledger.
+const DEMO_MIN_ENTRIES = 10;
 
 const PatchSchema = z.object({
 	amount_paise: z.number().int().positive(),
@@ -45,6 +49,16 @@ export const DELETE: RequestHandler = async ({ platform, locals, params }) => {
 	const db = getDb(platform);
 	const account = await getDefaultAccount(db, locals.householdId ?? locals.userId!);
 	if (!account) throw error(409, 'No account for user');
+	// Demo sandbox: never let a visitor delete below the floor of entries.
+	if (isDemoUser(locals.userId)) {
+		const row = await db
+			.prepare('SELECT COUNT(*) AS n FROM transactions WHERE account_id = ? AND deleted_at IS NULL')
+			.bind(account.id)
+			.first<{ n: number }>();
+		if ((row?.n ?? 0) <= DEMO_MIN_ENTRIES) {
+			throw error(403, `The demo keeps at least ${DEMO_MIN_ENTRIES} entries. Sign up to manage your own.`);
+		}
+	}
 	await softDeleteTransaction(db, params.id, account.id);
 	return new Response(null, { status: 204 });
 };
