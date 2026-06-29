@@ -50,6 +50,7 @@
 
 <div class="landing">
 	<div class="brand">
+		<img src="/icons/icon-192.png" alt="" class="brand-logo-mark" width="34" height="34" />
 		<span class="brand-name">Keel</span>
 		<span class="brand-by">by Annapurna Labs</span>
 	</div>
@@ -195,8 +196,14 @@
 
 	.brand {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: var(--space-2);
+	}
+
+	.brand-logo-mark {
+		width: 34px;
+		height: 34px;
+		border-radius: 9px;
 	}
 
 	.brand-name {

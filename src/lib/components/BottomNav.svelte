@@ -13,7 +13,7 @@
 <nav class="app-nav" aria-label="Main navigation">
 	<!-- Brand: visible only in the sidebar on desktop -->
 	<a href="/" class="nav-brand" aria-label="Keel home">
-		<Anchor size={20} aria-hidden="true" />
+		<img src="/icons/icon-192.png" alt="" class="brand-logo" width="28" height="28" />
 		<span>Keel</span>
 	</a>
 
@@ -119,8 +119,10 @@
 			letter-spacing: -0.01em;
 		}
 
-		.nav-brand :global(svg) {
-			color: var(--color-gold);
+		.brand-logo {
+			width: 28px;
+			height: 28px;
+			border-radius: 8px;
 			flex: none;
 		}
 
