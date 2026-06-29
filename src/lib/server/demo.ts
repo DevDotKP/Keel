@@ -94,33 +94,37 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		// The main account is Tegridy (the farm owner); the household is Tegridy Farms.
 		db
 			.prepare("UPDATE users SET display_name = 'Tegridy', email = ?, avatar = '/demo-avatars/tegridy.jpg' WHERE id = ?")
-			.bind(`tegridy.${tag}@southpark.com`, userId),
+			.bind(`tegridy.${tag}@shouthparc.com`, userId),
 		db.prepare("UPDATE households SET name = 'Tegridy Farms' WHERE id = ?").bind(userId)
 	]);
 
 	// Family members, each with a photo, so the shared ledger shows who logged what.
 	// Member ids are prefixed by the demo user id so they purge with it. Kenny's
 	// photo is not in static/demo-avatars yet, so he falls back to initials.
-	const FAMILY: Array<{ name: string; avatar: string }> = [
-		{ name: 'Eric', avatar: '/demo-avatars/eric.png' },
-		{ name: 'Stan', avatar: '/demo-avatars/stan.jpeg' },
-		{ name: 'Kyle', avatar: '/demo-avatars/kyle.webp' },
-		{ name: 'Butters', avatar: '/demo-avatars/butters.webp' },
-		{ name: 'Kenny', avatar: '/demo-avatars/kenny.webp' }
+	// The five family members are shared, fixed accounts (created once, reused across
+	// every demo), so their emails can be clean (eric@shouthparc.com) and never collide.
+	// Each demo just links them into this visitor's household; their transactions live on
+	// the visitor's own account, so visitors stay isolated. They are kept out of the purge
+	// (see purgeOldDemoUsers) and out of metrics (id LIKE 'demo-%').
+	const FAMILY = [
+		{ id: 'demo-fam-eric', name: 'Eric', avatar: '/demo-avatars/eric.png' },
+		{ id: 'demo-fam-stan', name: 'Stan', avatar: '/demo-avatars/stan.jpeg' },
+		{ id: 'demo-fam-kyle', name: 'Kyle', avatar: '/demo-avatars/kyle.webp' },
+		{ id: 'demo-fam-butters', name: 'Butters', avatar: '/demo-avatars/butters.webp' },
+		{ id: 'demo-fam-kenny', name: 'Kenny', avatar: '/demo-avatars/kenny.webp' }
 	];
-	const memberIds = FAMILY.map((_, i) => `${userId}-m${i + 1}`);
 	await db.batch(
-		FAMILY.flatMap((m, i) => [
+		FAMILY.flatMap((m) => [
 			db
 				.prepare('INSERT OR IGNORE INTO users (id, email, display_name, avatar) VALUES (?, ?, ?, ?)')
-				.bind(memberIds[i], `${m.name.toLowerCase()}.${tag}@southpark.com`, m.name, m.avatar),
+				.bind(m.id, `${m.name.toLowerCase()}@shouthparc.com`, m.name, m.avatar),
 			db
 				.prepare("INSERT OR IGNORE INTO household_members (household_id, user_id, role) VALUES (?, ?, 'member')")
-				.bind(userId, memberIds[i])
+				.bind(userId, m.id)
 		])
 	);
 	// Attribute entries randomly across the whole household, including Tegridy (main account).
-	const pool = [userId, ...memberIds];
+	const pool = [userId, ...FAMILY.map((m) => m.id)];
 	const who = () => pool[Math.floor(Math.random() * pool.length)];
 
 	const tx = (
@@ -253,7 +257,8 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
  */
 export async function purgeOldDemoUsers(db: D1Database, maxAgeMinutes = 10): Promise<void> {
 	const mins = Math.max(1, Math.floor(maxAgeMinutes));
-	const OLD = `(SELECT id FROM users WHERE id LIKE 'demo-%' AND created_at < datetime('now','-${mins} minutes'))`;
+	// Never purge the shared, fixed family accounts (demo-fam-*); only per-visitor demos.
+	const OLD = `(SELECT id FROM users WHERE id LIKE 'demo-%' AND id NOT LIKE 'demo-fam-%' AND created_at < datetime('now','-${mins} minutes'))`;
 	const OLDACC = `(SELECT id FROM accounts WHERE user_id IN ${OLD})`;
 	await db.batch([
 		db.prepare(`DELETE FROM transactions WHERE account_id IN ${OLDACC}`),
