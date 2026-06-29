@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ platform, request }) => {
 
 	const db = getDb(platform);
 	const result = await runHarbourReminders(db, platform?.env ?? {});
-	// Sweep stale public-demo accounts so they never accumulate in production.
-	await purgeOldDemoUsers(db, 24);
+	// Sweep stale public-demo accounts (older than 10 min) so they never accumulate.
+	await purgeOldDemoUsers(db, 10);
 	return json({ ok: true, ...result });
 };

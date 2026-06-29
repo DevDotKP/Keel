@@ -43,6 +43,9 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Create an isolated demo user, seed it, and start a session. Returns the id. */
 export async function createDemoSession(db: D1Database, event: RequestEvent): Promise<string> {
+	// Sweep stale demos on the way in, so they clear ~10 min after creation even
+	// between hourly cron runs.
+	await purgeOldDemoUsers(db, 10);
 	const userId = DEMO_PREFIX + crypto.randomUUID();
 	await ensureUserSetup(db, userId, `${userId}@demo.keel`);
 	await seedDemoData(db, userId);
@@ -88,6 +91,30 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		db.prepare('UPDATE categories SET daily_reserve_paise = 5000 WHERE id = ?').bind(C('Transport'))
 	]);
 
+	// Family members, each with a photo, so the shared ledger shows who logged what.
+	// Member ids are prefixed by the demo user id so they purge with it. Kenny's
+	// photo is not in static/demo-avatars yet, so he falls back to initials.
+	const FAMILY: Array<{ name: string; avatar: string | null }> = [
+		{ name: 'Erik', avatar: '/demo-avatars/erik.png' },
+		{ name: 'Stan', avatar: '/demo-avatars/stan.jpeg' },
+		{ name: 'Kyle', avatar: '/demo-avatars/kyle.png' },
+		{ name: 'Butters', avatar: '/demo-avatars/butters.webp' },
+		{ name: 'Kenny', avatar: null }
+	];
+	const memberIds = FAMILY.map((_, i) => `${userId}-m${i + 1}`);
+	await db.batch(
+		FAMILY.flatMap((m, i) => [
+			db
+				.prepare('INSERT OR IGNORE INTO users (id, email, display_name, avatar) VALUES (?, ?, ?, ?)')
+				.bind(memberIds[i], `${memberIds[i]}@demo.keel`, m.name, m.avatar),
+			db
+				.prepare("INSERT OR IGNORE INTO household_members (household_id, user_id, role) VALUES (?, ?, 'member')")
+				.bind(userId, memberIds[i])
+		])
+	);
+	// Pick a random family member to attribute an entry to.
+	const who = () => memberIds[Math.floor(Math.random() * memberIds.length)];
+
 	const tx = (
 		catId: string | null,
 		amount: number,
@@ -95,14 +122,15 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		iso: string,
 		source = 'tap',
 		periodId: string | null = null,
-		fallback = 0
+		fallback = 0,
+		enteredBy: string | null = null
 	) =>
 		db
 			.prepare(
-				`INSERT INTO transactions (account_id, category_id, period_id, amount_paise, description, occurred_at, source, is_uncategorized_fallback)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+				`INSERT INTO transactions (account_id, category_id, period_id, amount_paise, description, occurred_at, source, is_uncategorized_fallback, entered_by)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
-			.bind(acc, catId, periodId, amount, desc, iso, source, fallback);
+			.bind(acc, catId, periodId, amount, desc, iso, source, fallback, enteredBy);
 
 	const writes: D1PreparedStatement[] = [];
 
@@ -136,7 +164,7 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 			[C('Uncategorized'), drift, 'Harbour adjustment', lastDay, 'tap', 1]
 		];
 		for (const [cid, amt, desc, day, src, fb] of hist) {
-			writes.push(tx(cid, amt, desc, utcNoon(y, mm, day), src, pid, fb));
+			writes.push(tx(cid, amt, desc, utcNoon(y, mm, day), src, pid, fb, desc === 'Harbour adjustment' ? null : who()));
 		}
 	}
 
@@ -165,7 +193,7 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		['Groceries', -110000, 'Vegetables', 28, 'voice']
 	];
 	for (const [name, amt, desc, day, src] of cur) {
-		writes.push(tx(C(name), amt, desc, utcNoon(Y, Mo, day), src, null, 0));
+		writes.push(tx(C(name), amt, desc, utcNoon(Y, Mo, day), src, null, 0, who()));
 	}
 
 	// Obligations (small, genuinely upcoming), recurring income, portfolio.
@@ -215,9 +243,9 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
  * a schedule. Deletes child rows before parents. maxAgeHours is an integer we
  * control, interpolated into the interval (never user input).
  */
-export async function purgeOldDemoUsers(db: D1Database, maxAgeHours = 24): Promise<void> {
-	const hrs = Math.max(1, Math.floor(maxAgeHours));
-	const OLD = `(SELECT id FROM users WHERE id LIKE 'demo-%' AND created_at < datetime('now','-${hrs} hours'))`;
+export async function purgeOldDemoUsers(db: D1Database, maxAgeMinutes = 10): Promise<void> {
+	const mins = Math.max(1, Math.floor(maxAgeMinutes));
+	const OLD = `(SELECT id FROM users WHERE id LIKE 'demo-%' AND created_at < datetime('now','-${mins} minutes'))`;
 	const OLDACC = `(SELECT id FROM accounts WHERE user_id IN ${OLD})`;
 	await db.batch([
 		db.prepare(`DELETE FROM transactions WHERE account_id IN ${OLDACC}`),
@@ -233,6 +261,7 @@ export async function purgeOldDemoUsers(db: D1Database, maxAgeHours = 24): Promi
 		db.prepare(`DELETE FROM sessions WHERE user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM entitlements WHERE user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM settings WHERE user_id IN ${OLD}`),
+		db.prepare(`DELETE FROM household_invites WHERE household_id IN ${OLD}`),
 		db.prepare(`DELETE FROM household_members WHERE household_id IN ${OLD} OR user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM households WHERE id IN ${OLD}`),
 		db.prepare(`DELETE FROM users WHERE id IN ${OLD}`),
