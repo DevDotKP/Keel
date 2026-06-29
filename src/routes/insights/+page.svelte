@@ -200,15 +200,15 @@
 							<div class="savings-row">
 								<span class="savings-item">
 									<span class="savings-label">Income</span>
-									<span class="savings-val money">{formatPaise(insights.household_income_paise)}</span>
+									<span class="savings-val money">{formatPaise(Math.round(insights.household_income_paise / 100) * 100)}</span>
 								</span>
 								<span class="savings-item">
 									<span class="savings-label">Spent</span>
-									<span class="savings-val money">{formatPaise(insights.total_expense_paise)}</span>
+									<span class="savings-val money">{formatPaise(Math.round(insights.total_expense_paise / 100) * 100)}</span>
 								</span>
 								<span class="savings-item">
 									<span class="savings-label">Saved</span>
-									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaise(Math.abs(savings))}</span>
+									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaise(Math.round(Math.abs(savings) / 100) * 100)}</span>
 								</span>
 							</div>
 							<div class="savings-rate-row">

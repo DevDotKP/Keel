@@ -764,14 +764,17 @@
 
 	.inline-select {
 		height: 36px;
-		padding: 0 var(--space-7) 0 var(--space-3);
+		/* Size to the selected option (override the global select width:100%), with a
+		   cap, so the box isn't a near-full-width strip on wide screens. */
+		width: auto;
+		max-width: 60%;
+		padding: 0 var(--space-8) 0 var(--space-4);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
 		font-size: 0.875rem;
 		color: var(--color-text);
 		font-family: inherit;
-		max-width: 60%;
 	}
 
 	.inline-select:focus { outline: none; border-color: var(--color-gold); }
