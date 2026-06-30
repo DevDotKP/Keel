@@ -4,7 +4,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
+	import { formatPaiseLedger, parseToPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import type { PageData } from './$types';
 	import type { Category, CategoryBucket, CategoryKind } from '$lib/types';
 
@@ -23,8 +23,9 @@
 
 	// Overall cycle budget
 	let budgetInput = $state(
-		data.cycleBudgetPaise > 0 ? (data.cycleBudgetPaise / 100).toString() : ''
+		data.cycleBudgetPaise > 0 ? formatAmountInput((data.cycleBudgetPaise / 100).toString()) : ''
 	);
+	let budgetWords = $derived(amountInWordsIndian(parseToPaise(budgetInput) ?? 0));
 	let budgetSaving = $state(false);
 	let budgetSaved = $state(false);
 	let budgetError = $state<string | null>(null);
@@ -52,7 +53,7 @@
 	}
 
 	function applySuggestion() {
-		budgetInput = (suggestedBudgetPaise / 100).toString();
+		budgetInput = formatAmountInput((suggestedBudgetPaise / 100).toString());
 	}
 
 	// Spending tree and income categories shown as separate sections.
@@ -214,6 +215,9 @@
 				{/if}
 			</button>
 		</div>
+		{#if budgetWords}
+			<p class="budget-words">{budgetWords}</p>
+		{/if}
 	</section>
 
 	<h2 class="group-head">Spending</h2>
@@ -301,7 +305,8 @@
 							type="text"
 							inputmode="decimal"
 							placeholder="0"
-							bind:value={newReserve}
+							value={newReserve}
+							oninput={(e) => (newReserve = formatAmountInput(e.currentTarget.value))}
 							class="money"
 						/>
 						<span class="per-day">/ day</span>
@@ -318,7 +323,8 @@
 						type="text"
 						inputmode="decimal"
 						placeholder="0"
-						bind:value={newBudget}
+						value={newBudget}
+						oninput={(e) => (newBudget = formatAmountInput(e.currentTarget.value))}
 						class="money"
 					/>
 				</div>
@@ -385,7 +391,8 @@
 							inputmode="decimal"
 							class="reserve-input money"
 							placeholder="₹/day"
-							value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
+							value={cat.daily_reserve_paise ? formatAmountInput((cat.daily_reserve_paise / 100).toString()) : ''}
+							oninput={(e) => { e.currentTarget.value = formatAmountInput(e.currentTarget.value); }}
 							onchange={(e) => setReserve(cat, e.currentTarget.value)}
 							disabled={busyId === cat.id}
 							aria-label="Daily reserve for {cat.name}"
@@ -397,7 +404,8 @@
 						inputmode="decimal"
 						class="budget-input money"
 						placeholder="₹ budget"
-						value={cat.budget_paise ? (cat.budget_paise / 100).toString() : ''}
+						value={cat.budget_paise ? formatAmountInput((cat.budget_paise / 100).toString()) : ''}
+						oninput={(e) => { e.currentTarget.value = formatAmountInput(e.currentTarget.value); }}
 						onchange={(e) => setBudget(cat, e.currentTarget.value)}
 						disabled={busyId === cat.id}
 						aria-label="Budget for {cat.name}"
@@ -800,6 +808,12 @@
 	}
 
 	.save-budget-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+	.budget-words {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		margin: 0;
+	}
 
 	.suggestion-chip {
 		flex: none;
