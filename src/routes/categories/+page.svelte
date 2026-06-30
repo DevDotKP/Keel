@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Trash2, ArrowLeft } from 'lucide-svelte';
+	import { Trash2, ArrowLeft, X } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -103,6 +103,7 @@
 		newBucket = 'flexible';
 		newReserve = '';
 		newBudget = '';
+		addCatOpen = false;
 		await invalidateAll();
 	}
 
@@ -136,6 +137,7 @@
 		patchCategory(cat.id, { budget_paise: paise });
 	}
 
+	let addCatOpen = $state(false);
 	let confirmState = $state<{ message: string; run: () => void } | null>(null);
 
 	function handleDelete(id: string) {
@@ -239,9 +241,19 @@
 		{/each}
 	</div>
 
-	<!-- Add new category -->
+	<!-- Add new category — collapsed by default -->
+	{#if !addCatOpen}
+		<button class="add-cat-toggle" onclick={() => (addCatOpen = true)}>
+			+ New category
+		</button>
+	{:else}
 	<form class="add-form" onsubmit={handleCreate} novalidate>
-		<h2 class="form-head">New category</h2>
+		<div class="form-head-row">
+			<h2 class="form-head">New category</h2>
+			<button type="button" class="form-close" onclick={() => (addCatOpen = false)} aria-label="Close">
+				<X size={18} aria-hidden="true" />
+			</button>
+		</div>
 
 		<div class="field">
 			<span class="field-label">Income or spending</span>
@@ -352,6 +364,7 @@
 			{#if submitting}<Spinner size={18} />{:else}Add category{/if}
 		</button>
 	</form>
+	{/if}
 </div>
 
 <ConfirmDialog
@@ -589,6 +602,47 @@
 		opacity: 1;
 		color: var(--color-clay);
 	}
+
+	.add-cat-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 48px;
+		border: 1px dashed var(--color-border);
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.9375rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+	}
+
+	.add-cat-toggle:hover {
+		border-color: var(--color-gold);
+		color: var(--color-text);
+	}
+
+	.form-head-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.form-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--tap-target);
+		height: var(--tap-target);
+		border: none;
+		background: transparent;
+		color: var(--color-text-muted);
+		border-radius: var(--radius-full);
+		cursor: pointer;
+	}
+
+	.form-close:hover { color: var(--color-text); }
 
 	.add-form {
 		display: flex;

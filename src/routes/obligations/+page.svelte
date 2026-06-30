@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Trash2, Check, ArrowLeft, Edit2, X } from 'lucide-svelte';
+	import { Trash2, Check, ArrowLeft, Edit2, X, Plus } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -59,6 +59,7 @@
 		newName = '';
 		newAmount = '';
 		newCategory = '';
+		closeAddSheet();
 		await invalidateAll();
 	}
 
@@ -212,6 +213,7 @@
 		expFrequency = 'monthly';
 		expEndDate = '';
 		expDueTime = '';
+		closeAddSheet();
 		await invalidateAll();
 	}
 
@@ -339,6 +341,7 @@
 		incCategory = '';
 		incEndDate = '';
 		incDueTime = '';
+		closeAddSheet();
 		await invalidateAll();
 	}
 
@@ -406,19 +409,36 @@
 		closeEditIncome();
 		await invalidateAll();
 	}
+
+	// ── Add sheet ────────────────────────────────────────────────────────────
+	let addSheetOpen = $state(false);
+	let addType = $state<'expense' | 'income'>('expense');
+	let addExpKind = $state<'obligation' | 'auto'>('obligation');
+
+	function openAddSheet() { addSheetOpen = true; }
+	function closeAddSheet() {
+		addSheetOpen = false;
+		addType = 'expense';
+		addExpKind = 'obligation';
+	}
 </script>
 
 <svelte:head>
 	<title>Recurring - Keel</title>
 </svelte:head>
 
+<!-- FAB lives outside the scrollable page so it stays fixed -->
+<button class="fab" onclick={openAddSheet} aria-label="Add recurring">
+	<Plus size={24} aria-hidden="true" />
+</button>
+
 <div class="obligations-page">
 	<header class="page-header">
 		<a href="/settings" class="back-btn" aria-label="Back to settings">
 			<ArrowLeft size={20} aria-hidden="true" />
 		</a>
-		<h1 class="section-head">Recurring &amp; obligations</h1>
-		<p class="page-sub">Rent, bills, EMIs. Mark them paid and Keel logs the spend for you.</p>
+		<h1 class="section-head">Recurring</h1>
+		<p class="page-sub">Obligations, bills, subscriptions, and income that repeat.</p>
 	</header>
 
 	{#if totalDue > 0}
@@ -428,472 +448,295 @@
 		</div>
 	{/if}
 
-	{#if error}
-		<p class="error" role="alert">{error}</p>
-	{/if}
+	<!-- Expenses: obligations + auto-logged combined -->
+	<section class="recurring-section">
+		<h2 class="section-label">Expenses</h2>
 
-	{#if visibleObligations.length > 0}
-		<ul class="obligation-list" aria-label="Your obligations">
-			{#each visibleObligations as obl (obl.id)}
-				<li class="obligation-row" class:paid={obl.paid}>
-					<button
-						class="check-btn"
-						class:checked={obl.paid}
-						onclick={() => togglePaid(obl.id, !obl.paid)}
-						disabled={busyId === obl.id}
-						aria-label={obl.paid ? `Mark ${obl.name} unpaid` : `Mark ${obl.name} paid`}
-						aria-pressed={obl.paid}
-					>
-						{#if busyId === obl.id}
-							<Spinner size={16} label="Updating" />
-						{:else if obl.paid}
-							<Check size={16} aria-hidden="true" />
-						{/if}
-					</button>
+		{#if error}<p class="error" role="alert">{error}</p>{/if}
 
-					<span class="obligation-main">
-						<span class="obligation-name">{obl.name}</span>
-						<span class="obligation-meta">
-							{categoryName(obl.category_id)} · {obl.cadence}
-						</span>
-					</span>
-
-					<span class="money obligation-amount">{formatPaiseLedger(obl.amount_paise)}</span>
-
-					<button
-						class="delete-btn"
-						onclick={() => handleDelete(obl.id)}
-						disabled={busyId === obl.id}
-						aria-label="Delete {obl.name}"
-					>
-						<Trash2 size={16} aria-hidden="true" />
-					</button>
-				</li>
-			{/each}
-		</ul>
-	{:else}
-		<EmptyState
-			heading="No obligations yet"
-			body="Add rent or a bill below. They reserve money before you spend it."
-		/>
-	{/if}
-
-	<!-- Add obligation -->
-	<form class="add-form" onsubmit={handleCreate} novalidate>
-		<h2 class="form-head">New obligation</h2>
-
-		<div class="field">
-			<label for="obl-name">Name</label>
-			<input
-				id="obl-name"
-				type="text"
-				placeholder="e.g. Rent"
-				bind:value={newName}
-				maxlength="60"
-				required
-			/>
-		</div>
-
-		<div class="field">
-			<label for="obl-amount">Amount</label>
-			<div class="amount-row">
-				<span class="currency-symbol" aria-hidden="true">₹</span>
-				<input
-					id="obl-amount"
-					type="text"
-					inputmode="decimal"
-					placeholder="0"
-					value={newAmount}
-					oninput={(e) => (newAmount = formatAmountInput(e.currentTarget.value))}
-					class="money"
-					required
-				/>
-			</div>
-		</div>
-
-		<div class="field">
-			<label for="obl-category">Category</label>
-			<select id="obl-category" bind:value={newCategory}>
-				<option value="">Uncategorized</option>
-				{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
-					<option value={cat.id}>{cat.name}</option>
-				{/each}
-			</select>
-		</div>
-
-		<div class="field">
-			<label for="obl-cadence">How often</label>
-			<select id="obl-cadence" bind:value={newCadence}>
-				<option value="weekly">Weekly</option>
-				<option value="fortnightly">Fortnightly</option>
-				<option value="monthly">Monthly</option>
-			</select>
-		</div>
-
-		<button type="submit" class="submit-btn" disabled={submitting || !newName.trim() || !newAmountPaise}>
-			{#if submitting}<Spinner size={18} label="Adding" />{:else}Add obligation{/if}
-		</button>
-	</form>
-
-	<!-- Recurring expenses: auto-logged on each cycle -->
-	<section class="income-section">
-		<h2 class="form-head">Recurring expenses</h2>
-		<p class="page-sub">Subscriptions, EMIs, utilities. Keel posts these automatically each cycle.</p>
-
-		{#if expError}
-			<p class="error" role="alert">{expError}</p>
-		{/if}
-
-		{#if visibleExpenses.length > 0}
-			<ul class="obligation-list" aria-label="Recurring expenses">
-				{#each visibleExpenses as exp (exp.id)}
-					<li class="obligation-row">
-						<span class="obligation-main">
-							<span class="obligation-name">{exp.name}</span>
-							<span class="obligation-meta">
-								{expFrequencyLabel(exp.frequency)} · next {formatDisplayDate(exp.next_due_at?.split('T')[0] ?? '')}
-							</span>
-						</span>
-						<span class="money obligation-amount">{formatPaiseLedger(exp.amount_paise)}</span>
+		{#if visibleObligations.length === 0 && visibleExpenses.length === 0}
+			<EmptyState heading="No recurring expenses" body="Tap + to add rent, bills, or subscriptions." />
+		{:else}
+			<ul class="recurring-list">
+				{#each visibleObligations as obl (obl.id)}
+					<li class="recurring-row" class:paid={obl.paid}>
 						<button
-							class="edit-btn"
-							onclick={() => openEditExpense(exp)}
-							disabled={expBusyId === exp.id}
-							aria-label="Edit {exp.name}"
+							class="check-btn"
+							class:checked={obl.paid}
+							onclick={() => togglePaid(obl.id, !obl.paid)}
+							disabled={busyId === obl.id}
+							aria-label={obl.paid ? `Mark ${obl.name} unpaid` : `Mark ${obl.name} paid`}
+							aria-pressed={obl.paid}
 						>
+							{#if busyId === obl.id}
+								<Spinner size={16} label="Updating" />
+							{:else if obl.paid}
+								<Check size={16} aria-hidden="true" />
+							{/if}
+						</button>
+						<span class="rec-main">
+							<span class="rec-name">{obl.name}</span>
+							<span class="rec-meta">{categoryName(obl.category_id)} · {obl.cadence}</span>
+						</span>
+						<span class="money rec-amount">{formatPaiseLedger(obl.amount_paise)}</span>
+						<button class="delete-btn" onclick={() => handleDelete(obl.id)} disabled={busyId === obl.id} aria-label="Delete {obl.name}">
+							<Trash2 size={16} aria-hidden="true" />
+						</button>
+					</li>
+				{/each}
+
+				{#each visibleExpenses as exp (exp.id)}
+					<li class="recurring-row">
+						<span class="auto-badge">Auto</span>
+						<span class="rec-main">
+							<span class="rec-name">{exp.name}</span>
+							<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · next {formatDisplayDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
+						</span>
+						<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
+						<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
 							<Edit2 size={16} aria-hidden="true" />
 						</button>
-						<button
-							class="delete-btn"
-							onclick={() => deleteExpense(exp.id)}
-							disabled={expBusyId === exp.id}
-							aria-label="Delete {exp.name}"
-						>
+						<button class="delete-btn" onclick={() => deleteExpense(exp.id)} disabled={expBusyId === exp.id} aria-label="Delete {exp.name}">
 							<Trash2 size={16} aria-hidden="true" />
 						</button>
 					</li>
 				{/each}
 			</ul>
 		{/if}
-
-		<form class="add-form" onsubmit={handleCreateExpense} novalidate>
-			<div class="field">
-				<label for="exp-name">Name</label>
-				<input
-					id="exp-name"
-					type="text"
-					placeholder="e.g. Netflix"
-					bind:value={expName}
-					maxlength="60"
-					required
-				/>
-			</div>
-
-			<div class="field">
-				<label for="exp-amount">Amount</label>
-				<div class="amount-row">
-					<span class="currency-symbol" aria-hidden="true">₹</span>
-					<input
-						id="exp-amount"
-						type="text"
-						inputmode="decimal"
-						placeholder="0"
-						value={expAmount}
-						oninput={(e) => (expAmount = formatAmountInput(e.currentTarget.value))}
-						class="money"
-						required
-					/>
-				</div>
-				{#if expAmountPaise && amountInWordsIndian(expAmountPaise)}
-					<p class="amount-words">{amountInWordsIndian(expAmountPaise)}</p>
-				{/if}
-			</div>
-
-			<div class="field">
-				<label for="exp-category">Category</label>
-				<select id="exp-category" bind:value={expCategory} required>
-					<option value="">Select a category</option>
-					{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
-						<option value={cat.id}>{cat.name}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="field">
-				<span class="field-label">Frequency</span>
-				<div class="freq-pills" role="radiogroup" aria-label="Frequency">
-					{#each FREQUENCIES as f}
-						<button
-							type="button"
-							class="freq-pill"
-							class:selected={expFrequency === f.value}
-							onclick={() => (expFrequency = f.value)}
-							aria-pressed={expFrequency === f.value}
-						>{f.label}</button>
-					{/each}
-				</div>
-			</div>
-
-			<div class="field">
-				<label for="exp-due-time">Time of day (optional)</label>
-				<input id="exp-due-time" type="time" bind:value={expDueTime} />
-				<p class="field-hint">Post the transaction at this time (IST). Leave blank to post on dashboard open.</p>
-			</div>
-
-			<div class="field">
-				<label for="exp-end-date">Expires on (optional)</label>
-				<input id="exp-end-date" type="date" bind:value={expEndDate} />
-				<p class="field-hint">Stop auto-logging after this date</p>
-			</div>
-
-			<button
-				type="submit"
-				class="submit-btn"
-				disabled={expSubmitting || !expName.trim() || !expAmountPaise || !expCategory}
-			>
-				{#if expSubmitting}<Spinner size={18} label="Adding" />{:else}Add expense{/if}
-			</button>
-		</form>
 	</section>
 
-	<!-- Recurring income: forecast only, confirmed at Harbour -->
-	<section class="income-section">
-		<h2 class="form-head">Recurring income</h2>
-		<p class="page-sub">
-			Salary and other income Keel expects each cycle. Forecast only: you confirm it at Harbour.
-		</p>
+	<!-- Income -->
+	<section class="recurring-section">
+		<h2 class="section-label">Income</h2>
 
-		{#if incError}
-			<p class="error" role="alert">{incError}</p>
-		{/if}
+		{#if incError}<p class="error" role="alert">{incError}</p>{/if}
 
-		{#if visibleIncome.length > 0}
-			<ul class="obligation-list" aria-label="Recurring income">
+		{#if visibleIncome.length === 0}
+			<EmptyState heading="No recurring income" body="Tap + to add salary or other regular income." />
+		{:else}
+			<ul class="recurring-list">
 				{#each visibleIncome as inc (inc.id)}
-					<li class="obligation-row">
-						<span class="obligation-main">
-							<span class="obligation-name">{inc.name}</span>
-							<span class="obligation-meta">
-								{anchorLabel(inc)} · next {formatDisplayDate(nextPayDate(inc))}
-							</span>
+					<li class="recurring-row">
+						<span class="rec-main">
+							<span class="rec-name">{inc.name}</span>
+							<span class="rec-meta">{anchorLabel(inc)} · next {formatDisplayDate(nextPayDate(inc))}</span>
 						</span>
-						<span class="money obligation-amount money--income"
-							>+{formatPaiseLedger(inc.amount_paise)}</span
-						>
-						<button
-							class="edit-btn"
-							onclick={() => openEditIncome(inc)}
-							disabled={incBusyId === inc.id}
-							aria-label="Edit {inc.name}"
-						>
+						<span class="money rec-amount money--income">+{formatPaiseLedger(inc.amount_paise)}</span>
+						<button class="edit-btn" onclick={() => openEditIncome(inc)} disabled={incBusyId === inc.id} aria-label="Edit {inc.name}">
 							<Edit2 size={16} aria-hidden="true" />
 						</button>
-						<button
-							class="delete-btn"
-							onclick={() => deleteIncome(inc.id)}
-							disabled={incBusyId === inc.id}
-							aria-label="Delete {inc.name}"
-						>
+						<button class="delete-btn" onclick={() => deleteIncome(inc.id)} disabled={incBusyId === inc.id} aria-label="Delete {inc.name}">
 							<Trash2 size={16} aria-hidden="true" />
 						</button>
 					</li>
 				{/each}
 			</ul>
 		{/if}
-
-		<form class="add-form" onsubmit={handleCreateIncome} novalidate>
-			<div class="field">
-				<label for="inc-name">Name</label>
-				<input
-					id="inc-name"
-					type="text"
-					placeholder="e.g. Salary"
-					bind:value={incName}
-					maxlength="60"
-					required
-				/>
-			</div>
-
-			<div class="field">
-				<label for="inc-amount">Amount</label>
-				<div class="amount-row">
-					<span class="currency-symbol" aria-hidden="true">₹</span>
-					<input
-						id="inc-amount"
-						type="text"
-						inputmode="decimal"
-						placeholder="0"
-						value={incAmount}
-						oninput={(e) => (incAmount = formatAmountInput(e.currentTarget.value))}
-						class="money"
-						required
-					/>
-				</div>
-				{#if incAmountPaise && amountInWordsIndian(incAmountPaise)}
-					<p class="amount-words">{amountInWordsIndian(incAmountPaise)}</p>
-				{/if}
-			</div>
-
-			<div class="field">
-				<label for="inc-anchor">When it arrives</label>
-				<select id="inc-anchor" bind:value={incAnchorKind}>
-					<option value="end_of_month">End of month</option>
-					<option value="start_of_month">Start of month</option>
-					<option value="day_of_month">A specific day</option>
-				</select>
-				{#if incAnchorKind === 'end_of_month'}
-					<p class="field-hint">Added on the last working day of the month, skipping weekends and bank holidays.</p>
-				{:else if incAnchorKind === 'start_of_month'}
-					<p class="field-hint">Added on the first working day of the month, skipping weekends and bank holidays.</p>
-				{:else}
-					<p class="field-hint">Added on day {incAnchorDay} of the month, or the working day before if that is a weekend or holiday.</p>
-				{/if}
-			</div>
-
-			{#if incAnchorKind === 'day_of_month'}
-				<div class="field">
-					<label for="inc-day">Day of month</label>
-					<select id="inc-day" bind:value={incAnchorDay}>
-						{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
-							<option value={d}>{d}</option>
-						{/each}
-					</select>
-				</div>
-			{/if}
-
-			<div class="field">
-				<label for="inc-category">Category</label>
-				<select id="inc-category" bind:value={incCategory}>
-					<option value="">Income</option>
-					{#each data.categories.filter((c) => c.kind === 'income' && !c.is_system) as cat}
-						<option value={cat.id}>{cat.name}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="field">
-				<label for="inc-due-time">Time of day (optional)</label>
-				<input id="inc-due-time" type="time" bind:value={incDueTime} />
-				<p class="field-hint">When income typically lands (IST). Affects sync timing.</p>
-			</div>
-
-			<div class="field">
-				<label for="inc-end-date">Expires on (optional)</label>
-				<input id="inc-end-date" type="date" bind:value={incEndDate} />
-				<p class="field-hint">Stop forecasting after this date</p>
-			</div>
-
-			<button
-				type="submit"
-				class="submit-btn"
-				disabled={incSubmitting || !incName.trim() || !incAmountPaise}
-			>
-				{#if incSubmitting}<Spinner size={18} label="Adding" />{:else}Add income{/if}
-			</button>
-		</form>
 	</section>
 </div>
 
+<!-- Add sheet -->
+{#if addSheetOpen}
+	<div class="sheet-overlay" onclick={closeAddSheet} role="dialog" aria-modal="true" aria-label="Add recurring">
+		<div class="sheet-panel" onclick={(e) => e.stopPropagation()} role="document">
+			<div class="sheet-header">
+				<h2 class="sheet-title">New recurring</h2>
+				<button class="modal-close" onclick={closeAddSheet} aria-label="Close">
+					<X size={20} aria-hidden="true" />
+				</button>
+			</div>
+
+			<!-- Type: Expense / Income -->
+			<div class="type-toggle" role="group" aria-label="Expense or income">
+				<button class="type-btn" class:active={addType === 'expense'} onclick={() => addType = 'expense'}>Expense</button>
+				<button class="type-btn" class:active={addType === 'income'} onclick={() => addType = 'income'}>Income</button>
+			</div>
+
+			{#if addType === 'expense'}
+				<!-- Sub-kind: Obligation / Auto-log -->
+				<div class="type-toggle sub-toggle" role="group" aria-label="Obligation or auto-log">
+					<button class="type-btn" class:active={addExpKind === 'obligation'} onclick={() => addExpKind = 'obligation'}>Obligation</button>
+					<button class="type-btn" class:active={addExpKind === 'auto'} onclick={() => addExpKind = 'auto'}>Auto-log</button>
+				</div>
+				<p class="kind-hint">
+					{addExpKind === 'obligation'
+						? 'You mark these paid each cycle — rent, EMIs, bills.'
+						: 'Keel posts these automatically — subscriptions, utilities.'}
+				</p>
+
+				{#if addExpKind === 'obligation'}
+					<form class="sheet-form" onsubmit={handleCreate} novalidate>
+						{#if error}<p class="error" role="alert">{error}</p>{/if}
+						<div class="field">
+							<label for="obl-name">Name</label>
+							<input id="obl-name" type="text" placeholder="e.g. Rent" bind:value={newName} maxlength="60" required />
+						</div>
+						<div class="field">
+							<label for="obl-amount">Amount</label>
+							<div class="amount-row">
+								<span class="currency-symbol" aria-hidden="true">₹</span>
+								<input id="obl-amount" type="text" inputmode="decimal" placeholder="0" value={newAmount} oninput={(e) => (newAmount = formatAmountInput(e.currentTarget.value))} class="money" required />
+							</div>
+							{#if newAmountPaise && amountInWordsIndian(newAmountPaise)}<p class="amount-words">{amountInWordsIndian(newAmountPaise)}</p>{/if}
+						</div>
+						<div class="field">
+							<label for="obl-category">Category</label>
+							<select id="obl-category" bind:value={newCategory}>
+								<option value="">Uncategorized</option>
+								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+									<option value={cat.id}>{cat.name}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="field">
+							<label for="obl-cadence">How often</label>
+							<select id="obl-cadence" bind:value={newCadence}>
+								<option value="weekly">Weekly</option>
+								<option value="fortnightly">Fortnightly</option>
+								<option value="monthly">Monthly</option>
+							</select>
+						</div>
+						<button type="submit" class="submit-btn" disabled={submitting || !newName.trim() || !newAmountPaise}>
+							{#if submitting}<Spinner size={18} label="Adding" />{:else}Add obligation{/if}
+						</button>
+					</form>
+
+				{:else}
+					<form class="sheet-form" onsubmit={handleCreateExpense} novalidate>
+						{#if expError}<p class="error" role="alert">{expError}</p>{/if}
+						<div class="field">
+							<label for="exp-name">Name</label>
+							<input id="exp-name" type="text" placeholder="e.g. Netflix" bind:value={expName} maxlength="60" required />
+						</div>
+						<div class="field">
+							<label for="exp-amount">Amount</label>
+							<div class="amount-row">
+								<span class="currency-symbol" aria-hidden="true">₹</span>
+								<input id="exp-amount" type="text" inputmode="decimal" placeholder="0" value={expAmount} oninput={(e) => (expAmount = formatAmountInput(e.currentTarget.value))} class="money" required />
+							</div>
+							{#if expAmountPaise && amountInWordsIndian(expAmountPaise)}<p class="amount-words">{amountInWordsIndian(expAmountPaise)}</p>{/if}
+						</div>
+						<div class="field">
+							<label for="exp-category">Category</label>
+							<select id="exp-category" bind:value={expCategory} required>
+								<option value="">Select a category</option>
+								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+									<option value={cat.id}>{cat.name}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="field">
+							<span class="field-label">Frequency</span>
+							<div class="freq-pills" role="radiogroup" aria-label="Frequency">
+								{#each FREQUENCIES as f}
+									<button type="button" class="freq-pill" class:selected={expFrequency === f.value} onclick={() => (expFrequency = f.value)} aria-pressed={expFrequency === f.value}>{f.label}</button>
+								{/each}
+							</div>
+						</div>
+						<div class="field">
+							<label for="exp-due-time">Time of day (optional)</label>
+							<input id="exp-due-time" type="time" bind:value={expDueTime} />
+							<p class="field-hint">Post at this time (IST). Blank = post on dashboard open.</p>
+						</div>
+						<div class="field">
+							<label for="exp-end-date">Expires on (optional)</label>
+							<input id="exp-end-date" type="date" bind:value={expEndDate} />
+							<p class="field-hint">Stop auto-logging after this date.</p>
+						</div>
+						<button type="submit" class="submit-btn" disabled={expSubmitting || !expName.trim() || !expAmountPaise || !expCategory}>
+							{#if expSubmitting}<Spinner size={18} label="Adding" />{:else}Add expense{/if}
+						</button>
+					</form>
+				{/if}
+
+			{:else}
+				<form class="sheet-form" onsubmit={handleCreateIncome} novalidate>
+					{#if incError}<p class="error" role="alert">{incError}</p>{/if}
+					<div class="field">
+						<label for="inc-name">Name</label>
+						<input id="inc-name" type="text" placeholder="e.g. Salary" bind:value={incName} maxlength="60" required />
+					</div>
+					<div class="field">
+						<label for="inc-amount">Amount</label>
+						<div class="amount-row">
+							<span class="currency-symbol" aria-hidden="true">₹</span>
+							<input id="inc-amount" type="text" inputmode="decimal" placeholder="0" value={incAmount} oninput={(e) => (incAmount = formatAmountInput(e.currentTarget.value))} class="money" required />
+						</div>
+						{#if incAmountPaise && amountInWordsIndian(incAmountPaise)}<p class="amount-words">{amountInWordsIndian(incAmountPaise)}</p>{/if}
+					</div>
+					<div class="field">
+						<label for="inc-anchor">When it arrives</label>
+						<select id="inc-anchor" bind:value={incAnchorKind}>
+							<option value="end_of_month">End of month</option>
+							<option value="start_of_month">Start of month</option>
+							<option value="day_of_month">A specific day</option>
+						</select>
+						{#if incAnchorKind === 'end_of_month'}
+							<p class="field-hint">Last working day of the month, skipping weekends and holidays.</p>
+						{:else if incAnchorKind === 'start_of_month'}
+							<p class="field-hint">First working day of the month, skipping weekends and holidays.</p>
+						{:else}
+							<p class="field-hint">Day {incAnchorDay} of the month, or the working day before if that falls on a weekend or holiday.</p>
+						{/if}
+					</div>
+					{#if incAnchorKind === 'day_of_month'}
+						<div class="field">
+							<label for="inc-day">Day of month</label>
+							<select id="inc-day" bind:value={incAnchorDay}>
+								{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+									<option value={d}>{d}</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
+					<div class="field">
+						<label for="inc-category">Category</label>
+						<select id="inc-category" bind:value={incCategory}>
+							<option value="">Income</option>
+							{#each data.categories.filter((c) => c.kind === 'income' && !c.is_system) as cat}
+								<option value={cat.id}>{cat.name}</option>
+							{/each}
+						</select>
+					</div>
+					<div class="field">
+						<label for="inc-due-time">Time of day (optional)</label>
+						<input id="inc-due-time" type="time" bind:value={incDueTime} />
+						<p class="field-hint">When income typically lands (IST). Affects sync timing.</p>
+					</div>
+					<div class="field">
+						<label for="inc-end-date">Expires on (optional)</label>
+						<input id="inc-end-date" type="date" bind:value={incEndDate} />
+						<p class="field-hint">Stop forecasting after this date.</p>
+					</div>
+					<button type="submit" class="submit-btn" disabled={incSubmitting || !incName.trim() || !incAmountPaise}>
+						{#if incSubmitting}<Spinner size={18} label="Adding" />{:else}Add income{/if}
+					</button>
+				</form>
+			{/if}
+		</div>
+	</div>
+{/if}
+
+<!-- Edit modals (unchanged) -->
 {#if editingIncId}
 	<div class="modal-overlay" onclick={() => closeEditIncome()} role="dialog" aria-modal="true" aria-label="Edit recurring income">
 		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
 			<div class="modal-header">
 				<h2 class="modal-title">Edit recurring income</h2>
-				<button class="modal-close" onclick={() => closeEditIncome()} aria-label="Close">
-					<X size={20} aria-hidden="true" />
-				</button>
+				<button class="modal-close" onclick={() => closeEditIncome()} aria-label="Close"><X size={20} aria-hidden="true" /></button>
 			</div>
-
 			<form class="modal-form" onsubmit={(e) => { e.preventDefault(); saveEditIncome(); }}>
-				{#if incError}
-					<p class="error" role="alert">{incError}</p>
-				{/if}
-
-				<div class="field">
-					<label for="edit-inc-name">Name</label>
-					<input
-						id="edit-inc-name"
-						type="text"
-						bind:value={editIncName}
-						maxlength="60"
-						required
-					/>
-				</div>
-
-				<div class="field">
-					<label for="edit-inc-amount">Amount</label>
-					<div class="amount-row">
-						<span class="currency-symbol" aria-hidden="true">₹</span>
-						<input
-							id="edit-inc-amount"
-							type="text"
-							inputmode="decimal"
-							placeholder="0"
-							value={editIncAmount}
-							oninput={(e) => (editIncAmount = formatAmountInput(e.currentTarget.value))}
-							class="money"
-						/>
-					</div>
-				</div>
-
-				<div class="field">
-					<span class="field-label">Frequency</span>
-					<div class="freq-pills" role="radiogroup" aria-label="Frequency">
-						{#each FREQUENCIES as f}
-							<button
-								type="button"
-								class="freq-pill"
-								class:selected={editIncFrequency === f.value}
-								onclick={() => (editIncFrequency = f.value)}
-								aria-pressed={editIncFrequency === f.value}
-							>{f.label}</button>
-						{/each}
-					</div>
-				</div>
-
-				<div class="field">
-					<label for="edit-inc-next-due">Next due date</label>
-					<input
-						id="edit-inc-next-due"
-						type="date"
-						bind:value={editIncNextDue}
-					/>
-					<p class="field-hint">When the next transaction should post</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-inc-due-time">Time of day (optional)</label>
-					<input id="edit-inc-due-time" type="time" bind:value={editIncDueTime} />
-					<p class="field-hint">When income lands (IST). Affects sync timing.</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-inc-end-date">End date (optional)</label>
-					<input
-						id="edit-inc-end-date"
-						type="date"
-						bind:value={editIncEndDate}
-					/>
-					<p class="field-hint">Stop creating transactions after this date</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-inc-limit">Occurrence limit (optional)</label>
-					<input
-						id="edit-inc-limit"
-						type="number"
-						inputmode="numeric"
-						placeholder="e.g. 12"
-						bind:value={editIncOccurrenceLimit}
-					/>
-					<p class="field-hint">Stop after this many transactions</p>
-				</div>
-
+				{#if incError}<p class="error" role="alert">{incError}</p>{/if}
+				<div class="field"><label for="edit-inc-name">Name</label><input id="edit-inc-name" type="text" bind:value={editIncName} maxlength="60" required /></div>
+				<div class="field"><label for="edit-inc-amount">Amount</label><div class="amount-row"><span class="currency-symbol" aria-hidden="true">₹</span><input id="edit-inc-amount" type="text" inputmode="decimal" placeholder="0" value={editIncAmount} oninput={(e) => (editIncAmount = formatAmountInput(e.currentTarget.value))} class="money" /></div></div>
+				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f}<button type="button" class="freq-pill" class:selected={editIncFrequency === f.value} onclick={() => (editIncFrequency = f.value)} aria-pressed={editIncFrequency === f.value}>{f.label}</button>{/each}</div></div>
+				<div class="field"><label for="edit-inc-next-due">Next due date</label><input id="edit-inc-next-due" type="date" bind:value={editIncNextDue} /><p class="field-hint">When the next transaction should post</p></div>
+				<div class="field"><label for="edit-inc-due-time">Time of day (optional)</label><input id="edit-inc-due-time" type="time" bind:value={editIncDueTime} /><p class="field-hint">When income lands (IST).</p></div>
+				<div class="field"><label for="edit-inc-end-date">End date (optional)</label><input id="edit-inc-end-date" type="date" bind:value={editIncEndDate} /><p class="field-hint">Stop creating transactions after this date</p></div>
+				<div class="field"><label for="edit-inc-limit">Occurrence limit (optional)</label><input id="edit-inc-limit" type="number" inputmode="numeric" placeholder="e.g. 12" bind:value={editIncOccurrenceLimit} /><p class="field-hint">Stop after this many transactions</p></div>
 				<div class="modal-actions">
 					<button type="button" class="secondary-btn" onclick={() => closeEditIncome()}>Cancel</button>
-					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>
-						{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}
-					</button>
+					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
 			</form>
 		</div>
@@ -905,103 +748,21 @@
 		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
 			<div class="modal-header">
 				<h2 class="modal-title">Edit recurring expense</h2>
-				<button class="modal-close" onclick={() => closeEditExpense()} aria-label="Close">
-					<X size={20} aria-hidden="true" />
-				</button>
+				<button class="modal-close" onclick={() => closeEditExpense()} aria-label="Close"><X size={20} aria-hidden="true" /></button>
 			</div>
-
 			<form class="modal-form" onsubmit={(e) => { e.preventDefault(); saveEditExpense(); }}>
-				{#if expError}
-					<p class="error" role="alert">{expError}</p>
-				{/if}
-
-				<div class="field">
-					<label for="edit-exp-name">Name</label>
-					<input
-						id="edit-exp-name"
-						type="text"
-						bind:value={editExpName}
-						maxlength="60"
-						required
-					/>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-amount">Amount</label>
-					<div class="amount-row">
-						<span class="currency-symbol" aria-hidden="true">₹</span>
-						<input
-							id="edit-exp-amount"
-							type="text"
-							inputmode="decimal"
-							placeholder="0"
-							value={editExpAmount}
-							oninput={(e) => (editExpAmount = formatAmountInput(e.currentTarget.value))}
-							class="money"
-						/>
-					</div>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-category">Category</label>
-					<select id="edit-exp-category" bind:value={editExpCategory}>
-						<option value="">Uncategorized</option>
-						{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
-							<option value={cat.id}>{cat.name}</option>
-						{/each}
-					</select>
-				</div>
-
-				<div class="field">
-					<span class="field-label">Frequency</span>
-					<div class="freq-pills" role="radiogroup" aria-label="Frequency">
-						{#each FREQUENCIES as f}
-							<button
-								type="button"
-								class="freq-pill"
-								class:selected={editExpFrequency === f.value}
-								onclick={() => (editExpFrequency = f.value)}
-								aria-pressed={editExpFrequency === f.value}
-							>{f.label}</button>
-						{/each}
-					</div>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-next-due">Next due date</label>
-					<input id="edit-exp-next-due" type="date" bind:value={editExpNextDue} />
-					<p class="field-hint">When the next transaction should post</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-due-time">Time of day (optional)</label>
-					<input id="edit-exp-due-time" type="time" bind:value={editExpDueTime} />
-					<p class="field-hint">Post the transaction at this time (IST).</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-end-date">End date (optional)</label>
-					<input id="edit-exp-end-date" type="date" bind:value={editExpEndDate} />
-					<p class="field-hint">Stop posting after this date</p>
-				</div>
-
-				<div class="field">
-					<label for="edit-exp-limit">Occurrence limit (optional)</label>
-					<input
-						id="edit-exp-limit"
-						type="number"
-						inputmode="numeric"
-						placeholder="e.g. 12"
-						bind:value={editExpOccurrenceLimit}
-					/>
-					<p class="field-hint">Stop after this many transactions</p>
-				</div>
-
+				{#if expError}<p class="error" role="alert">{expError}</p>{/if}
+				<div class="field"><label for="edit-exp-name">Name</label><input id="edit-exp-name" type="text" bind:value={editExpName} maxlength="60" required /></div>
+				<div class="field"><label for="edit-exp-amount">Amount</label><div class="amount-row"><span class="currency-symbol" aria-hidden="true">₹</span><input id="edit-exp-amount" type="text" inputmode="decimal" placeholder="0" value={editExpAmount} oninput={(e) => (editExpAmount = formatAmountInput(e.currentTarget.value))} class="money" /></div></div>
+				<div class="field"><label for="edit-exp-category">Category</label><select id="edit-exp-category" bind:value={editExpCategory}><option value="">Uncategorized</option>{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}<option value={cat.id}>{cat.name}</option>{/each}</select></div>
+				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f}<button type="button" class="freq-pill" class:selected={editExpFrequency === f.value} onclick={() => (editExpFrequency = f.value)} aria-pressed={editExpFrequency === f.value}>{f.label}</button>{/each}</div></div>
+				<div class="field"><label for="edit-exp-next-due">Next due date</label><input id="edit-exp-next-due" type="date" bind:value={editExpNextDue} /><p class="field-hint">When the next transaction should post</p></div>
+				<div class="field"><label for="edit-exp-due-time">Time of day (optional)</label><input id="edit-exp-due-time" type="time" bind:value={editExpDueTime} /><p class="field-hint">Post at this time (IST).</p></div>
+				<div class="field"><label for="edit-exp-end-date">End date (optional)</label><input id="edit-exp-end-date" type="date" bind:value={editExpEndDate} /><p class="field-hint">Stop posting after this date</p></div>
+				<div class="field"><label for="edit-exp-limit">Occurrence limit (optional)</label><input id="edit-exp-limit" type="number" inputmode="numeric" placeholder="e.g. 12" bind:value={editExpOccurrenceLimit} /><p class="field-hint">Stop after this many transactions</p></div>
 				<div class="modal-actions">
 					<button type="button" class="secondary-btn" onclick={() => closeEditExpense()}>Cancel</button>
-					<button type="submit" class="submit-btn" disabled={expBusyId === editingExpId || !editExpName.trim()}>
-						{#if expBusyId === editingExpId}<Spinner size={18} label="Saving" />{:else}Save{/if}
-					</button>
+					<button type="submit" class="submit-btn" disabled={expBusyId === editingExpId || !editExpName.trim()}>{#if expBusyId === editingExpId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
 			</form>
 		</div>
@@ -1023,7 +784,192 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-6);
-		padding-bottom: calc(var(--space-6) + var(--nav-height));
+		/* extra room for FAB above nav */
+		padding-bottom: calc(var(--space-6) + var(--nav-height) + 72px);
+	}
+
+	/* ── FAB ────────────────────────────────────────────────────────────────── */
+	.fab {
+		position: fixed;
+		right: var(--space-5);
+		bottom: calc(var(--nav-height) + var(--space-4));
+		width: 56px;
+		height: 56px;
+		border-radius: var(--radius-full);
+		background: var(--color-gold);
+		color: var(--color-ink);
+		border: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+		z-index: 50;
+		transition: transform var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+	}
+	.fab:hover { transform: scale(1.06); box-shadow: 0 6px 20px rgba(0,0,0,0.22); }
+	.fab:active { transform: scale(0.97); }
+
+	/* ── Add sheet ───────────────────────────────────────────────────────────── */
+	.sheet-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0,0,0,0.5);
+		display: flex;
+		align-items: flex-end;
+		z-index: 200;
+	}
+
+	.sheet-panel {
+		width: 100%;
+		max-width: 500px;
+		margin: 0 auto;
+		background: var(--color-surface);
+		border-top: 1px solid var(--color-border);
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+		padding: var(--space-5);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		max-height: 88vh;
+		overflow-y: auto;
+	}
+
+	.sheet-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+
+	.sheet-title {
+		font-size: 1.125rem;
+		font-weight: 600;
+	}
+
+	.sheet-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+
+	/* ── Type / sub-kind toggle ──────────────────────────────────────────────── */
+	.type-toggle {
+		display: flex;
+		gap: var(--space-2);
+	}
+
+	.type-btn {
+		flex: 1;
+		height: 44px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.9375rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+	}
+
+	.type-btn.active {
+		background: var(--color-gold);
+		border-color: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+	}
+
+	.sub-toggle .type-btn {
+		height: 38px;
+		font-size: 0.875rem;
+	}
+
+	.kind-hint {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		margin-top: calc(var(--space-1) * -1);
+	}
+
+	/* ── Section labels ──────────────────────────────────────────────────────── */
+	.recurring-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.section-label {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	/* ── Combined recurring list ─────────────────────────────────────────────── */
+	.recurring-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+	}
+
+	.recurring-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-4);
+		border-bottom: 1px solid var(--color-border);
+		min-height: var(--tap-target);
+	}
+
+	.recurring-row:last-child { border-bottom: none; }
+
+	.recurring-row.paid .rec-name {
+		color: var(--color-text-muted);
+		text-decoration: line-through;
+	}
+
+	.rec-main {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		min-width: 0;
+		flex: 1;
+	}
+
+	.rec-name {
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.rec-meta {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+		text-transform: capitalize;
+	}
+
+	.rec-amount {
+		flex: none;
+		font-size: 0.9375rem;
+		font-weight: 600;
+	}
+
+	.auto-badge {
+		flex: none;
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--color-text-muted);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+		white-space: nowrap;
 	}
 
 	.back-btn {
