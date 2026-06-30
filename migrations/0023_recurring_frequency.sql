@@ -1,9 +1,10 @@
 -- Add frequency tracking to recurring income. Supports daily, weekly, bi-weekly,
 -- monthly, quarterly, yearly. Transactions are auto-created on load via syncRecurringTransactions.
-ALTER TABLE recurring_income ADD COLUMN frequency TEXT NOT NULL DEFAULT 'monthly'
+-- Note: D1 doesn't support function defaults, so app code handles setting defaults.
+ALTER TABLE recurring_income ADD COLUMN frequency TEXT DEFAULT 'monthly'
   CHECK(frequency IN ('daily','weekly','bi_weekly','monthly','quarterly','yearly'));
 
-ALTER TABLE recurring_income ADD COLUMN start_date TEXT NOT NULL DEFAULT (date('now'));
+ALTER TABLE recurring_income ADD COLUMN start_date TEXT;
 
 -- end_date or occurrence_limit: null = indefinite. User can set one or both.
 ALTER TABLE recurring_income ADD COLUMN end_date TEXT;
@@ -26,9 +27,9 @@ CREATE TABLE IF NOT EXISTS recurring_expenses (
   name              TEXT NOT NULL,
   amount_paise      INTEGER NOT NULL,
   category_id       TEXT NOT NULL REFERENCES categories(id),
-  frequency         TEXT NOT NULL DEFAULT 'monthly'
+  frequency         TEXT DEFAULT 'monthly'
                       CHECK(frequency IN ('daily','weekly','bi_weekly','monthly','quarterly','yearly')),
-  start_date        TEXT NOT NULL DEFAULT (date('now')),
+  start_date        TEXT,
   end_date          TEXT,
   occurrence_limit  INTEGER,
   last_posted_at    TEXT,
