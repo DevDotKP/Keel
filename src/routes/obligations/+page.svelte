@@ -487,7 +487,6 @@
 
 				{#each visibleExpenses as exp (exp.id)}
 					<li class="recurring-row">
-						<span class="auto-badge">Auto</span>
 						<span class="rec-main">
 							<span class="rec-name">{exp.name}</span>
 							<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
@@ -495,9 +494,6 @@
 						<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
 						<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
 							<Edit2 size={16} aria-hidden="true" />
-						</button>
-						<button class="delete-btn" onclick={() => deleteExpense(exp.id)} disabled={expBusyId === exp.id} aria-label="Delete {exp.name}">
-							<Trash2 size={16} aria-hidden="true" />
 						</button>
 					</li>
 				{/each}
@@ -524,9 +520,6 @@
 						<span class="money rec-amount money--income">+{formatPaiseLedger(inc.amount_paise)}</span>
 						<button class="edit-btn" onclick={() => openEditIncome(inc)} disabled={incBusyId === inc.id} aria-label="Edit {inc.name}">
 							<Edit2 size={16} aria-hidden="true" />
-						</button>
-						<button class="delete-btn" onclick={() => deleteIncome(inc.id)} disabled={incBusyId === inc.id} aria-label="Delete {inc.name}">
-							<Trash2 size={16} aria-hidden="true" />
 						</button>
 					</li>
 				{/each}
@@ -738,6 +731,9 @@
 					<button type="button" class="secondary-btn" onclick={() => closeEditIncome()}>Cancel</button>
 					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
+				<button type="button" class="delete-link" onclick={() => { closeEditIncome(); deleteIncome(editingIncId!); }}>
+					Delete this income
+				</button>
 			</form>
 		</div>
 	</div>
@@ -764,6 +760,9 @@
 					<button type="button" class="secondary-btn" onclick={() => closeEditExpense()}>Cancel</button>
 					<button type="submit" class="submit-btn" disabled={expBusyId === editingExpId || !editExpName.trim()}>{#if expBusyId === editingExpId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
+				<button type="button" class="delete-link" onclick={() => { closeEditExpense(); deleteExpense(editingExpId!); }}>
+					Delete this expense
+				</button>
 			</form>
 		</div>
 	</div>
@@ -959,18 +958,19 @@
 		font-weight: 600;
 	}
 
-	.auto-badge {
-		flex: none;
-		font-size: 0.6875rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--color-text-muted);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm);
-		padding: 2px var(--space-2);
-		white-space: nowrap;
+	.delete-link {
+		width: 100%;
+		padding: var(--space-2) 0;
+		background: none;
+		border: none;
+		color: var(--color-clay);
+		font-size: 0.875rem;
+		cursor: pointer;
+		text-align: center;
+		opacity: 0.8;
+		transition: opacity var(--duration-fast) var(--ease-out);
 	}
+	.delete-link:hover { opacity: 1; }
 
 	.back-btn {
 		display: inline-flex;
