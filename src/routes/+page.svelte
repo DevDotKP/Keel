@@ -249,12 +249,20 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		{/if}
 
 		<!-- The breakdown: how safe-to-spend is derived. Calm, never scolding. -->
-		{#if summary && (summary.locked_obligations_paise > 0 || summary.locked_reserve_paise > 0)}
+		{#if summary && (summary.effective_budget_paise > 0 || summary.locked_obligations_paise > 0 || summary.locked_reserve_paise > 0)}
 			<section class="breakdown" aria-label="How safe to spend is calculated">
 				<div class="breakdown-row">
-					<span class="breakdown-label">Remaining this period</span>
-					<span class="money breakdown-amount">{formatPaiseLedger(summary.remaining_paise)}</span>
+					<span class="breakdown-label">
+						{summary.cycle_budget_paise > 0 ? 'Budget this cycle' : 'Income this cycle'}
+					</span>
+					<span class="money breakdown-amount">{formatPaiseLedger(summary.effective_budget_paise)}</span>
 				</div>
+				{#if Math.abs(summary.period_expense_paise) > 0}
+					<div class="breakdown-row">
+						<span class="breakdown-label">Spent so far</span>
+						<span class="money breakdown-amount muted">−{formatPaiseLedger(Math.abs(summary.period_expense_paise))}</span>
+					</div>
+				{/if}
 				{#if summary.locked_obligations_paise > 0}
 					<a class="breakdown-row breakdown-row--link" href="/obligations">
 						<span class="breakdown-label">Obligations still due</span>

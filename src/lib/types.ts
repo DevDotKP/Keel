@@ -279,11 +279,17 @@ export interface AccountSummary {
 	open_periods: number; // periods not yet harboured (>1 = amnesty needed)
 
 	// The control view: what is actually free to spend.
-	safe_to_spend_paise: number; // remaining - unpaid obligations - reserved essentials
+	safe_to_spend_paise: number; // effective_budget - spent - unpaid obligations - reserved essentials
 	locked_obligations_paise: number; // unpaid obligations due this period
 	locked_reserve_paise: number; // days_remaining * total daily reserve
 	daily_reserve_paise: number; // sum of per-category daily reserves
 	days_remaining: number; // days from today to period end (today excluded)
+
+	// Budget-anchored fields. Refreshes each cycle.
+	cycle_budget_paise: number; // set in settings (0 = none)
+	effective_budget_paise: number; // cycle_budget_paise if set, else period income
+	period_expense_paise: number; // total expenses logged this period (negative)
+	period_income_paise: number; // total income logged this period (positive)
 }
 
 export interface PeriodSummary {

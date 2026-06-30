@@ -260,6 +260,7 @@ export async function getAccountSummary(
 		open_periods: number;
 		daily_reserve_paise: number;
 		locked_obligations_paise: number;
+		cycle_budget_paise: number;
 	};
 
 	// One read-only SELECT computes everything. Reads are far cheaper than the
@@ -281,7 +282,9 @@ export async function getAccountSummary(
 		      WHERE household_id = (SELECT household_id FROM accounts WHERE id = ?1) AND deleted_at IS NULL) AS daily_reserve_paise,
 		   (SELECT COALESCE(SUM(o.amount_paise), 0) FROM obligations o
 		      WHERE o.household_id = (SELECT household_id FROM accounts WHERE id = ?1) AND o.is_active = 1 AND o.deleted_at IS NULL
-		        AND NOT EXISTS (SELECT 1 FROM obligation_settlements s WHERE s.obligation_id = o.id AND s.period_id = rp.id)) AS locked_obligations_paise
+		        AND NOT EXISTS (SELECT 1 FROM obligation_settlements s WHERE s.obligation_id = o.id AND s.period_id = rp.id)) AS locked_obligations_paise,
+		   (SELECT COALESCE(cycle_budget_paise, 0) FROM settings
+		      WHERE user_id = (SELECT household_id FROM accounts WHERE id = ?1)) AS cycle_budget_paise
 		 FROM reconciliation_periods rp
 		 WHERE rp.account_id = ?1 AND rp.period_start = ?4`;
 
@@ -335,9 +338,16 @@ export async function getAccountSummary(
 	const open_periods = row.open_periods ?? 0;
 	const daily_reserve_paise = row.daily_reserve_paise ?? 0;
 	const locked_obligations_paise = row.locked_obligations_paise ?? 0;
+	const period_income_paise = row.income ?? 0;
+	const period_expense_paise = row.expense ?? 0;
 
 	const locked_reserve_paise = daily_reserve_paise * days_remaining;
-	const safe_to_spend_paise = remaining - locked_obligations_paise - locked_reserve_paise;
+
+	// Budget-anchored safe-to-spend: each cycle starts fresh from the budget cap.
+	// Falls back to period income when no budget is set.
+	const cycle_budget_paise = row.cycle_budget_paise ?? 0;
+	const effective_budget_paise = cycle_budget_paise > 0 ? cycle_budget_paise : period_income_paise;
+	const safe_to_spend_paise = effective_budget_paise + period_expense_paise - locked_obligations_paise - locked_reserve_paise;
 
 	return {
 		balance_paise,
@@ -349,7 +359,11 @@ export async function getAccountSummary(
 		locked_obligations_paise,
 		locked_reserve_paise,
 		daily_reserve_paise,
-		days_remaining
+		days_remaining,
+		cycle_budget_paise,
+		effective_budget_paise,
+		period_expense_paise,
+		period_income_paise
 	};
 }
 
