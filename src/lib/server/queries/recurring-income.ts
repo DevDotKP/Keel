@@ -61,18 +61,22 @@ export async function createRecurringIncomeWithFrequency(
 		name: string;
 		amount_paise: number;
 		category_id?: string | null;
-		frequency: string; // 'daily' | 'weekly' | 'bi_weekly' | 'monthly' | 'quarterly' | 'yearly'
-		start_date?: string; // YYYY-MM-DD, defaults to today
-		end_date?: string | null; // YYYY-MM-DD
-		occurrence_limit?: number | null; // how many times to post
+		frequency: string;
+		start_date?: string;
+		end_date?: string | null;
+		occurrence_limit?: number | null;
+		due_time?: string | null; // HH:MM IST
 	}
 ): Promise<RecurringIncomeWithFrequency> {
 	const startDate = input.start_date || new Date().toISOString().split('T')[0];
+	const nextDueAt = input.due_time
+		? new Date(`${startDate}T${input.due_time}:00+05:30`).toISOString()
+		: startDate;
 	const row = await db
 		.prepare(
 			`INSERT INTO recurring_income
-			   (household_id, user_id, name, amount_paise, category_id, frequency, start_date, end_date, occurrence_limit, next_due_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			   (household_id, user_id, name, amount_paise, category_id, frequency, start_date, end_date, occurrence_limit, next_due_at, due_time)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 RETURNING *`
 		)
 		.bind(
@@ -85,7 +89,8 @@ export async function createRecurringIncomeWithFrequency(
 			startDate,
 			input.end_date ?? null,
 			input.occurrence_limit ?? null,
-			startDate // next_due_at starts at start_date
+			nextDueAt,
+			input.due_time ?? null
 		)
 		.first<RecurringIncomeWithFrequency>();
 	if (!row) throw new Error('Failed to create recurring income with frequency');
@@ -107,6 +112,7 @@ export async function updateRecurringIncome(
 		occurrence_limit?: number | null;
 		is_active?: boolean;
 		next_due_at?: string;
+		due_time?: string | null;
 	}
 ): Promise<RecurringIncomeWithFrequency> {
 	const setClauses: string[] = [];
@@ -147,6 +153,10 @@ export async function updateRecurringIncome(
 	if (updates.next_due_at !== undefined) {
 		setClauses.push('next_due_at = ?');
 		binds.push(updates.next_due_at);
+	}
+	if (updates.due_time !== undefined) {
+		setClauses.push('due_time = ?');
+		binds.push(updates.due_time ?? null);
 	}
 
 	if (setClauses.length === 0) throw new Error('No updates provided');

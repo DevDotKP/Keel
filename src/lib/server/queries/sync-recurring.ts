@@ -1,6 +1,17 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
 /**
+ * Build a UTC ISO string from a next-due Date and an optional IST time (HH:MM).
+ * If dueTime is null, returns the date-only string (fires at start of day UTC).
+ */
+function buildNextDueAt(nextDate: Date, dueTime: string | null): string {
+	const dateStr = nextDate.toISOString().split('T')[0]; // YYYY-MM-DD
+	if (!dueTime) return dateStr;
+	// Parse as IST (+05:30) and convert to UTC ISO
+	return new Date(`${dateStr}T${dueTime}:00+05:30`).toISOString();
+}
+
+/**
  * Calculate the next due date given a frequency and optional start date.
  * start is an ISO datetime string (e.g., '2026-06-30T14:30:00').
  * Returns an ISO datetime string for the next occurrence.
@@ -86,6 +97,7 @@ export async function syncRecurringIncome(db: D1Database, household_id: string):
 			frequency: string;
 			next_due_at: string;
 			occurrence_limit: number | null;
+			due_time: string | null;
 		}>();
 
 	if (!dueItems.results) return 0;
@@ -142,7 +154,7 @@ export async function syncRecurringIncome(db: D1Database, household_id: string):
 					 SET next_due_at = ?, last_posted_at = ?
 					 WHERE id = ?`
 				)
-				.bind(nextDue.toISOString(), now, item.id)
+				.bind(buildNextDueAt(nextDue, item.due_time), now, item.id)
 		);
 	}
 
@@ -179,6 +191,7 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 			frequency: string;
 			next_due_at: string;
 			occurrence_limit: number | null;
+			due_time: string | null;
 		}>();
 
 	if (!dueItems.results) return 0;
@@ -222,7 +235,7 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 					 SET next_due_at = ?, last_posted_at = ?
 					 WHERE id = ?`
 				)
-				.bind(nextDue.toISOString(), now, item.id)
+				.bind(buildNextDueAt(nextDue, item.due_time), now, item.id)
 		);
 	}
 

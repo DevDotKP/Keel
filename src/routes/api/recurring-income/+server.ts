@@ -19,6 +19,7 @@ const CreateSchema = z
 		start_date: z.string().optional(), // YYYY-MM-DD
 		end_date: z.string().nullable().optional(), // YYYY-MM-DD
 		occurrence_limit: z.number().int().positive().nullable().optional(),
+		due_time: z.string().nullable().optional(), // HH:MM in IST, e.g. '09:00'
 		// Legacy anchor-kind fields (for backward compat)
 		anchor_kind: z.enum(['end_of_month', 'start_of_month', 'day_of_month']).optional(),
 		anchor_day: z.number().int().min(1).max(28).nullable().optional()
@@ -61,7 +62,8 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 			frequency: body.data.frequency,
 			start_date: body.data.start_date,
 			end_date: body.data.end_date,
-			occurrence_limit: body.data.occurrence_limit
+			occurrence_limit: body.data.occurrence_limit,
+			due_time: body.data.due_time
 		});
 	} else {
 		// Legacy anchor-kind approach

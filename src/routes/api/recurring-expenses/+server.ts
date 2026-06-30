@@ -13,8 +13,9 @@ const CreateSchema = z.object({
 	category_id: z.string(),
 	frequency: z.enum(['daily', 'weekly', 'bi_weekly', 'monthly', 'bi_monthly', 'quarterly', 'half_yearly', 'yearly']),
 	start_date: z.string().optional(), // YYYY-MM-DD
-	end_date: z.string().nullable().optional(), // YYYY-MM-DD
-	occurrence_limit: z.number().int().positive().nullable().optional()
+	end_date: z.string().nullable().optional(),
+	occurrence_limit: z.number().int().positive().nullable().optional(),
+	due_time: z.string().nullable().optional()
 });
 
 export const GET: RequestHandler = async ({ platform, locals }) => {
@@ -48,7 +49,8 @@ export const POST: RequestHandler = async ({ platform, locals, request }) => {
 		frequency: body.data.frequency,
 		start_date: body.data.start_date,
 		end_date: body.data.end_date,
-		occurrence_limit: body.data.occurrence_limit
+		occurrence_limit: body.data.occurrence_limit,
+		due_time: body.data.due_time
 	});
 	return json(created, { status: 201 });
 };

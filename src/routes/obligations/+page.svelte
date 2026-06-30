@@ -110,6 +110,7 @@
 	let incAnchorDay = $state(25);
 	let incCategory = $state('');
 	let incEndDate = $state('');
+	let incDueTime = $state('');
 	let incSubmitting = $state(false);
 	let incBusyId = $state<string | null>(null);
 	let incError = $state<string | null>(null);
@@ -124,6 +125,7 @@
 	let editIncNextDue = $state('');
 	let editIncEndDate = $state('');
 	let editIncOccurrenceLimit = $state('');
+	let editIncDueTime = $state('');
 	let editIncAmountPaise = $derived(parseToPaise(editIncAmount));
 
 	// ── Recurring expenses ───────────────────────────────────────────────────
@@ -132,6 +134,7 @@
 	let expCategory = $state('');
 	let expFrequency = $state<string>('monthly');
 	let expEndDate = $state('');
+	let expDueTime = $state('');
 	let expSubmitting = $state(false);
 	let expBusyId = $state<string | null>(null);
 	let expError = $state<string | null>(null);
@@ -147,6 +150,7 @@
 	let editExpEndDate = $state('');
 	let editExpOccurrenceLimit = $state('');
 	let editExpCategory = $state('');
+	let editExpDueTime = $state('');
 	let editExpAmountPaise = $derived(parseToPaise(editExpAmount));
 
 	function openEditExpense(exp: RecurringExpense) {
@@ -158,6 +162,7 @@
 		editExpEndDate = exp.end_date || '';
 		editExpOccurrenceLimit = exp.occurrence_limit ? exp.occurrence_limit.toString() : '';
 		editExpCategory = exp.category_id || '';
+		editExpDueTime = exp.due_time || '';
 	}
 
 	function closeEditExpense() {
@@ -169,6 +174,7 @@
 		editExpEndDate = '';
 		editExpOccurrenceLimit = '';
 		editExpCategory = '';
+		editExpDueTime = '';
 	}
 
 	async function handleCreateExpense(e: Event) {
@@ -191,7 +197,8 @@
 				amount_paise: expAmountPaise,
 				category_id: expCategory,
 				frequency: expFrequency,
-				end_date: expEndDate || null
+				end_date: expEndDate || null,
+				due_time: expDueTime || null
 			})
 		});
 		expSubmitting = false;
@@ -204,6 +211,7 @@
 		expCategory = '';
 		expFrequency = 'monthly';
 		expEndDate = '';
+		expDueTime = '';
 		await invalidateAll();
 	}
 
@@ -221,7 +229,8 @@
 				frequency: editExpFrequency,
 				next_due_at: editExpNextDue || undefined,
 				end_date: editExpEndDate || null,
-				occurrence_limit: editExpOccurrenceLimit ? parseInt(editExpOccurrenceLimit, 10) : null
+				occurrence_limit: editExpOccurrenceLimit ? parseInt(editExpOccurrenceLimit, 10) : null,
+				due_time: editExpDueTime || null
 			})
 		});
 		expBusyId = null;
@@ -316,7 +325,8 @@
 				anchor_kind: incAnchorKind,
 				anchor_day: incAnchorKind === 'day_of_month' ? incAnchorDay : null,
 				category_id: incCategory || null,
-				end_date: incEndDate || null
+				end_date: incEndDate || null,
+				due_time: incDueTime || null
 			})
 		});
 		incSubmitting = false;
@@ -328,6 +338,7 @@
 		incAmount = '';
 		incCategory = '';
 		incEndDate = '';
+		incDueTime = '';
 		await invalidateAll();
 	}
 
@@ -356,6 +367,7 @@
 		editIncNextDue = inc.next_due_at?.split('T')[0] || '';
 		editIncEndDate = inc.end_date || '';
 		editIncOccurrenceLimit = inc.occurrence_limit ? inc.occurrence_limit.toString() : '';
+		editIncDueTime = inc.due_time || '';
 	}
 
 	function closeEditIncome() {
@@ -366,6 +378,7 @@
 		editIncNextDue = '';
 		editIncEndDate = '';
 		editIncOccurrenceLimit = '';
+		editIncDueTime = '';
 	}
 
 	async function saveEditIncome() {
@@ -381,7 +394,8 @@
 				frequency: editIncFrequency,
 				next_due_at: editIncNextDue || undefined,
 				end_date: editIncEndDate || null,
-				occurrence_limit: editIncOccurrenceLimit ? parseInt(editIncOccurrenceLimit, 10) : null
+				occurrence_limit: editIncOccurrenceLimit ? parseInt(editIncOccurrenceLimit, 10) : null,
+				due_time: editIncDueTime || null
 			})
 		});
 		incBusyId = null;
@@ -621,6 +635,12 @@
 			</div>
 
 			<div class="field">
+				<label for="exp-due-time">Time of day (optional)</label>
+				<input id="exp-due-time" type="time" bind:value={expDueTime} />
+				<p class="field-hint">Post the transaction at this time (IST). Leave blank to post on dashboard open.</p>
+			</div>
+
+			<div class="field">
 				<label for="exp-end-date">Expires on (optional)</label>
 				<input id="exp-end-date" type="date" bind:value={expEndDate} />
 				<p class="field-hint">Stop auto-logging after this date</p>
@@ -752,6 +772,12 @@
 			</div>
 
 			<div class="field">
+				<label for="inc-due-time">Time of day (optional)</label>
+				<input id="inc-due-time" type="time" bind:value={incDueTime} />
+				<p class="field-hint">When income typically lands (IST). Affects sync timing.</p>
+			</div>
+
+			<div class="field">
 				<label for="inc-end-date">Expires on (optional)</label>
 				<input id="inc-end-date" type="date" bind:value={incEndDate} />
 				<p class="field-hint">Stop forecasting after this date</p>
@@ -833,6 +859,12 @@
 						bind:value={editIncNextDue}
 					/>
 					<p class="field-hint">When the next transaction should post</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-due-time">Time of day (optional)</label>
+					<input id="edit-inc-due-time" type="time" bind:value={editIncDueTime} />
+					<p class="field-hint">When income lands (IST). Affects sync timing.</p>
 				</div>
 
 				<div class="field">
@@ -939,6 +971,12 @@
 					<label for="edit-exp-next-due">Next due date</label>
 					<input id="edit-exp-next-due" type="date" bind:value={editExpNextDue} />
 					<p class="field-hint">When the next transaction should post</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-due-time">Time of day (optional)</label>
+					<input id="edit-exp-due-time" type="time" bind:value={editExpDueTime} />
+					<p class="field-hint">Post the transaction at this time (IST).</p>
 				</div>
 
 				<div class="field">

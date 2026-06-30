@@ -21,7 +21,8 @@ const PatchSchema = z.object({
 	end_date: z.string().nullable().optional(),
 	occurrence_limit: z.number().int().positive().nullable().optional(),
 	is_active: z.boolean().optional(),
-	next_due_at: z.string().optional()
+	next_due_at: z.string().optional(),
+	due_time: z.string().nullable().optional()
 });
 
 export const PATCH: RequestHandler = async ({ platform, locals, params, request }) => {

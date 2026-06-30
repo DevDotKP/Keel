@@ -172,6 +172,7 @@ export interface RecurringIncome {
 	occurrence_limit: number | null;
 	last_posted_at: string | null;
 	next_due_at: string | null;
+	due_time: string | null;
 	is_active: 0 | 1;
 	created_at: string;
 	deleted_at: string | null;
