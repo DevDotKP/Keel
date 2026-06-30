@@ -5,6 +5,7 @@ import { getAccountSummary, getRunway } from '$lib/server/queries/periods';
 import { listTransactions } from '$lib/server/queries/transactions';
 import { listCategories } from '$lib/server/queries/categories';
 import { getDefaultAccount } from '$lib/server/queries/accounts';
+import { syncAllRecurring } from '$lib/server/queries/sync-recurring';
 import type { HarbourCadence } from '$lib/types';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
@@ -68,6 +69,11 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		if (m.display_name) memberNames[m.id] = m.display_name;
 		if (m.avatar) memberAvatars[m.id] = m.avatar;
 	}
+
+	// Sync recurring transactions in the background (don't block render).
+	syncAllRecurring(db, hid).catch(() => {
+		// Silent fail: recurring sync errors don't break the dashboard.
+	});
 
 	// Return promises — the page shell renders immediately while D1 responds.
 	return {
