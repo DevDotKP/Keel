@@ -26,11 +26,15 @@ vite.config.ts.timestamp-*
 # Playwright
 test-results
 
+# Marketing capture output (binaries stay local; scripts are tracked)
+marketing/assets/
+
 # Private docs (stay local only)
 CLAUDE.md
 LAUNCH.md
 style.md
 antistyle.md
+KEEL_CASE_STUDY.md
 
 # Local Claude tooling and settings (stay local only)
 .claude/
