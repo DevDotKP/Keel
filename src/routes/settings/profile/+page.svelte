@@ -231,7 +231,11 @@
 	<button class="sign-out-btn" onclick={handleSignOut}>Sign out</button>
 
 	<div class="danger-zone">
-		<p class="danger-label">Danger zone</p>
+		<div class="danger-zone-header">
+			<span class="danger-icon" aria-hidden="true">⚠</span>
+			<p class="danger-label">Danger zone</p>
+		</div>
+		<p class="danger-body">Actions here are permanent and cannot be undone.</p>
 		<button
 			class="delete-trigger"
 			onclick={() => { deleteConfirmOpen = true; deleteConfirmText = ''; }}
@@ -475,20 +479,23 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		height: 48px;
+		height: 52px;
 		width: 100%;
-		background: transparent;
-		border: 1px solid var(--color-border);
+		background: var(--color-surface-subtle);
+		border: 1.5px solid var(--color-border);
 		border-radius: var(--radius-md);
-		font-size: 0.9375rem;
-		font-weight: 600;
+		font-size: 1rem;
+		font-weight: 700;
 		color: var(--color-text);
 		cursor: pointer;
 		font-family: inherit;
-		transition: border-color var(--duration-fast) var(--ease-out);
+		transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
 	}
 
-	.sign-out-btn:hover { border-color: var(--color-text-subtle); }
+	.sign-out-btn:hover {
+		background: var(--color-surface);
+		border-color: var(--color-text-subtle);
+	}
 
 	/* Crop dialog */
 	.crop-backdrop {
@@ -564,40 +571,59 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
-		padding-top: var(--space-6);
-		border-top: 1px solid var(--color-border);
-		margin-top: var(--space-4);
+		padding: var(--space-4) var(--space-5);
+		border: 2px solid var(--color-clay);
+		border-radius: var(--radius-md);
+		background: color-mix(in srgb, var(--color-clay) 6%, transparent);
+		margin-top: var(--space-2);
+	}
+
+	.danger-zone-header {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.danger-icon {
+		font-size: 1rem;
+		color: var(--color-clay);
+		line-height: 1;
 	}
 
 	.danger-label {
 		font-size: 0.75rem;
-		font-weight: 600;
+		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: var(--color-text-subtle);
+		letter-spacing: 0.1em;
+		color: var(--color-clay);
+		margin: 0;
+	}
+
+	.danger-body {
+		font-size: 0.875rem;
+		color: var(--color-clay);
+		margin: 0;
+		opacity: 0.85;
 	}
 
 	.delete-trigger {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		height: 48px;
+		height: 52px;
 		width: 100%;
-		background: transparent;
-		border: 1px solid color-mix(in srgb, var(--color-clay) 40%, transparent);
+		background: var(--color-clay);
+		border: none;
 		border-radius: var(--radius-md);
-		font-size: 0.9375rem;
-		font-weight: 600;
-		color: var(--color-clay);
+		font-size: 1rem;
+		font-weight: 700;
+		color: #fff;
 		cursor: pointer;
 		font-family: inherit;
-		transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+		transition: opacity var(--duration-fast) var(--ease-out);
 	}
 
-	.delete-trigger:hover {
-		background: color-mix(in srgb, var(--color-clay) 8%, transparent);
-		border-color: var(--color-clay);
-	}
+	.delete-trigger:hover { opacity: 0.88; }
 
 	/* Delete confirmation modal */
 	.delete-backdrop {
