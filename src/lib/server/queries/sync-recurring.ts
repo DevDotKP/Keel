@@ -19,21 +19,16 @@ function nextDueDate(frequency: string, from: Date): Date {
 			next.setDate(next.getDate() + 14);
 			break;
 		case 'monthly': {
-			const month = next.getMonth();
-			const year = next.getFullYear();
-			next.setMonth(month + 1);
+			const day = next.getDate();
+			next.setMonth(next.getMonth() + 1);
 			// Handle month-end overflow (e.g., Jan 31 → Feb 28/29)
-			if (next.getMonth() === (month + 2) % 12) {
-				next.setDate(0);
+			if (next.getDate() !== day) {
+				next.setDate(0); // Last day of prev month if overflow
 			}
 			break;
 		}
 		case 'quarterly':
 			next.setMonth(next.getMonth() + 3);
-			if (next.getMonth() === next.getMonth()) {
-				// Handle overflow (rare but possible)
-				next.setDate(0);
-			}
 			break;
 		case 'yearly':
 			next.setFullYear(next.getFullYear() + 1);
@@ -65,23 +60,16 @@ function isExpired(
 export async function syncRecurringIncome(db: D1Database, household_id: string): Promise<number> {
 	const now = new Date().toISOString();
 
-	// Find all active recurring income items that are:
-	// 1. Not deleted
-	// 2. Have next_due_at <= now
-	// 3. Within their end_date (if set)
-	// 4. Within their occurrence_limit (if set)
+	// Find all active recurring income items that are due
 	const dueItems = await db
 		.prepare(
-			`SELECT ri.*,
-				(SELECT COUNT(*) FROM transactions
-				 WHERE recurring_source = 'income:' || ri.id) AS occurrence_count
+			`SELECT ri.*
 			 FROM recurring_income ri
 			 WHERE ri.household_id = ?
 			   AND ri.deleted_at IS NULL
 			   AND ri.is_active = 1
 			   AND ri.next_due_at <= ?
-			   AND (ri.end_date IS NULL OR ri.end_date > date('now'))
-			   AND (ri.occurrence_limit IS NULL OR occurrence_count < ri.occurrence_limit)`
+			   AND (ri.end_date IS NULL OR ri.end_date > date('now'))`
 		)
 		.bind(household_id, now)
 		.all<{
@@ -91,7 +79,7 @@ export async function syncRecurringIncome(db: D1Database, household_id: string):
 			category_id: string | null;
 			frequency: string;
 			next_due_at: string;
-			occurrence_count: number;
+			occurrence_limit: number | null;
 		}>();
 
 	if (!dueItems.results) return 0;
@@ -99,6 +87,15 @@ export async function syncRecurringIncome(db: D1Database, household_id: string):
 	const writes: Array<ReturnType<D1Database['prepare']>> = [];
 
 	for (const item of dueItems.results) {
+		// Check if this item has reached its occurrence limit
+		if (item.occurrence_limit !== null) {
+			const countRow = await db
+				.prepare(`SELECT COUNT(*) as cnt FROM transactions WHERE recurring_source = ?`)
+				.bind(`income:${item.id}`)
+				.first<{ cnt: number}>();
+			if ((countRow?.cnt ?? 0) >= item.occurrence_limit) continue;
+		}
+
 		// Get the default income category if not set
 		const categoryId =
 			item.category_id ??
@@ -147,7 +144,7 @@ export async function syncRecurringIncome(db: D1Database, household_id: string):
 
 	// Execute all writes as a batch
 	await db.batch(writes);
-	return dueItems.results.length;
+	return writes.length / 2; // Each item = 2 writes (insert + update)
 }
 
 /**
@@ -158,16 +155,13 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 
 	const dueItems = await db
 		.prepare(
-			`SELECT re.*,
-				(SELECT COUNT(*) FROM transactions
-				 WHERE recurring_source = 'expense:' || re.id) AS occurrence_count
+			`SELECT re.*
 			 FROM recurring_expenses re
 			 WHERE re.household_id = ?
 			   AND re.deleted_at IS NULL
 			   AND re.is_active = 1
 			   AND re.next_due_at <= ?
-			   AND (re.end_date IS NULL OR re.end_date > date('now'))
-			   AND (re.occurrence_limit IS NULL OR occurrence_count < re.occurrence_limit)`
+			   AND (re.end_date IS NULL OR re.end_date > date('now'))`
 		)
 		.bind(household_id, now)
 		.all<{
@@ -178,7 +172,7 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 			category_id: string;
 			frequency: string;
 			next_due_at: string;
-			occurrence_count: number;
+			occurrence_limit: number | null;
 		}>();
 
 	if (!dueItems.results) return 0;
@@ -186,6 +180,15 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 	const writes: Array<ReturnType<D1Database['prepare']>> = [];
 
 	for (const item of dueItems.results) {
+		// Check if this item has reached its occurrence limit
+		if (item.occurrence_limit !== null) {
+			const countRow = await db
+				.prepare(`SELECT COUNT(*) as cnt FROM transactions WHERE recurring_source = ?`)
+				.bind(`expense:${item.id}`)
+				.first<{ cnt: number }>();
+			if ((countRow?.cnt ?? 0) >= item.occurrence_limit) continue;
+		}
+
 		const accountRow = await db
 			.prepare(`SELECT id FROM accounts WHERE id = ? AND deleted_at IS NULL`)
 			.bind(item.account_id)
@@ -220,7 +223,7 @@ export async function syncRecurringExpenses(db: D1Database, household_id: string
 	if (writes.length === 0) return 0;
 
 	await db.batch(writes);
-	return dueItems.results.length;
+	return writes.length / 2; // Each item = 2 writes (insert + update)
 }
 
 /**
