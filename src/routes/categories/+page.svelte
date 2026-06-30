@@ -96,6 +96,11 @@
 		patchCategory(cat.id, { daily_reserve_paise: paise });
 	}
 
+	function setBudget(cat: Category, value: string) {
+		const paise = parseToPaise(value) ?? 0;
+		patchCategory(cat.id, { budget_paise: paise });
+	}
+
 	let confirmState = $state<{ message: string; run: () => void } | null>(null);
 
 	function handleDelete(id: string) {
@@ -285,28 +290,42 @@
 
 		{#if !cat.is_system}
 			{#if isExpense}
-				<button
-					class="bucket-chip"
-					class:committed={cat.bucket === 'committed'}
-					onclick={() => toggleBucket(cat)}
-					disabled={busyId === cat.id}
-					aria-label="Toggle type for {cat.name}, currently {cat.bucket}"
-				>
-					{cat.bucket}
-				</button>
+				<div class="cat-controls">
+					<button
+						class="bucket-chip"
+						class:committed={cat.bucket === 'committed'}
+						onclick={() => toggleBucket(cat)}
+						disabled={busyId === cat.id}
+						aria-label="Toggle type for {cat.name}, currently {cat.bucket}"
+					>
+						{cat.bucket}
+					</button>
 
-				{#if cat.bucket === 'committed'}
+					{#if cat.bucket === 'committed'}
+						<input
+							type="text"
+							inputmode="decimal"
+							class="reserve-input money"
+							placeholder="₹/day"
+							value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
+							onchange={(e) => setReserve(cat, e.currentTarget.value)}
+							disabled={busyId === cat.id}
+							aria-label="Daily reserve for {cat.name}"
+						/>
+					{/if}
+
 					<input
 						type="text"
 						inputmode="decimal"
-						class="reserve-input money"
-						placeholder="₹/day"
-						value={cat.daily_reserve_paise ? (cat.daily_reserve_paise / 100).toString() : ''}
-						onchange={(e) => setReserve(cat, e.currentTarget.value)}
+						class="budget-input money"
+						placeholder="₹ budget"
+						value={cat.budget_paise ? (cat.budget_paise / 100).toString() : ''}
+						onchange={(e) => setBudget(cat, e.currentTarget.value)}
 						disabled={busyId === cat.id}
-						aria-label="Daily reserve for {cat.name}"
+						aria-label="Budget for {cat.name}"
+						title="Budget limit for this cycle"
 					/>
-				{/if}
+				</div>
 			{/if}
 
 			<button
@@ -425,7 +444,15 @@
 		opacity: 0.5;
 	}
 
-	.reserve-input {
+	.cat-controls {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+
+	.reserve-input,
+	.budget-input {
 		width: 72px;
 		height: 32px;
 		padding: 0 var(--space-2);
@@ -436,9 +463,14 @@
 		color: var(--color-text);
 	}
 
-	.reserve-input:focus {
+	.reserve-input:focus,
+	.budget-input:focus {
 		outline: none;
 		border-color: var(--color-gold);
+	}
+
+	.budget-input {
+		min-width: 80px;
 	}
 
 	.system-tag {

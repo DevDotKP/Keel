@@ -327,7 +327,7 @@
 	<section class="settings-section" aria-label="Manage">
 		<h2 class="section-head">Manage</h2>
 		<nav class="manage-links" aria-label="Manage">
-			<MenuLink href="/categories" title="Categories" sub="Spending categories, budgets, colours">
+			<MenuLink href="/categories" title="Budget and categories" sub="Set spending limits, manage categories, pick colours">
 				{#snippet icon()}<Tags size={20} />{/snippet}
 			</MenuLink>
 			<MenuLink href="/obligations" title="Recurring &amp; income" sub="Rent, bills, EMIs, and recurring income">
