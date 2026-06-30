@@ -8,11 +8,27 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	setHeaders({ 'cache-control': 'private, no-cache' });
 	const rdb = getReadDb(platform);
 	const hid = locals.householdId ?? locals.userId!;
-	const [tree, categories] = await Promise.all([
+	const [tree, categories, settingsRow, incomeRow] = await Promise.all([
 		listCategoryTree(rdb, hid),
-		listCategories(rdb, hid)
+		listCategories(rdb, hid),
+		rdb
+			.prepare('SELECT cycle_budget_paise FROM settings WHERE user_id = ?')
+			.bind(locals.userId)
+			.first<{ cycle_budget_paise: number | null }>(),
+		rdb
+			.prepare(
+				`SELECT COALESCE(SUM(amount_paise), 0) AS total
+				 FROM recurring_income
+				 WHERE household_id = ? AND deleted_at IS NULL AND is_active = 1`
+			)
+			.bind(hid)
+			.first<{ total: number }>()
 	]);
-	// Top-level, non-system spending categories can be parents for new subcategories.
 	const parents = categories.filter((c) => !c.parent_id && !c.is_system && c.kind === 'expense');
-	return { tree, parents };
+	return {
+		tree,
+		parents,
+		cycleBudgetPaise: settingsRow?.cycle_budget_paise ?? 0,
+		recurringIncomeTotalPaise: incomeRow?.total ?? 0
+	};
 };

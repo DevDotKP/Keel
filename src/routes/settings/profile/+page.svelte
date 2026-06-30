@@ -232,8 +232,11 @@
 
 	<div class="danger-zone">
 		<p class="danger-label">Danger zone</p>
-		<button class="delete-trigger" onclick={() => { deleteConfirmOpen = true; deleteConfirmText = ''; }}>
-			Delete my account and data
+		<button
+			class="delete-trigger"
+			onclick={() => { deleteConfirmOpen = true; deleteConfirmText = ''; }}
+		>
+			Delete my account and all data
 		</button>
 	</div>
 </div>
@@ -469,22 +472,23 @@
 	.link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 	.sign-out-btn {
-		align-self: flex-start;
-		background: none;
-		border: none;
-		padding: 0;
-		font-size: 0.9375rem;
-		font-weight: 500;
-		color: var(--color-clay);
-		cursor: pointer;
-		font-family: inherit;
-		text-underline-offset: 3px;
-		min-height: var(--tap-target);
 		display: flex;
 		align-items: center;
+		justify-content: center;
+		height: 48px;
+		width: 100%;
+		background: transparent;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
+		cursor: pointer;
+		font-family: inherit;
+		transition: border-color var(--duration-fast) var(--ease-out);
 	}
 
-	.sign-out-btn:hover { text-decoration: underline; }
+	.sign-out-btn:hover { border-color: var(--color-text-subtle); }
 
 	/* Crop dialog */
 	.crop-backdrop {
@@ -574,19 +578,25 @@
 	}
 
 	.delete-trigger {
-		background: none;
-		border: none;
-		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 48px;
+		width: 100%;
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--color-clay) 40%, transparent);
+		border-radius: var(--radius-md);
 		font-size: 0.9375rem;
+		font-weight: 600;
 		color: var(--color-clay);
 		cursor: pointer;
 		font-family: inherit;
-		text-align: left;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-		min-height: var(--tap-target);
-		display: flex;
-		align-items: center;
+		transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+	}
+
+	.delete-trigger:hover {
+		background: color-mix(in srgb, var(--color-clay) 8%, transparent);
+		border-color: var(--color-clay);
 	}
 
 	/* Delete confirmation modal */

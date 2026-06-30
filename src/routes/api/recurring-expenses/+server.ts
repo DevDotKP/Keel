@@ -11,7 +11,7 @@ const CreateSchema = z.object({
 	name: z.string().min(1).max(60),
 	amount_paise: z.number().int().positive(),
 	category_id: z.string(),
-	frequency: z.enum(['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'yearly']),
+	frequency: z.enum(['daily', 'weekly', 'bi_weekly', 'monthly', 'bi_monthly', 'quarterly', 'half_yearly', 'yearly']),
 	start_date: z.string().optional(), // YYYY-MM-DD
 	end_date: z.string().nullable().optional(), // YYYY-MM-DD
 	occurrence_limit: z.number().int().positive().nullable().optional()

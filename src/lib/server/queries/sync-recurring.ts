@@ -27,14 +27,20 @@ function nextDueDate(frequency: string, from: Date): Date {
 			}
 			break;
 		}
+		case 'bi_monthly':
+			next.setMonth(next.getMonth() + 2);
+			break;
 		case 'quarterly':
 			next.setMonth(next.getMonth() + 3);
+			break;
+		case 'half_yearly':
+			next.setMonth(next.getMonth() + 6);
 			break;
 		case 'yearly':
 			next.setFullYear(next.getFullYear() + 1);
 			break;
 		default:
-			next.setDate(next.getDate() + 1); // fallback: daily
+			next.setMonth(next.getMonth() + 1); // fallback: monthly
 	}
 
 	return next;

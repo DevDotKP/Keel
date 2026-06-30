@@ -4,7 +4,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
-	import { formatPaiseLedger, parseToPaise } from '$lib/utils/money';
+	import { formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import type { PageData } from './$types';
 	import type { Category, CategoryBucket, CategoryKind } from '$lib/types';
 
@@ -20,6 +20,40 @@
 	let submitting = $state(false);
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
+
+	// Overall cycle budget
+	let budgetInput = $state(
+		data.cycleBudgetPaise > 0 ? (data.cycleBudgetPaise / 100).toString() : ''
+	);
+	let budgetSaving = $state(false);
+	let budgetSaved = $state(false);
+	let budgetError = $state<string | null>(null);
+
+	let suggestedBudgetPaise = $derived(data.recurringIncomeTotalPaise);
+	let hasSuggestion = $derived(suggestedBudgetPaise > 0 && data.cycleBudgetPaise === 0);
+
+	async function saveCycleBudget() {
+		const paise = parseToPaise(budgetInput) ?? 0;
+		budgetSaving = true;
+		budgetError = null;
+		const res = await fetch('/api/settings', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ cycle_budget_paise: paise })
+		});
+		budgetSaving = false;
+		if (!res.ok) {
+			budgetError = 'Could not save. Try again.';
+			return;
+		}
+		budgetSaved = true;
+		setTimeout(() => (budgetSaved = false), 2000);
+		await invalidateAll();
+	}
+
+	function applySuggestion() {
+		budgetInput = (suggestedBudgetPaise / 100).toString();
+	}
 
 	// Spending tree and income categories shown as separate sections.
 	let spendingTree = $derived(data.tree.filter((t) => t.kind === 'expense'));
@@ -137,6 +171,48 @@
 	{#if error}
 		<p class="error" role="alert">{error}</p>
 	{/if}
+
+	<!-- Overall cycle budget -->
+	<section class="budget-section">
+		<div class="budget-header">
+			<h2 class="group-head" style="margin:0">Overall budget</h2>
+			{#if hasSuggestion && !budgetInput}
+				<button type="button" class="suggestion-chip" onclick={applySuggestion}>
+					Use income total · {formatPaiseLedger(suggestedBudgetPaise)}
+				</button>
+			{/if}
+		</div>
+		<p class="page-sub">Cap your total spending for the cycle. Shows in Harbour and on the dashboard.</p>
+		{#if budgetError}
+			<p class="error" role="alert">{budgetError}</p>
+		{/if}
+		<div class="budget-row">
+			<span class="currency-symbol" aria-hidden="true">₹</span>
+			<input
+				type="text"
+				inputmode="decimal"
+				class="budget-field money"
+				placeholder="0 — no limit"
+				value={budgetInput}
+				oninput={(e) => (budgetInput = formatAmountInput(e.currentTarget.value))}
+				aria-label="Overall cycle budget"
+			/>
+			<button
+				type="button"
+				class="save-budget-btn"
+				onclick={saveCycleBudget}
+				disabled={budgetSaving}
+			>
+				{#if budgetSaving}
+					<Spinner size={16} />
+				{:else if budgetSaved}
+					Saved
+				{:else}
+					Save
+				{/if}
+			</button>
+		</div>
+	</section>
 
 	<h2 class="group-head">Spending</h2>
 	{#each spendingTree as top (top.id)}
@@ -647,5 +723,80 @@
 	/* room for the global select chevron */
 	.field select {
 		padding-right: var(--space-8);
+	}
+
+	.budget-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4) var(--space-5);
+		background: var(--color-surface-subtle);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.budget-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+	}
+
+	.budget-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.budget-field {
+		flex: 1;
+		height: 44px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1rem;
+		color: var(--color-text);
+	}
+
+	.budget-field:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	.save-budget-btn {
+		flex: none;
+		height: 44px;
+		padding: 0 var(--space-4);
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-size: 0.9375rem;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.save-budget-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+	.suggestion-chip {
+		flex: none;
+		padding: var(--space-1) var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-full);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.8125rem;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.suggestion-chip:hover {
+		border-color: var(--color-gold);
+		color: var(--color-text);
 	}
 </style>

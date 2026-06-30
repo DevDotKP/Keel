@@ -109,6 +109,7 @@
 	let incAnchorKind = $state<SalaryAnchorKind>('end_of_month');
 	let incAnchorDay = $state(25);
 	let incCategory = $state('');
+	let incEndDate = $state('');
 	let incSubmitting = $state(false);
 	let incBusyId = $state<string | null>(null);
 	let incError = $state<string | null>(null);
@@ -130,6 +131,7 @@
 	let expAmount = $state('');
 	let expCategory = $state('');
 	let expFrequency = $state<string>('monthly');
+	let expEndDate = $state('');
 	let expSubmitting = $state(false);
 	let expBusyId = $state<string | null>(null);
 	let expError = $state<string | null>(null);
@@ -188,7 +190,8 @@
 				name: expName.trim(),
 				amount_paise: expAmountPaise,
 				category_id: expCategory,
-				frequency: expFrequency
+				frequency: expFrequency,
+				end_date: expEndDate || null
 			})
 		});
 		expSubmitting = false;
@@ -200,6 +203,7 @@
 		expAmount = '';
 		expCategory = '';
 		expFrequency = 'monthly';
+		expEndDate = '';
 		await invalidateAll();
 	}
 
@@ -246,16 +250,19 @@
 		}
 	}
 
+	const FREQUENCIES: { value: string; label: string }[] = [
+		{ value: 'weekly', label: 'Weekly' },
+		{ value: 'bi_weekly', label: 'Fortnightly' },
+		{ value: 'monthly', label: 'Monthly' },
+		{ value: 'bi_monthly', label: 'Bi-monthly' },
+		{ value: 'quarterly', label: 'Quarterly' },
+		{ value: 'half_yearly', label: 'Half-yearly' },
+		{ value: 'yearly', label: 'Annually' },
+		{ value: 'daily', label: 'Daily' }
+	];
+
 	function expFrequencyLabel(freq: string): string {
-		const map: Record<string, string> = {
-			daily: 'Daily',
-			weekly: 'Weekly',
-			bi_weekly: 'Bi-weekly',
-			monthly: 'Monthly',
-			quarterly: 'Quarterly',
-			yearly: 'Yearly'
-		};
-		return map[freq] ?? freq;
+		return FREQUENCIES.find((f) => f.value === freq)?.label ?? freq;
 	}
 
 	function toAnchor(inc: RecurringIncome): SalaryAnchor {
@@ -308,7 +315,8 @@
 				amount_paise: incAmountPaise,
 				anchor_kind: incAnchorKind,
 				anchor_day: incAnchorKind === 'day_of_month' ? incAnchorDay : null,
-				category_id: incCategory || null
+				category_id: incCategory || null,
+				end_date: incEndDate || null
 			})
 		});
 		incSubmitting = false;
@@ -319,6 +327,7 @@
 		incName = '';
 		incAmount = '';
 		incCategory = '';
+		incEndDate = '';
 		await invalidateAll();
 	}
 
@@ -597,15 +606,24 @@
 			</div>
 
 			<div class="field">
-				<label for="exp-frequency">Frequency</label>
-				<select id="exp-frequency" bind:value={expFrequency}>
-					<option value="daily">Daily</option>
-					<option value="weekly">Weekly</option>
-					<option value="bi_weekly">Bi-weekly</option>
-					<option value="monthly">Monthly</option>
-					<option value="quarterly">Quarterly</option>
-					<option value="yearly">Yearly</option>
-				</select>
+				<span class="field-label">Frequency</span>
+				<div class="freq-pills" role="radiogroup" aria-label="Frequency">
+					{#each FREQUENCIES as f}
+						<button
+							type="button"
+							class="freq-pill"
+							class:selected={expFrequency === f.value}
+							onclick={() => (expFrequency = f.value)}
+							aria-pressed={expFrequency === f.value}
+						>{f.label}</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="field">
+				<label for="exp-end-date">Expires on (optional)</label>
+				<input id="exp-end-date" type="date" bind:value={expEndDate} />
+				<p class="field-hint">Stop auto-logging after this date</p>
 			</div>
 
 			<button
@@ -733,6 +751,12 @@
 				</select>
 			</div>
 
+			<div class="field">
+				<label for="inc-end-date">Expires on (optional)</label>
+				<input id="inc-end-date" type="date" bind:value={incEndDate} />
+				<p class="field-hint">Stop forecasting after this date</p>
+			</div>
+
 			<button
 				type="submit"
 				class="submit-btn"
@@ -787,15 +811,18 @@
 				</div>
 
 				<div class="field">
-					<label for="edit-inc-freq">Frequency</label>
-					<select id="edit-inc-freq" bind:value={editIncFrequency}>
-						<option value="daily">Daily</option>
-						<option value="weekly">Weekly</option>
-						<option value="bi_weekly">Bi-weekly</option>
-						<option value="monthly">Monthly</option>
-						<option value="quarterly">Quarterly</option>
-						<option value="yearly">Yearly</option>
-					</select>
+					<span class="field-label">Frequency</span>
+					<div class="freq-pills" role="radiogroup" aria-label="Frequency">
+						{#each FREQUENCIES as f}
+							<button
+								type="button"
+								class="freq-pill"
+								class:selected={editIncFrequency === f.value}
+								onclick={() => (editIncFrequency = f.value)}
+								aria-pressed={editIncFrequency === f.value}
+							>{f.label}</button>
+						{/each}
+					</div>
 				</div>
 
 				<div class="field">
@@ -894,15 +921,18 @@
 				</div>
 
 				<div class="field">
-					<label for="edit-exp-freq">Frequency</label>
-					<select id="edit-exp-freq" bind:value={editExpFrequency}>
-						<option value="daily">Daily</option>
-						<option value="weekly">Weekly</option>
-						<option value="bi_weekly">Bi-weekly</option>
-						<option value="monthly">Monthly</option>
-						<option value="quarterly">Quarterly</option>
-						<option value="yearly">Yearly</option>
-					</select>
+					<span class="field-label">Frequency</span>
+					<div class="freq-pills" role="radiogroup" aria-label="Frequency">
+						{#each FREQUENCIES as f}
+							<button
+								type="button"
+								class="freq-pill"
+								class:selected={editExpFrequency === f.value}
+								onclick={() => (editExpFrequency = f.value)}
+								aria-pressed={editExpFrequency === f.value}
+							>{f.label}</button>
+						{/each}
+					</div>
 				</div>
 
 				<div class="field">
@@ -1326,4 +1356,43 @@
 
 	.secondary-btn:hover { border-color: var(--color-text-subtle); }
 	.secondary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+	.freq-pills {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+
+	.freq-pill {
+		padding: var(--space-2) var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-full);
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.875rem;
+		cursor: pointer;
+		white-space: nowrap;
+		transition:
+			background var(--duration-fast) var(--ease-out),
+			border-color var(--duration-fast) var(--ease-out),
+			color var(--duration-fast) var(--ease-out);
+	}
+
+	.freq-pill:hover {
+		border-color: var(--color-text-subtle);
+		color: var(--color-text);
+	}
+
+	.freq-pill.selected {
+		background: var(--color-gold);
+		border-color: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 600;
+	}
+
+	.field-label {
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
 </style>

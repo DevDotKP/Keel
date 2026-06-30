@@ -16,7 +16,7 @@ const PatchSchema = z.object({
 	name: z.string().min(1).max(60).optional(),
 	amount_paise: z.number().int().positive().optional(),
 	category_id: z.string().optional(),
-	frequency: z.enum(['daily', 'weekly', 'bi_weekly', 'monthly', 'quarterly', 'yearly']).optional(),
+	frequency: z.enum(['daily', 'weekly', 'bi_weekly', 'monthly', 'bi_monthly', 'quarterly', 'half_yearly', 'yearly']).optional(),
 	start_date: z.string().optional(),
 	end_date: z.string().nullable().optional(),
 	occurrence_limit: z.number().int().positive().nullable().optional(),
