@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Trash2, Check, ArrowLeft } from 'lucide-svelte';
+	import { Trash2, Check, ArrowLeft, Edit2, X } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -114,6 +114,16 @@
 	let incAmountPaise = $derived(parseToPaise(incAmount));
 	let visibleIncome = $derived(data.recurringIncome.filter((i) => !removedIds.includes(i.id)));
 
+	// Edit mode
+	let editingIncId = $state<string | null>(null);
+	let editIncName = $state('');
+	let editIncAmount = $state('');
+	let editIncFrequency = $state('monthly');
+	let editIncNextDue = $state('');
+	let editIncEndDate = $state('');
+	let editIncOccurrenceLimit = $state('');
+	let editIncAmountPaise = $derived(parseToPaise(editIncAmount));
+
 	function toAnchor(inc: RecurringIncome): SalaryAnchor {
 		if (inc.anchor_kind === 'day_of_month') return { kind: 'day_of_month', day: inc.anchor_day ?? 1 };
 		return { kind: inc.anchor_kind };
@@ -188,6 +198,51 @@
 			removedIds = removedIds.filter((x) => x !== id);
 			incError = 'Could not delete. Try again.';
 		}
+	}
+
+	function openEditIncome(inc: RecurringIncome) {
+		editingIncId = inc.id;
+		editIncName = inc.name;
+		editIncAmount = (inc.amount_paise / 100).toString();
+		editIncFrequency = inc.frequency || 'monthly';
+		editIncNextDue = inc.next_due_at?.split('T')[0] || '';
+		editIncEndDate = inc.end_date || '';
+		editIncOccurrenceLimit = inc.occurrence_limit ? inc.occurrence_limit.toString() : '';
+	}
+
+	function closeEditIncome() {
+		editingIncId = null;
+		editIncName = '';
+		editIncAmount = '';
+		editIncFrequency = 'monthly';
+		editIncNextDue = '';
+		editIncEndDate = '';
+		editIncOccurrenceLimit = '';
+	}
+
+	async function saveEditIncome() {
+		if (!editingIncId || !editIncName.trim()) return;
+		incBusyId = editingIncId;
+		incError = null;
+		const res = await fetch(`/api/recurring-income/${editingIncId}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: editIncName.trim(),
+				amount_paise: editIncAmountPaise,
+				frequency: editIncFrequency,
+				next_due_at: editIncNextDue || undefined,
+				end_date: editIncEndDate || null,
+				occurrence_limit: editIncOccurrenceLimit ? parseInt(editIncOccurrenceLimit, 10) : null
+			})
+		});
+		incBusyId = null;
+		if (!res.ok) {
+			incError = 'Could not save. Try again.';
+			return;
+		}
+		closeEditIncome();
+		await invalidateAll();
 	}
 </script>
 
@@ -343,6 +398,14 @@
 							>+{formatPaiseLedger(inc.amount_paise)}</span
 						>
 						<button
+							class="edit-btn"
+							onclick={() => openEditIncome(inc)}
+							disabled={incBusyId === inc.id}
+							aria-label="Edit {inc.name}"
+						>
+							<Edit2 size={16} aria-hidden="true" />
+						</button>
+						<button
 							class="delete-btn"
 							onclick={() => deleteIncome(inc.id)}
 							disabled={incBusyId === inc.id}
@@ -435,6 +498,103 @@
 		</form>
 	</section>
 </div>
+
+{#if editingIncId}
+	<div class="modal-overlay" onclick={() => closeEditIncome()}>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h2 class="modal-title">Edit recurring income</h2>
+				<button class="modal-close" onclick={() => closeEditIncome()} aria-label="Close">
+					<X size={20} aria-hidden="true" />
+				</button>
+			</div>
+
+			<form class="modal-form" onsubmit={(e) => { e.preventDefault(); saveEditIncome(); }}>
+				{#if incError}
+					<p class="error" role="alert">{incError}</p>
+				{/if}
+
+				<div class="field">
+					<label for="edit-inc-name">Name</label>
+					<input
+						id="edit-inc-name"
+						type="text"
+						bind:value={editIncName}
+						maxlength="60"
+						required
+					/>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-amount">Amount</label>
+					<div class="amount-row">
+						<span class="currency-symbol" aria-hidden="true">₹</span>
+						<input
+							id="edit-inc-amount"
+							type="text"
+							inputmode="decimal"
+							placeholder="0"
+							value={editIncAmount}
+							oninput={(e) => (editIncAmount = formatAmountInput(e.currentTarget.value))}
+							class="money"
+						/>
+					</div>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-freq">Frequency</label>
+					<select id="edit-inc-freq" bind:value={editIncFrequency}>
+						<option value="daily">Daily</option>
+						<option value="weekly">Weekly</option>
+						<option value="bi_weekly">Bi-weekly</option>
+						<option value="monthly">Monthly</option>
+						<option value="quarterly">Quarterly</option>
+						<option value="yearly">Yearly</option>
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-next-due">Next due date</label>
+					<input
+						id="edit-inc-next-due"
+						type="date"
+						bind:value={editIncNextDue}
+					/>
+					<p class="field-hint">When the next transaction should post</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-end-date">End date (optional)</label>
+					<input
+						id="edit-inc-end-date"
+						type="date"
+						bind:value={editIncEndDate}
+					/>
+					<p class="field-hint">Stop creating transactions after this date</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-inc-limit">Occurrence limit (optional)</label>
+					<input
+						id="edit-inc-limit"
+						type="number"
+						inputmode="numeric"
+						placeholder="e.g. 12"
+						bind:value={editIncOccurrenceLimit}
+					/>
+					<p class="field-hint">Stop after this many transactions</p>
+				</div>
+
+				<div class="modal-actions">
+					<button type="button" class="secondary-btn" onclick={() => closeEditIncome()}>Cancel</button>
+					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>
+						{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
 
 <ConfirmDialog
 	open={confirmState !== null}
@@ -603,6 +763,103 @@
 	.delete-btn:hover {
 		opacity: 1;
 		color: var(--color-clay);
+	}
+
+	.edit-btn {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--tap-target);
+		height: var(--tap-target);
+		min-width: var(--tap-target);
+		border: none;
+		background: transparent;
+		color: var(--color-text-subtle);
+		border-radius: var(--radius-full);
+		cursor: pointer;
+		opacity: 0.5;
+		transition:
+			opacity var(--duration-fast) var(--ease-out),
+			color var(--duration-fast) var(--ease-out);
+	}
+
+	.edit-btn:hover {
+		opacity: 1;
+		color: var(--color-text);
+	}
+
+	.modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: flex-end;
+		z-index: 1000;
+	}
+
+	.modal-content {
+		width: 100%;
+		max-width: 500px;
+		background: var(--color-surface);
+		border-top: 1px solid var(--color-border);
+		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+		padding: var(--space-5);
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+		max-height: 90vh;
+		overflow-y: auto;
+	}
+
+	.modal-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--space-3);
+	}
+
+	.modal-title {
+		font-size: 1.125rem;
+		font-weight: 600;
+	}
+
+	.modal-close {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: var(--tap-target);
+		height: var(--tap-target);
+		border: none;
+		background: transparent;
+		color: var(--color-text-subtle);
+		border-radius: var(--radius-full);
+		cursor: pointer;
+		transition: color var(--duration-fast) var(--ease-out);
+	}
+
+	.modal-close:hover {
+		color: var(--color-text);
+	}
+
+	.modal-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: var(--space-3);
+		margin-top: var(--space-2);
+	}
+
+	.modal-actions button {
+		flex: 1;
 	}
 
 	.add-form {
