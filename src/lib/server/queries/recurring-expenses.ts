@@ -101,10 +101,76 @@ export async function toggleRecurringExpense(
 ): Promise<void> {
 	const res = await db
 		.prepare(
-			`UPDATE recurring_expenses SET is_active = ?, updated_at = datetime('now')
+			`UPDATE recurring_expenses SET is_active = ?
 			 WHERE id = ? AND household_id = ? AND deleted_at IS NULL`
 		)
 		.bind(isActive ? 1 : 0, id, household_id)
 		.run();
 	if (!res.meta.changes) throw new Error('Recurring expense not found');
+}
+
+/** Update recurring expense fields (editable at any time). */
+export async function updateRecurringExpense(
+	db: D1Database,
+	id: string,
+	household_id: string,
+	updates: {
+		name?: string;
+		amount_paise?: number;
+		category_id?: string;
+		frequency?: string;
+		start_date?: string;
+		end_date?: string | null;
+		occurrence_limit?: number | null;
+		is_active?: boolean;
+		next_due_at?: string;
+	}
+): Promise<RecurringExpense> {
+	const setClauses: string[] = [];
+	const binds: (string | number | null | boolean)[] = [];
+
+	if (updates.name !== undefined) {
+		setClauses.push('name = ?');
+		binds.push(updates.name);
+	}
+	if (updates.amount_paise !== undefined) {
+		setClauses.push('amount_paise = ?');
+		binds.push(updates.amount_paise);
+	}
+	if (updates.category_id !== undefined) {
+		setClauses.push('category_id = ?');
+		binds.push(updates.category_id);
+	}
+	if (updates.frequency !== undefined) {
+		setClauses.push('frequency = ?');
+		binds.push(updates.frequency);
+	}
+	if (updates.start_date !== undefined) {
+		setClauses.push('start_date = ?');
+		binds.push(updates.start_date);
+	}
+	if (updates.end_date !== undefined) {
+		setClauses.push('end_date = ?');
+		binds.push(updates.end_date ?? null);
+	}
+	if (updates.occurrence_limit !== undefined) {
+		setClauses.push('occurrence_limit = ?');
+		binds.push(updates.occurrence_limit ?? null);
+	}
+	if (updates.is_active !== undefined) {
+		setClauses.push('is_active = ?');
+		binds.push(updates.is_active ? 1 : 0);
+	}
+	if (updates.next_due_at !== undefined) {
+		setClauses.push('next_due_at = ?');
+		binds.push(updates.next_due_at);
+	}
+
+	if (setClauses.length === 0) throw new Error('No updates provided');
+
+	binds.push(id, household_id);
+	const sql = `UPDATE recurring_expenses SET ${setClauses.join(', ')} WHERE id = ? AND household_id = ? AND deleted_at IS NULL RETURNING *`;
+	const row = await db.prepare(sql).bind(...binds).first<RecurringExpense>();
+	if (!row) throw new Error('Recurring expense not found');
+	return row;
 }

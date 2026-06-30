@@ -6,6 +6,7 @@ import { listTransactions } from '$lib/server/queries/transactions';
 import { listCategories } from '$lib/server/queries/categories';
 import { getDefaultAccount } from '$lib/server/queries/accounts';
 import { syncAllRecurring } from '$lib/server/queries/sync-recurring';
+import { migrateAnchorKindToFrequency } from '$lib/server/queries/recurring-income';
 import type { HarbourCadence } from '$lib/types';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
@@ -70,8 +71,8 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		if (m.avatar) memberAvatars[m.id] = m.avatar;
 	}
 
-	// Sync recurring transactions in the background (don't block render).
-	syncAllRecurring(db, hid).catch(() => {
+	// Migrate old anchor_kind items to frequency-based, then sync recurring in the background.
+	Promise.all([migrateAnchorKindToFrequency(db, hid), syncAllRecurring(db, hid)]).catch(() => {
 		// Silent fail: recurring sync errors don't break the dashboard.
 	});
 
