@@ -10,6 +10,7 @@
 	import { holidaysForState, type IndianState } from '$lib/holidays';
 	import type { PageData } from './$types';
 	import type { RecurringIncome, SalaryAnchorKind } from '$lib/types';
+	import type { RecurringExpense } from '$lib/server/queries/recurring-expenses';
 
 	let { data }: { data: PageData } = $props();
 
@@ -124,19 +125,157 @@
 	let editIncOccurrenceLimit = $state('');
 	let editIncAmountPaise = $derived(parseToPaise(editIncAmount));
 
+	// ── Recurring expenses ───────────────────────────────────────────────────
+	let expName = $state('');
+	let expAmount = $state('');
+	let expCategory = $state('');
+	let expFrequency = $state<string>('monthly');
+	let expSubmitting = $state(false);
+	let expBusyId = $state<string | null>(null);
+	let expError = $state<string | null>(null);
+	let expAmountPaise = $derived(parseToPaise(expAmount));
+	let visibleExpenses = $derived(data.recurringExpenses.filter((e) => !removedIds.includes(e.id)));
+
+	// Edit mode for expenses
+	let editingExpId = $state<string | null>(null);
+	let editExpName = $state('');
+	let editExpAmount = $state('');
+	let editExpFrequency = $state('monthly');
+	let editExpNextDue = $state('');
+	let editExpEndDate = $state('');
+	let editExpOccurrenceLimit = $state('');
+	let editExpCategory = $state('');
+	let editExpAmountPaise = $derived(parseToPaise(editExpAmount));
+
+	function openEditExpense(exp: RecurringExpense) {
+		editingExpId = exp.id;
+		editExpName = exp.name;
+		editExpAmount = (exp.amount_paise / 100).toString();
+		editExpFrequency = exp.frequency || 'monthly';
+		editExpNextDue = exp.next_due_at?.split('T')[0] || '';
+		editExpEndDate = exp.end_date || '';
+		editExpOccurrenceLimit = exp.occurrence_limit ? exp.occurrence_limit.toString() : '';
+		editExpCategory = exp.category_id || '';
+	}
+
+	function closeEditExpense() {
+		editingExpId = null;
+		editExpName = '';
+		editExpAmount = '';
+		editExpFrequency = 'monthly';
+		editExpNextDue = '';
+		editExpEndDate = '';
+		editExpOccurrenceLimit = '';
+		editExpCategory = '';
+	}
+
+	async function handleCreateExpense(e: Event) {
+		e.preventDefault();
+		if (expAmountPaise === null || expAmountPaise <= 0) {
+			expError = 'Enter a valid amount';
+			return;
+		}
+		if (!expCategory) {
+			expError = 'Select a category';
+			return;
+		}
+		expSubmitting = true;
+		expError = null;
+		const res = await fetch('/api/recurring-expenses', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: expName.trim(),
+				amount_paise: expAmountPaise,
+				category_id: expCategory,
+				frequency: expFrequency
+			})
+		});
+		expSubmitting = false;
+		if (!res.ok) {
+			expError = 'Could not add. Try again.';
+			return;
+		}
+		expName = '';
+		expAmount = '';
+		expCategory = '';
+		expFrequency = 'monthly';
+		await invalidateAll();
+	}
+
+	async function saveEditExpense() {
+		if (!editingExpId || !editExpName.trim()) return;
+		expBusyId = editingExpId;
+		expError = null;
+		const res = await fetch(`/api/recurring-expenses/${editingExpId}`, {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name: editExpName.trim(),
+				amount_paise: editExpAmountPaise,
+				category_id: editExpCategory || undefined,
+				frequency: editExpFrequency,
+				next_due_at: editExpNextDue || undefined,
+				end_date: editExpEndDate || null,
+				occurrence_limit: editExpOccurrenceLimit ? parseInt(editExpOccurrenceLimit, 10) : null
+			})
+		});
+		expBusyId = null;
+		if (!res.ok) {
+			expError = 'Could not save. Try again.';
+			return;
+		}
+		closeEditExpense();
+		await invalidateAll();
+	}
+
+	function deleteExpense(id: string) {
+		confirmState = {
+			title: 'Delete recurring expense?',
+			message: 'This stops auto-logging it. Past entries stay in your ledger.',
+			run: () => actuallyDeleteExpense(id)
+		};
+	}
+
+	async function actuallyDeleteExpense(id: string) {
+		removedIds = [...removedIds, id];
+		const res = await fetch(`/api/recurring-expenses/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			removedIds = removedIds.filter((x) => x !== id);
+			expError = 'Could not delete. Try again.';
+		}
+	}
+
+	function expFrequencyLabel(freq: string): string {
+		const map: Record<string, string> = {
+			daily: 'Daily',
+			weekly: 'Weekly',
+			bi_weekly: 'Bi-weekly',
+			monthly: 'Monthly',
+			quarterly: 'Quarterly',
+			yearly: 'Yearly'
+		};
+		return map[freq] ?? freq;
+	}
+
 	function toAnchor(inc: RecurringIncome): SalaryAnchor {
 		if (inc.anchor_kind === 'day_of_month') return { kind: 'day_of_month', day: inc.anchor_day ?? 1 };
-		return { kind: inc.anchor_kind };
+		const kind = (inc.anchor_kind ?? 'end_of_month') as 'end_of_month' | 'start_of_month';
+		return { kind };
 	}
 
 	function anchorLabel(inc: RecurringIncome): string {
+		if (inc.frequency) return expFrequencyLabel(inc.frequency);
 		if (inc.anchor_kind === 'end_of_month') return 'End of month';
 		if (inc.anchor_kind === 'start_of_month') return 'Start of month';
-		return `Day ${inc.anchor_day} of the month`;
+		if (inc.anchor_kind === 'day_of_month') return `Day ${inc.anchor_day} of the month`;
+		return 'Monthly';
 	}
 
 	// Next pay date from today, adjusted for weekends and the user's state holidays.
+	// Only meaningful for anchor-kind items; frequency items use next_due_at directly.
 	function nextPayDate(inc: RecurringIncome): string {
+		if (inc.next_due_at) return inc.next_due_at.split('T')[0];
 		const t = today();
 		let y = parseInt(t.slice(0, 4), 10);
 		let m = parseInt(t.slice(5, 7), 10);
@@ -373,6 +512,112 @@
 		</button>
 	</form>
 
+	<!-- Recurring expenses: auto-logged on each cycle -->
+	<section class="income-section">
+		<h2 class="form-head">Recurring expenses</h2>
+		<p class="page-sub">Subscriptions, EMIs, utilities. Keel posts these automatically each cycle.</p>
+
+		{#if expError}
+			<p class="error" role="alert">{expError}</p>
+		{/if}
+
+		{#if visibleExpenses.length > 0}
+			<ul class="obligation-list" aria-label="Recurring expenses">
+				{#each visibleExpenses as exp (exp.id)}
+					<li class="obligation-row">
+						<span class="obligation-main">
+							<span class="obligation-name">{exp.name}</span>
+							<span class="obligation-meta">
+								{expFrequencyLabel(exp.frequency)} · next {formatDisplayDate(exp.next_due_at?.split('T')[0] ?? '')}
+							</span>
+						</span>
+						<span class="money obligation-amount">{formatPaiseLedger(exp.amount_paise)}</span>
+						<button
+							class="edit-btn"
+							onclick={() => openEditExpense(exp)}
+							disabled={expBusyId === exp.id}
+							aria-label="Edit {exp.name}"
+						>
+							<Edit2 size={16} aria-hidden="true" />
+						</button>
+						<button
+							class="delete-btn"
+							onclick={() => deleteExpense(exp.id)}
+							disabled={expBusyId === exp.id}
+							aria-label="Delete {exp.name}"
+						>
+							<Trash2 size={16} aria-hidden="true" />
+						</button>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+
+		<form class="add-form" onsubmit={handleCreateExpense} novalidate>
+			<div class="field">
+				<label for="exp-name">Name</label>
+				<input
+					id="exp-name"
+					type="text"
+					placeholder="e.g. Netflix"
+					bind:value={expName}
+					maxlength="60"
+					required
+				/>
+			</div>
+
+			<div class="field">
+				<label for="exp-amount">Amount</label>
+				<div class="amount-row">
+					<span class="currency-symbol" aria-hidden="true">₹</span>
+					<input
+						id="exp-amount"
+						type="text"
+						inputmode="decimal"
+						placeholder="0"
+						value={expAmount}
+						oninput={(e) => (expAmount = formatAmountInput(e.currentTarget.value))}
+						class="money"
+						required
+					/>
+				</div>
+				{#if expAmountPaise && amountInWordsIndian(expAmountPaise)}
+					<p class="amount-words">{amountInWordsIndian(expAmountPaise)}</p>
+				{/if}
+			</div>
+
+			<div class="field">
+				<label for="exp-category">Category</label>
+				<select id="exp-category" bind:value={expCategory} required>
+					<option value="">Select a category</option>
+					{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+						<option value={cat.id}>{cat.name}</option>
+					{/each}
+				</select>
+			</div>
+
+			<div class="field">
+				<label for="exp-frequency">Frequency</label>
+				<select id="exp-frequency" bind:value={expFrequency}>
+					<option value="daily">Daily</option>
+					<option value="weekly">Weekly</option>
+					<option value="bi_weekly">Bi-weekly</option>
+					<option value="monthly">Monthly</option>
+					<option value="quarterly">Quarterly</option>
+					<option value="yearly">Yearly</option>
+				</select>
+			</div>
+
+			<button
+				type="submit"
+				class="submit-btn"
+				disabled={expSubmitting || !expName.trim() || !expAmountPaise || !expCategory}
+			>
+				{#if expSubmitting}<Spinner size={18} label="Adding" />{:else}Add expense{/if}
+			</button>
+		</form>
+	</section>
+
 	<!-- Recurring income: forecast only, confirmed at Harbour -->
 	<section class="income-section">
 		<h2 class="form-head">Recurring income</h2>
@@ -500,8 +745,8 @@
 </div>
 
 {#if editingIncId}
-	<div class="modal-overlay" onclick={() => closeEditIncome()}>
-		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+	<div class="modal-overlay" onclick={() => closeEditIncome()} role="dialog" aria-modal="true" aria-label="Edit recurring income">
+		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
 			<div class="modal-header">
 				<h2 class="modal-title">Edit recurring income</h2>
 				<button class="modal-close" onclick={() => closeEditIncome()} aria-label="Close">
@@ -589,6 +834,105 @@
 					<button type="button" class="secondary-btn" onclick={() => closeEditIncome()}>Cancel</button>
 					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>
 						{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+{#if editingExpId}
+	<div class="modal-overlay" onclick={() => closeEditExpense()} role="dialog" aria-modal="true" aria-label="Edit recurring expense">
+		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
+			<div class="modal-header">
+				<h2 class="modal-title">Edit recurring expense</h2>
+				<button class="modal-close" onclick={() => closeEditExpense()} aria-label="Close">
+					<X size={20} aria-hidden="true" />
+				</button>
+			</div>
+
+			<form class="modal-form" onsubmit={(e) => { e.preventDefault(); saveEditExpense(); }}>
+				{#if expError}
+					<p class="error" role="alert">{expError}</p>
+				{/if}
+
+				<div class="field">
+					<label for="edit-exp-name">Name</label>
+					<input
+						id="edit-exp-name"
+						type="text"
+						bind:value={editExpName}
+						maxlength="60"
+						required
+					/>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-amount">Amount</label>
+					<div class="amount-row">
+						<span class="currency-symbol" aria-hidden="true">₹</span>
+						<input
+							id="edit-exp-amount"
+							type="text"
+							inputmode="decimal"
+							placeholder="0"
+							value={editExpAmount}
+							oninput={(e) => (editExpAmount = formatAmountInput(e.currentTarget.value))}
+							class="money"
+						/>
+					</div>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-category">Category</label>
+					<select id="edit-exp-category" bind:value={editExpCategory}>
+						<option value="">Uncategorized</option>
+						{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+							<option value={cat.id}>{cat.name}</option>
+						{/each}
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-freq">Frequency</label>
+					<select id="edit-exp-freq" bind:value={editExpFrequency}>
+						<option value="daily">Daily</option>
+						<option value="weekly">Weekly</option>
+						<option value="bi_weekly">Bi-weekly</option>
+						<option value="monthly">Monthly</option>
+						<option value="quarterly">Quarterly</option>
+						<option value="yearly">Yearly</option>
+					</select>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-next-due">Next due date</label>
+					<input id="edit-exp-next-due" type="date" bind:value={editExpNextDue} />
+					<p class="field-hint">When the next transaction should post</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-end-date">End date (optional)</label>
+					<input id="edit-exp-end-date" type="date" bind:value={editExpEndDate} />
+					<p class="field-hint">Stop posting after this date</p>
+				</div>
+
+				<div class="field">
+					<label for="edit-exp-limit">Occurrence limit (optional)</label>
+					<input
+						id="edit-exp-limit"
+						type="number"
+						inputmode="numeric"
+						placeholder="e.g. 12"
+						bind:value={editExpOccurrenceLimit}
+					/>
+					<p class="field-hint">Stop after this many transactions</p>
+				</div>
+
+				<div class="modal-actions">
+					<button type="button" class="secondary-btn" onclick={() => closeEditExpense()}>Cancel</button>
+					<button type="submit" class="submit-btn" disabled={expBusyId === editingExpId || !editExpName.trim()}>
+						{#if expBusyId === editingExpId}<Spinner size={18} label="Saving" />{:else}Save{/if}
 					</button>
 				</div>
 			</form>
@@ -965,4 +1309,21 @@
 	.field select {
 		padding-right: var(--space-8);
 	}
+
+	.secondary-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		height: 48px;
+		background: transparent;
+		color: var(--color-text);
+		font-weight: 600;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		transition: border-color var(--duration-fast) var(--ease-out);
+	}
+
+	.secondary-btn:hover { border-color: var(--color-text-subtle); }
+	.secondary-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

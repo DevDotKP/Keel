@@ -163,9 +163,15 @@ export interface RecurringIncome {
 	user_id: string;
 	name: string;
 	amount_paise: number;
-	anchor_kind: SalaryAnchorKind;
-	anchor_day: number | null; // 1..28 when anchor_kind is day_of_month
+	anchor_kind: SalaryAnchorKind | null;
+	anchor_day: number | null;
 	category_id: string | null;
+	frequency: string | null;
+	start_date: string | null;
+	end_date: string | null;
+	occurrence_limit: number | null;
+	last_posted_at: string | null;
+	next_due_at: string | null;
 	is_active: 0 | 1;
 	created_at: string;
 	deleted_at: string | null;

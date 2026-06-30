@@ -6,6 +6,7 @@ import { getOrCreateCurrentPeriod } from '$lib/server/queries/periods';
 import { listObligations } from '$lib/server/queries/obligations';
 import { listCategories } from '$lib/server/queries/categories';
 import { listRecurringIncome } from '$lib/server/queries/recurring-income';
+import { listRecurringExpenses } from '$lib/server/queries/recurring-expenses';
 
 export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => {
 	if (!locals.userId) redirect(302, '/auth');
@@ -15,18 +16,19 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	const hid = locals.householdId ?? locals.userId!;
 
 	const { account, cadence, harbourDay } = await resolveAccountAndCadence(rdb, locals.userId, hid);
-	if (!account) return { obligations: [], categories: [], recurringIncome: [], homeState: null };
+	if (!account) return { obligations: [], categories: [], recurringIncome: [], recurringExpenses: [], homeState: null };
 
 	const period = await getOrCreateCurrentPeriod(db, account.id, cadence, harbourDay);
-	const [obligations, categories, recurringIncome, settingsRow] = await Promise.all([
+	const [obligations, categories, recurringIncome, recurringExpenses, settingsRow] = await Promise.all([
 		listObligations(rdb, hid, period.id),
 		listCategories(rdb, hid),
 		listRecurringIncome(rdb, hid),
+		listRecurringExpenses(rdb, hid),
 		rdb
 			.prepare('SELECT home_state FROM settings WHERE user_id = ?')
 			.bind(locals.userId)
 			.first<{ home_state: string | null }>()
 	]);
 
-	return { obligations, categories, recurringIncome, homeState: settingsRow?.home_state ?? null };
+	return { obligations, categories, recurringIncome, recurringExpenses, homeState: settingsRow?.home_state ?? null };
 };
