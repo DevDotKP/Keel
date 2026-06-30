@@ -5,7 +5,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
-	import { today, formatDisplayDate } from '$lib/utils/date';
+	import { today, formatDisplayDate, friendlyDueDate } from '$lib/utils/date';
 	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
 	import { holidaysForState, type IndianState } from '$lib/holidays';
 	import type { PageData } from './$types';
@@ -490,7 +490,7 @@
 						<span class="auto-badge">Auto</span>
 						<span class="rec-main">
 							<span class="rec-name">{exp.name}</span>
-							<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · next {formatDisplayDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
+							<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
 						</span>
 						<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
 						<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
@@ -519,7 +519,7 @@
 					<li class="recurring-row">
 						<span class="rec-main">
 							<span class="rec-name">{inc.name}</span>
-							<span class="rec-meta">{anchorLabel(inc)} · next {formatDisplayDate(nextPayDate(inc))}</span>
+							<span class="rec-meta">{anchorLabel(inc)} · {friendlyDueDate(nextPayDate(inc))}</span>
 						</span>
 						<span class="money rec-amount money--income">+{formatPaiseLedger(inc.amount_paise)}</span>
 						<button class="edit-btn" onclick={() => openEditIncome(inc)} disabled={incBusyId === inc.id} aria-label="Edit {inc.name}">

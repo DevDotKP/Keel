@@ -71,9 +71,9 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		if (m.avatar) memberAvatars[m.id] = m.avatar;
 	}
 
-	// Migrate anchor_kind items first, THEN sync — they must not race or sync
-	// will query before next_due_at is set and miss newly-migrated items.
-	migrateAnchorKindToFrequency(db, hid)
+	// Migrate then sync — must be sequential (migrate sets next_due_at before sync reads it).
+	// Awaited so the data queries below see the freshly posted transactions.
+	await migrateAnchorKindToFrequency(db, hid)
 		.then(() => syncAllRecurring(db, hid))
 		.catch(() => {});
 

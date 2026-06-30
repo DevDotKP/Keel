@@ -71,6 +71,22 @@ export function formatDisplayDate(iso: string): string {
 }
 
 /**
+ * Human-friendly due-date label for recurring items.
+ * "Today" / "Tomorrow" / "Next Sat, 5 Jul" for future dates.
+ * Input is a YYYY-MM-DD string (date portion of next_due_at).
+ */
+export function friendlyDueDate(ymd: string): string {
+	if (!ymd) return '';
+	const t = today();
+	if (ymd === t) return 'Today';
+	const tomorrowDate = new Date(`${t}T00:00:00`);
+	tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+	const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+	if (ymd === tomorrow) return 'Tomorrow';
+	return `Next ${formatDisplayDate(ymd)}`;
+}
+
+/**
  * Format a logging timestamp as an IST clock time, e.g. '9:30 pm'.
  * Accepts SQLite UTC ('YYYY-MM-DD HH:MM:SS', as entered_at is stored) or any
  * ISO string. Offset is applied manually so it does not depend on the runtime
