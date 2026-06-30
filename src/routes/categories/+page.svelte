@@ -137,8 +137,16 @@
 		patchCategory(cat.id, { budget_paise: paise });
 	}
 
+	let activeTab = $state<'spending' | 'income'>('spending');
 	let addCatOpen = $state(false);
 	let confirmState = $state<{ message: string; run: () => void } | null>(null);
+
+	function switchTab(tab: 'spending' | 'income') {
+		if (tab === activeTab) return;
+		activeTab = tab;
+		addCatOpen = false;
+		newKind = tab === 'income' ? 'income' : 'expense';
+	}
 
 	function handleDelete(id: string) {
 		confirmState = {
@@ -166,204 +174,209 @@
 			<ArrowLeft size={20} aria-hidden="true" />
 		</a>
 		<h1 class="section-head">Categories</h1>
-		<p class="page-sub">
-			Mark essentials as committed and set a daily reserve. Keel locks that money before you spend.
-		</p>
 	</header>
+
+	<!-- Tab bar -->
+	<div class="tab-bar" role="tablist">
+		<button
+			class="tab-btn"
+			class:active={activeTab === 'spending'}
+			role="tab"
+			aria-selected={activeTab === 'spending'}
+			onclick={() => switchTab('spending')}
+		>Spending</button>
+		<button
+			class="tab-btn"
+			class:active={activeTab === 'income'}
+			role="tab"
+			aria-selected={activeTab === 'income'}
+			onclick={() => switchTab('income')}
+		>Income</button>
+	</div>
 
 	{#if error}
 		<p class="error" role="alert">{error}</p>
 	{/if}
 
-	<!-- Overall cycle budget -->
-	<section class="budget-section">
-		<div class="budget-header">
-			<div>
-				<p class="budget-eyebrow">Overall budget</p>
-				<p class="budget-sub">Your total spending cap for this cycle</p>
-			</div>
-			{#if hasSuggestion && !budgetInput}
-				<button type="button" class="suggestion-chip" onclick={applySuggestion}>
-					Use income total · {formatPaiseLedger(suggestedBudgetPaise)}
-				</button>
-			{/if}
-		</div>
-		{#if budgetError}
-			<p class="error" role="alert">{budgetError}</p>
-		{/if}
-		<div class="budget-row">
-			<span class="currency-symbol" aria-hidden="true">₹</span>
-			<input
-				type="text"
-				inputmode="decimal"
-				class="budget-field money"
-				placeholder="0 — no limit"
-				value={budgetInput}
-				oninput={(e) => (budgetInput = formatAmountInput(e.currentTarget.value))}
-				aria-label="Overall cycle budget"
-			/>
-			<button
-				type="button"
-				class="save-budget-btn"
-				onclick={saveCycleBudget}
-				disabled={budgetSaving}
-			>
-				{#if budgetSaving}
-					<Spinner size={16} />
-				{:else if budgetSaved}
-					Saved
-				{:else}
-					Save
-				{/if}
-			</button>
-		</div>
-		{#if budgetWords}
-			<p class="budget-words">{budgetWords}</p>
-		{/if}
-	</section>
-
-	<h2 class="group-head">Spending</h2>
-	{#each spendingTree as top (top.id)}
-		<div class="cat-group">
-			{@render categoryRow(top, false)}
-			{#each top.children as child (child.id)}
-				{@render categoryRow(child, true)}
-			{/each}
-		</div>
-	{:else}
-		<EmptyState heading="No spending categories" />
-	{/each}
-
-	<h2 class="group-head">Income</h2>
-	<div class="cat-group">
-		{#each incomeCats as inc (inc.id)}
-			{@render categoryRow(inc, false)}
-		{/each}
-	</div>
-
-	<!-- Add new category — collapsed by default -->
-	{#if !addCatOpen}
-		<button class="add-cat-toggle" onclick={() => (addCatOpen = true)}>
-			+ New category
-		</button>
-	{:else}
-	<form class="add-form" onsubmit={handleCreate} novalidate>
-		<div class="form-head-row">
-			<h2 class="form-head">New category</h2>
-			<button type="button" class="form-close" onclick={() => (addCatOpen = false)} aria-label="Close">
-				<X size={18} aria-hidden="true" />
-			</button>
-		</div>
-
-		<div class="field">
-			<span class="field-label">Income or spending</span>
-			<div class="bucket-toggle" role="radiogroup" aria-label="Income or spending">
-				<label class="bucket-option" class:active={newKind === 'expense'}>
-					<input type="radio" name="kind" value="expense" bind:group={newKind} />
-					<span>Spending</span>
-				</label>
-				<label class="bucket-option" class:active={newKind === 'income'}>
-					<input type="radio" name="kind" value="income" bind:group={newKind} />
-					<span>Income</span>
-				</label>
-			</div>
-		</div>
-
-		<div class="field">
-			<label for="cat-name">Name</label>
-			<input
-				id="cat-name"
-				type="text"
-				placeholder={newKind === 'income' ? 'e.g. Freelance' : 'e.g. Food'}
-				bind:value={newName}
-				maxlength="50"
-				required
-			/>
-		</div>
-
-		<!-- Parent, type and reserve are spending-only. Income categories are simple labels. -->
-		{#if newKind === 'expense'}
-			<div class="field">
-				<label for="cat-parent">Parent (optional)</label>
-				<select id="cat-parent" bind:value={newParent}>
-					<option value="">None (top level)</option>
-					{#each data.parents as p}
-						<option value={p.id}>{p.name}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="field">
-				<span class="field-label">Type</span>
-				<div class="bucket-toggle" role="radiogroup" aria-label="Category type">
-					<label class="bucket-option" class:active={newBucket === 'flexible'}>
-						<input type="radio" name="bucket" value="flexible" bind:group={newBucket} />
-						<span>Flexible</span>
-					</label>
-					<label class="bucket-option" class:active={newBucket === 'committed'}>
-						<input type="radio" name="bucket" value="committed" bind:group={newBucket} />
-						<span>Committed</span>
-					</label>
-				</div>
-			</div>
-
-			{#if newBucket === 'committed'}
-				<div class="field">
-					<label for="cat-reserve">Daily reserve (optional)</label>
-					<div class="amount-row">
-						<span class="currency-symbol" aria-hidden="true">₹</span>
-						<input
-							id="cat-reserve"
-							type="text"
-							inputmode="decimal"
-							placeholder="0"
-							value={newReserve}
-							oninput={(e) => (newReserve = formatAmountInput(e.currentTarget.value))}
-							class="money"
-						/>
-						<span class="per-day">/ day</span>
+	{#if activeTab === 'spending'}
+		<section class="tab-panel">
+			<!-- Overall cycle budget -->
+			<div class="budget-section">
+				<div class="budget-header">
+					<div>
+						<p class="budget-eyebrow">Overall budget</p>
+						<p class="budget-sub">Total spending cap for this cycle</p>
 					</div>
+					{#if hasSuggestion && !budgetInput}
+						<button type="button" class="suggestion-chip" onclick={applySuggestion}>
+							Use income · {formatPaiseLedger(suggestedBudgetPaise)}
+						</button>
+					{/if}
 				</div>
-			{/if}
-
-			<div class="field">
-				<label for="cat-budget">Budget for the cycle (optional)</label>
-				<div class="amount-row">
+				{#if budgetError}
+					<p class="error" role="alert">{budgetError}</p>
+				{/if}
+				<div class="budget-row">
 					<span class="currency-symbol" aria-hidden="true">₹</span>
 					<input
-						id="cat-budget"
 						type="text"
 						inputmode="decimal"
-						placeholder="0"
-						value={newBudget}
-						oninput={(e) => (newBudget = formatAmountInput(e.currentTarget.value))}
-						class="money"
+						class="budget-field money"
+						placeholder="0 — no limit"
+						value={budgetInput}
+						oninput={(e) => (budgetInput = formatAmountInput(e.currentTarget.value))}
+						aria-label="Overall cycle budget"
 					/>
+					<button type="button" class="save-budget-btn" onclick={saveCycleBudget} disabled={budgetSaving}>
+						{#if budgetSaving}<Spinner size={16} />{:else if budgetSaved}Saved{:else}Save{/if}
+					</button>
 				</div>
+				{#if budgetWords}
+					<p class="budget-words">{budgetWords}</p>
+				{/if}
 			</div>
-		{/if}
 
-		<div class="field">
-			<span class="field-label">Colour</span>
-			<div class="color-grid" role="radiogroup" aria-label="Choose a colour">
-				{#each PRESET_COLORS as color}
-					<label class="color-swatch">
-						<input type="radio" name="color" value={color} bind:group={newColor} />
-						<span
-							class="swatch-circle"
-							class:selected={newColor === color}
-							style="background:{color}"
-							aria-label={color}
-						></span>
-					</label>
-				{/each}
-			</div>
-		</div>
+			{#each spendingTree as top (top.id)}
+				<div class="cat-group">
+					{@render categoryRow(top, false)}
+					{#each top.children as child (child.id)}
+						{@render categoryRow(child, true)}
+					{/each}
+				</div>
+			{:else}
+				<EmptyState heading="No spending categories" body="Tap + New to add one." />
+			{/each}
 
-		<button type="submit" class="submit-btn" disabled={submitting || !newName.trim()}>
-			{#if submitting}<Spinner size={18} />{:else}Add category{/if}
-		</button>
-	</form>
+			<!-- Add form -->
+			{#if !addCatOpen}
+				<button class="add-cat-toggle" onclick={() => { addCatOpen = true; newKind = 'expense'; }}>
+					+ New spending category
+				</button>
+			{:else}
+				<form class="add-form" onsubmit={handleCreate} novalidate>
+					<div class="form-head-row">
+						<h2 class="form-head">New spending category</h2>
+						<button type="button" class="form-close" onclick={() => (addCatOpen = false)} aria-label="Close">
+							<X size={18} aria-hidden="true" />
+						</button>
+					</div>
+
+					<div class="field">
+						<label for="cat-name">Name</label>
+						<input id="cat-name" type="text" placeholder="e.g. Food" bind:value={newName} maxlength="50" required />
+					</div>
+
+					<div class="field">
+						<label for="cat-parent">Parent (optional)</label>
+						<select id="cat-parent" bind:value={newParent}>
+							<option value="">None (top level)</option>
+							{#each data.parents as p}
+								<option value={p.id}>{p.name}</option>
+							{/each}
+						</select>
+					</div>
+
+					<div class="field">
+						<span class="field-label">Type</span>
+						<div class="bucket-toggle" role="radiogroup" aria-label="Category type">
+							<label class="bucket-option" class:active={newBucket === 'flexible'}>
+								<input type="radio" name="bucket" value="flexible" bind:group={newBucket} />
+								<span>Flexible</span>
+							</label>
+							<label class="bucket-option" class:active={newBucket === 'committed'}>
+								<input type="radio" name="bucket" value="committed" bind:group={newBucket} />
+								<span>Committed</span>
+							</label>
+						</div>
+					</div>
+
+					{#if newBucket === 'committed'}
+						<div class="field">
+							<label for="cat-reserve">Daily reserve (optional)</label>
+							<div class="amount-row">
+								<span class="currency-symbol" aria-hidden="true">₹</span>
+								<input id="cat-reserve" type="text" inputmode="decimal" placeholder="0" value={newReserve} oninput={(e) => (newReserve = formatAmountInput(e.currentTarget.value))} class="money" />
+								<span class="per-day">/ day</span>
+							</div>
+						</div>
+					{/if}
+
+					<div class="field">
+						<label for="cat-budget">Budget for the cycle (optional)</label>
+						<div class="amount-row">
+							<span class="currency-symbol" aria-hidden="true">₹</span>
+							<input id="cat-budget" type="text" inputmode="decimal" placeholder="0" value={newBudget} oninput={(e) => (newBudget = formatAmountInput(e.currentTarget.value))} class="money" />
+						</div>
+					</div>
+
+					<div class="field">
+						<span class="field-label">Colour</span>
+						<div class="color-grid" role="radiogroup" aria-label="Choose a colour">
+							{#each PRESET_COLORS as color}
+								<label class="color-swatch">
+									<input type="radio" name="color" value={color} bind:group={newColor} />
+									<span class="swatch-circle" class:selected={newColor === color} style="background:{color}" aria-label={color}></span>
+								</label>
+							{/each}
+						</div>
+					</div>
+
+					<button type="submit" class="submit-btn" disabled={submitting || !newName.trim()}>
+						{#if submitting}<Spinner size={18} />{:else}Add category{/if}
+					</button>
+				</form>
+			{/if}
+		</section>
+
+	{:else}
+		<section class="tab-panel">
+			{#if incomeCats.length === 0}
+				<EmptyState heading="No income categories" body="Tap + New to add one." />
+			{:else}
+				<div class="cat-group">
+					{#each incomeCats as inc (inc.id)}
+						{@render categoryRow(inc, false)}
+					{/each}
+				</div>
+			{/if}
+
+			<!-- Add form -->
+			{#if !addCatOpen}
+				<button class="add-cat-toggle" onclick={() => { addCatOpen = true; newKind = 'income'; }}>
+					+ New income category
+				</button>
+			{:else}
+				<form class="add-form" onsubmit={handleCreate} novalidate>
+					<div class="form-head-row">
+						<h2 class="form-head">New income category</h2>
+						<button type="button" class="form-close" onclick={() => (addCatOpen = false)} aria-label="Close">
+							<X size={18} aria-hidden="true" />
+						</button>
+					</div>
+
+					<div class="field">
+						<label for="inc-cat-name">Name</label>
+						<input id="inc-cat-name" type="text" placeholder="e.g. Freelance" bind:value={newName} maxlength="50" required />
+					</div>
+
+					<div class="field">
+						<span class="field-label">Colour</span>
+						<div class="color-grid" role="radiogroup" aria-label="Choose a colour">
+							{#each PRESET_COLORS as color}
+								<label class="color-swatch">
+									<input type="radio" name="color-inc" value={color} bind:group={newColor} />
+									<span class="swatch-circle" class:selected={newColor === color} style="background:{color}" aria-label={color}></span>
+								</label>
+							{/each}
+						</div>
+					</div>
+
+					<button type="submit" class="submit-btn" disabled={submitting || !newName.trim()}>
+						{#if submitting}<Spinner size={18} />{:else}Add category{/if}
+					</button>
+				</form>
+			{/if}
+		</section>
 	{/if}
 </div>
 
@@ -443,10 +456,10 @@
 
 <style>
 	.categories-page {
-		padding: var(--space-6);
+		padding: var(--space-5) var(--space-6);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-6);
+		gap: var(--space-4);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
 	}
 
@@ -466,18 +479,37 @@
 		gap: var(--space-2);
 	}
 
-	.page-sub {
-		font-size: 0.9375rem;
-		color: var(--color-text-muted);
+	/* ── Tab bar ────────────────────────────────────────────────────────────── */
+	.tab-bar {
+		display: flex;
+		gap: var(--space-2);
+		border-bottom: 1px solid var(--color-border);
 	}
 
-	.group-head {
-		font-size: 0.8125rem;
-		font-weight: 600;
+	.tab-btn {
+		padding: var(--space-2) var(--space-4);
+		height: 44px;
+		border: none;
+		background: transparent;
 		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		margin-bottom: calc(var(--space-4) * -0.5);
+		font-size: 0.9375rem;
+		font-weight: 500;
+		cursor: pointer;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
+		transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+	}
+
+	.tab-btn.active {
+		color: var(--color-text);
+		font-weight: 700;
+		border-bottom-color: var(--color-gold);
+	}
+
+	.tab-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
 	}
 
 	.cat-group {
