@@ -410,12 +410,24 @@
 		await invalidateAll();
 	}
 
+	// ── Tab bar ──────────────────────────────────────────────────────────────
+	let activeTab = $state<'expenses' | 'income'>('expenses');
+	let showPaid = $state(false);
+
+	let displayedObligations = $derived(
+		showPaid ? visibleObligations : visibleObligations.filter((o) => !o.paid)
+	);
+	let paidCount = $derived(visibleObligations.filter((o) => o.paid).length);
+
 	// ── Add sheet ────────────────────────────────────────────────────────────
 	let addSheetOpen = $state(false);
 	let addType = $state<'expense' | 'income'>('expense');
 	let addExpKind = $state<'obligation' | 'auto'>('obligation');
 
-	function openAddSheet() { addSheetOpen = true; }
+	function openAddSheet() {
+		addType = activeTab === 'income' ? 'income' : 'expense';
+		addSheetOpen = true;
+	}
 	function closeAddSheet() {
 		addSheetOpen = false;
 		addType = 'expense';
@@ -438,94 +450,114 @@
 			<ArrowLeft size={20} aria-hidden="true" />
 		</a>
 		<h1 class="section-head">Recurring</h1>
-		<p class="page-sub">Obligations, bills, subscriptions, and income that repeat.</p>
 	</header>
 
-	{#if totalDue > 0}
-		<div class="due-summary">
-			<span class="due-label">Still due this period</span>
-			<span class="money due-amount">{formatPaiseLedger(totalDue)}</span>
-		</div>
+	<!-- Tab bar -->
+	<div class="tab-bar" role="tablist">
+		<button
+			class="tab-btn"
+			class:active={activeTab === 'expenses'}
+			role="tab"
+			aria-selected={activeTab === 'expenses'}
+			onclick={() => (activeTab = 'expenses')}
+		>Expenses</button>
+		<button
+			class="tab-btn"
+			class:active={activeTab === 'income'}
+			role="tab"
+			aria-selected={activeTab === 'income'}
+			onclick={() => (activeTab = 'income')}
+		>Income</button>
+	</div>
+
+	{#if activeTab === 'expenses'}
+		<section class="tab-panel" role="tabpanel">
+			{#if totalDue > 0}
+				<div class="due-summary">
+					<span class="due-label">Still due this period</span>
+					<span class="money due-amount">{formatPaiseLedger(totalDue)}</span>
+				</div>
+			{/if}
+
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+
+			{#if visibleObligations.length === 0 && visibleExpenses.length === 0}
+				<EmptyState heading="No recurring expenses" body="Tap + to add rent, bills, or subscriptions." />
+			{:else}
+				<ul class="recurring-list">
+					{#each displayedObligations as obl (obl.id)}
+						<li class="recurring-row" class:paid={obl.paid}>
+							<button
+								class="check-btn"
+								class:checked={obl.paid}
+								onclick={() => togglePaid(obl.id, !obl.paid)}
+								disabled={busyId === obl.id}
+								aria-label={obl.paid ? `Mark ${obl.name} unpaid` : `Mark ${obl.name} paid`}
+								aria-pressed={obl.paid}
+							>
+								{#if busyId === obl.id}
+									<Spinner size={16} label="Updating" />
+								{:else if obl.paid}
+									<Check size={16} aria-hidden="true" />
+								{/if}
+							</button>
+							<span class="rec-main">
+								<span class="rec-name">{obl.name}</span>
+								<span class="rec-meta">{categoryName(obl.category_id)} · {obl.cadence}</span>
+							</span>
+							<span class="money rec-amount">{formatPaiseLedger(obl.amount_paise)}</span>
+							<button class="delete-btn" onclick={() => handleDelete(obl.id)} disabled={busyId === obl.id} aria-label="Delete {obl.name}">
+								<Trash2 size={16} aria-hidden="true" />
+							</button>
+						</li>
+					{/each}
+
+					{#each visibleExpenses as exp (exp.id)}
+						<li class="recurring-row">
+							<span class="rec-main">
+								<span class="rec-name">{exp.name}</span>
+								<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
+							</span>
+							<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
+							<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
+								<Edit2 size={16} aria-hidden="true" />
+							</button>
+						</li>
+					{/each}
+				</ul>
+
+				{#if paidCount > 0}
+					<button class="show-paid-btn" onclick={() => (showPaid = !showPaid)}>
+						{showPaid ? `Hide paid` : `Show ${paidCount} paid`}
+					</button>
+				{/if}
+			{/if}
+		</section>
+
+	{:else}
+		<section class="tab-panel" role="tabpanel">
+			{#if incError}<p class="error" role="alert">{incError}</p>{/if}
+
+			{#if visibleIncome.length === 0}
+				<EmptyState heading="No recurring income" body="Tap + to add salary or other regular income." />
+			{:else}
+				<ul class="recurring-list">
+					{#each visibleIncome as inc (inc.id)}
+						<li class="recurring-row">
+							<span class="rec-main">
+								<span class="rec-name">{inc.name}</span>
+								<span class="rec-meta">{anchorLabel(inc)} · {friendlyDueDate(nextPayDate(inc))}</span>
+							</span>
+							<span class="money rec-amount money--income">+{formatPaiseLedger(inc.amount_paise)}</span>
+							<button class="edit-btn" onclick={() => openEditIncome(inc)} disabled={incBusyId === inc.id} aria-label="Edit {inc.name}">
+								<Edit2 size={16} aria-hidden="true" />
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
 	{/if}
-
-	<!-- Expenses: obligations + auto-logged combined -->
-	<section class="recurring-section">
-		<h2 class="section-label">Expenses</h2>
-
-		{#if error}<p class="error" role="alert">{error}</p>{/if}
-
-		{#if visibleObligations.length === 0 && visibleExpenses.length === 0}
-			<EmptyState heading="No recurring expenses" body="Tap + to add rent, bills, or subscriptions." />
-		{:else}
-			<ul class="recurring-list">
-				{#each visibleObligations as obl (obl.id)}
-					<li class="recurring-row" class:paid={obl.paid}>
-						<button
-							class="check-btn"
-							class:checked={obl.paid}
-							onclick={() => togglePaid(obl.id, !obl.paid)}
-							disabled={busyId === obl.id}
-							aria-label={obl.paid ? `Mark ${obl.name} unpaid` : `Mark ${obl.name} paid`}
-							aria-pressed={obl.paid}
-						>
-							{#if busyId === obl.id}
-								<Spinner size={16} label="Updating" />
-							{:else if obl.paid}
-								<Check size={16} aria-hidden="true" />
-							{/if}
-						</button>
-						<span class="rec-main">
-							<span class="rec-name">{obl.name}</span>
-							<span class="rec-meta">{categoryName(obl.category_id)} · {obl.cadence}</span>
-						</span>
-						<span class="money rec-amount">{formatPaiseLedger(obl.amount_paise)}</span>
-						<button class="delete-btn" onclick={() => handleDelete(obl.id)} disabled={busyId === obl.id} aria-label="Delete {obl.name}">
-							<Trash2 size={16} aria-hidden="true" />
-						</button>
-					</li>
-				{/each}
-
-				{#each visibleExpenses as exp (exp.id)}
-					<li class="recurring-row">
-						<span class="rec-main">
-							<span class="rec-name">{exp.name}</span>
-							<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
-						</span>
-						<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
-						<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
-							<Edit2 size={16} aria-hidden="true" />
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
-
-	<!-- Income -->
-	<section class="recurring-section">
-		<h2 class="section-label">Income</h2>
-
-		{#if incError}<p class="error" role="alert">{incError}</p>{/if}
-
-		{#if visibleIncome.length === 0}
-			<EmptyState heading="No recurring income" body="Tap + to add salary or other regular income." />
-		{:else}
-			<ul class="recurring-list">
-				{#each visibleIncome as inc (inc.id)}
-					<li class="recurring-row">
-						<span class="rec-main">
-							<span class="rec-name">{inc.name}</span>
-							<span class="rec-meta">{anchorLabel(inc)} · {friendlyDueDate(nextPayDate(inc))}</span>
-						</span>
-						<span class="money rec-amount money--income">+{formatPaiseLedger(inc.amount_paise)}</span>
-						<button class="edit-btn" onclick={() => openEditIncome(inc)} disabled={incBusyId === inc.id} aria-label="Edit {inc.name}">
-							<Edit2 size={16} aria-hidden="true" />
-						</button>
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
 </div>
 
 <!-- Add sheet -->
@@ -779,10 +811,10 @@
 
 <style>
 	.obligations-page {
-		padding: var(--space-6);
+		padding: var(--space-5) var(--space-6);
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-6);
+		gap: var(--space-4);
 		/* extra room for FAB above nav */
 		padding-bottom: calc(var(--space-6) + var(--nav-height) + 72px);
 	}
@@ -889,21 +921,6 @@
 		margin-top: calc(var(--space-1) * -1);
 	}
 
-	/* ── Section labels ──────────────────────────────────────────────────────── */
-	.recurring-section {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-	}
-
-	.section-label {
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: var(--color-text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-	}
-
 	/* ── Combined recurring list ─────────────────────────────────────────────── */
 	.recurring-list {
 		list-style: none;
@@ -988,10 +1005,52 @@
 		gap: var(--space-2);
 	}
 
-	.page-sub {
-		font-size: 0.9375rem;
-		color: var(--color-text-muted);
+	/* ── Tab bar ────────────────────────────────────────────────────────────── */
+	.tab-bar {
+		display: flex;
+		gap: var(--space-2);
+		border-bottom: 1px solid var(--color-border);
+		padding-bottom: 0;
 	}
+
+	.tab-btn {
+		padding: var(--space-2) var(--space-4);
+		height: 44px;
+		border: none;
+		background: transparent;
+		color: var(--color-text-muted);
+		font-size: 0.9375rem;
+		font-weight: 500;
+		cursor: pointer;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
+		transition: color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
+	}
+
+	.tab-btn.active {
+		color: var(--color-text);
+		font-weight: 700;
+		border-bottom-color: var(--color-gold);
+	}
+
+	.tab-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+
+	/* ── Show paid toggle ────────────────────────────────────────────────────── */
+	.show-paid-btn {
+		background: none;
+		border: none;
+		color: var(--color-text-subtle);
+		font-size: 0.8125rem;
+		cursor: pointer;
+		padding: var(--space-2) 0;
+		text-align: left;
+		transition: color var(--duration-fast) var(--ease-out);
+	}
+	.show-paid-btn:hover { color: var(--color-text-muted); }
 
 	.due-summary {
 		display: flex;
@@ -1012,33 +1071,6 @@
 		font-size: 1.125rem;
 		font-weight: 700;
 		color: var(--color-text);
-	}
-
-	.obligation-list {
-		list-style: none;
-		display: flex;
-		flex-direction: column;
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		overflow: hidden;
-	}
-
-	.obligation-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-4);
-		border-bottom: 1px solid var(--color-border);
-		min-height: var(--tap-target);
-	}
-
-	.obligation-row:last-child {
-		border-bottom: none;
-	}
-
-	.obligation-row.paid .obligation-name {
-		color: var(--color-text-muted);
-		text-decoration: line-through;
 	}
 
 	.check-btn {
@@ -1069,34 +1101,6 @@
 	.check-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-	}
-
-	.obligation-main {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		min-width: 0;
-		flex: 1;
-	}
-
-	.obligation-name {
-		font-size: 0.9375rem;
-		color: var(--color-text);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
-	}
-
-	.obligation-meta {
-		font-size: 0.8125rem;
-		color: var(--color-text-subtle);
-		text-transform: capitalize;
-	}
-
-	.obligation-amount {
-		flex: none;
-		font-size: 0.9375rem;
-		font-weight: 600;
 	}
 
 	.delete-btn {
@@ -1220,18 +1224,6 @@
 		flex: 1;
 	}
 
-	.add-form {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-		padding-top: var(--space-2);
-	}
-
-	.form-head {
-		font-size: 1rem;
-		font-weight: 600;
-	}
-
 	.field {
 		display: flex;
 		flex-direction: column;
@@ -1298,14 +1290,6 @@
 	.error {
 		color: var(--color-clay);
 		font-size: 0.875rem;
-	}
-
-	.income-section {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-		padding-top: var(--space-4);
-		border-top: 1px solid var(--color-border);
 	}
 
 	.field-hint {
