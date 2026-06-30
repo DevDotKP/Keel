@@ -29,13 +29,15 @@ export async function createRecurringIncome(
 	db: D1Database,
 	input: NewRecurringIncome
 ): Promise<RecurringIncome> {
-	// anchor_day only applies to a specific day-of-month anchor.
 	const anchorDay = input.anchor_kind === 'day_of_month' ? (input.anchor_day ?? null) : null;
+	// Set next_due_at to today so the migration + sync on the next dashboard load
+	// picks this item up immediately rather than leaving it at the 2099 default.
+	const today = new Date().toISOString().split('T')[0];
 	const row = await db
 		.prepare(
 			`INSERT INTO recurring_income
-			   (household_id, user_id, name, amount_paise, anchor_kind, anchor_day, category_id)
-			 VALUES (?, ?, ?, ?, ?, ?, ?)
+			   (household_id, user_id, name, amount_paise, anchor_kind, anchor_day, category_id, frequency, start_date, next_due_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, 'monthly', ?, ?)
 			 RETURNING *`
 		)
 		.bind(
@@ -45,7 +47,9 @@ export async function createRecurringIncome(
 			input.amount_paise,
 			input.anchor_kind,
 			anchorDay,
-			input.category_id ?? null
+			input.category_id ?? null,
+			today,
+			today
 		)
 		.first<RecurringIncome>();
 	if (!row) throw new Error('Failed to create recurring income');

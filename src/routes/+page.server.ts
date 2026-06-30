@@ -71,10 +71,11 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		if (m.avatar) memberAvatars[m.id] = m.avatar;
 	}
 
-	// Migrate old anchor_kind items to frequency-based, then sync recurring in the background.
-	Promise.all([migrateAnchorKindToFrequency(db, hid), syncAllRecurring(db, hid)]).catch(() => {
-		// Silent fail: recurring sync errors don't break the dashboard.
-	});
+	// Migrate anchor_kind items first, THEN sync — they must not race or sync
+	// will query before next_due_at is set and miss newly-migrated items.
+	migrateAnchorKindToFrequency(db, hid)
+		.then(() => syncAllRecurring(db, hid))
+		.catch(() => {});
 
 	// Return promises — the page shell renders immediately while D1 responds.
 	return {

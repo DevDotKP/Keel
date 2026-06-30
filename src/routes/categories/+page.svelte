@@ -175,14 +175,16 @@
 	<!-- Overall cycle budget -->
 	<section class="budget-section">
 		<div class="budget-header">
-			<h2 class="group-head" style="margin:0">Overall budget</h2>
+			<div>
+				<p class="budget-eyebrow">Overall budget</p>
+				<p class="budget-sub">Your total spending cap for this cycle</p>
+			</div>
 			{#if hasSuggestion && !budgetInput}
 				<button type="button" class="suggestion-chip" onclick={applySuggestion}>
 					Use income total · {formatPaiseLedger(suggestedBudgetPaise)}
 				</button>
 			{/if}
 		</div>
-		<p class="page-sub">Cap your total spending for the cycle. Shows in Harbour and on the dashboard.</p>
 		{#if budgetError}
 			<p class="error" role="alert">{budgetError}</p>
 		{/if}
@@ -731,13 +733,29 @@
 		gap: var(--space-3);
 		padding: var(--space-4) var(--space-5);
 		background: var(--color-surface-subtle);
-		border: 1px solid var(--color-border);
+		border: 2px solid var(--color-gold);
 		border-radius: var(--radius-md);
+	}
+
+	.budget-eyebrow {
+		font-size: 0.6875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--color-gold);
+		margin: 0;
+	}
+
+	.budget-sub {
+		font-size: 0.9375rem;
+		font-weight: 600;
+		color: var(--color-text);
+		margin: var(--space-1) 0 0;
 	}
 
 	.budget-header {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--space-3);
 		flex-wrap: wrap;
