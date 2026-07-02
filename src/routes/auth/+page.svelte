@@ -58,7 +58,7 @@
 
 <div class="landing">
 	<div class="brand">
-		<img src="/icons/icon-192.png" alt="" class="brand-logo-mark" width="34" height="34" />
+		<img src="/icons/icon-192-v2.png" alt="" class="brand-logo-mark" width="34" height="34" />
 		<span class="brand-name">Keel</span>
 		<span class="brand-by">by Annapurna Labs</span>
 	</div>
@@ -150,6 +150,12 @@
 					{mode === 'signup' ? 'Create account' : 'Sign in'}
 				{/if}
 			</button>
+			{#if mode === 'signup'}
+				<p class="pw-note">
+					Password reset is not available yet, so keep it somewhere safe. If your email is a
+					Google account, "Continue with Google" also works and can never lock you out.
+				</p>
+			{/if}
 			<p class="mode-switch">
 				{mode === 'signup' ? 'Already have an account?' : 'New to Keel?'}
 				<button
@@ -469,6 +475,12 @@
 	.pw-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
+	}
+
+	.pw-note {
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		color: var(--color-text-subtle);
 	}
 
 	.mode-switch {

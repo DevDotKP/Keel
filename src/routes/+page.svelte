@@ -450,6 +450,13 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 					</button>
 					{#if settleOpen}
 						<div class="settle-body" id="settle-body">
+							{#if summary.days_remaining > 2}
+								<p class="settle-line">
+									This cycle runs until {formatDisplayDate(summary.current_period.period_end)}.
+									Settling now closes it early and starts a new one. Most people settle at the
+									end, but if your numbers feel off, go ahead.
+								</p>
+							{/if}
 							<p class="settle-line">
 								By Keel's count you have <strong class="money">{formatPaise(summary.remaining_paise)}</strong>.
 								Open your bank app: how much is really there?

@@ -13,7 +13,7 @@
 <nav class="app-nav" aria-label="Main navigation">
 	<!-- Brand: visible only in the sidebar on desktop -->
 	<a href="/" class="nav-brand" aria-label="Keel home">
-		<img src="/icons/icon-192.png" alt="" class="brand-logo" width="28" height="28" />
+		<img src="/icons/icon-192-v2.png" alt="" class="brand-logo" width="28" height="28" />
 		<span>Keel</span>
 	</a>
 
