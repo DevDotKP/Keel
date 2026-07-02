@@ -25,8 +25,11 @@ export const GET: RequestHandler = async ({ platform, locals }) => {
 			 WHERE hm.household_id = ?
 			 ORDER BY hm.joined_at ASC`
 		).bind(hid),
+		// Explicit columns: never return the token hash, even though it can't be
+		// reversed — there's no reason for it to leave the server.
 		db.prepare(
-			`SELECT * FROM household_invites
+			`SELECT id, household_id, email, role, invited_by, created_at, expires_at, accepted_at
+			 FROM household_invites
 			 WHERE household_id = ? AND accepted_at IS NULL AND expires_at > datetime('now')
 			 ORDER BY created_at DESC`
 		).bind(hid),

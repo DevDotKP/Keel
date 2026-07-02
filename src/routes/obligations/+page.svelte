@@ -562,8 +562,16 @@
 
 <!-- Add sheet -->
 {#if addSheetOpen}
-	<div class="sheet-overlay" onclick={closeAddSheet} role="dialog" aria-modal="true" aria-label="Add recurring">
-		<div class="sheet-panel" onclick={(e) => e.stopPropagation()} role="document">
+	<div
+		class="sheet-overlay"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Add recurring"
+		tabindex="-1"
+		onclick={(e) => e.target === e.currentTarget && closeAddSheet()}
+		onkeydown={(e) => e.key === 'Escape' && closeAddSheet()}
+	>
+		<div class="sheet-panel">
 			<div class="sheet-header">
 				<h2 class="sheet-title">New recurring</h2>
 				<button class="modal-close" onclick={closeAddSheet} aria-label="Close">
@@ -608,7 +616,7 @@
 							<label for="obl-category">Category</label>
 							<select id="obl-category" bind:value={newCategory}>
 								<option value="">Uncategorized</option>
-								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat (cat.id)}
 									<option value={cat.id}>{cat.name}</option>
 								{/each}
 							</select>
@@ -645,7 +653,7 @@
 							<label for="exp-category">Category</label>
 							<select id="exp-category" bind:value={expCategory} required>
 								<option value="">Select a category</option>
-								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}
+								{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat (cat.id)}
 									<option value={cat.id}>{cat.name}</option>
 								{/each}
 							</select>
@@ -653,7 +661,7 @@
 						<div class="field">
 							<span class="field-label">Frequency</span>
 							<div class="freq-pills" role="radiogroup" aria-label="Frequency">
-								{#each FREQUENCIES as f}
+								{#each FREQUENCIES as f (f.value)}
 									<button type="button" class="freq-pill" class:selected={expFrequency === f.value} onclick={() => (expFrequency = f.value)} aria-pressed={expFrequency === f.value}>{f.label}</button>
 								{/each}
 							</div>
@@ -708,7 +716,7 @@
 						<div class="field">
 							<label for="inc-day">Day of month</label>
 							<select id="inc-day" bind:value={incAnchorDay}>
-								{#each Array.from({ length: 28 }, (_, i) => i + 1) as d}
+								{#each Array.from({ length: 28 }, (_, i) => i + 1) as d (d)}
 									<option value={d}>{d}</option>
 								{/each}
 							</select>
@@ -718,7 +726,7 @@
 						<label for="inc-category">Category</label>
 						<select id="inc-category" bind:value={incCategory}>
 							<option value="">Income</option>
-							{#each data.categories.filter((c) => c.kind === 'income' && !c.is_system) as cat}
+							{#each data.categories.filter((c) => c.kind === 'income' && !c.is_system) as cat (cat.id)}
 								<option value={cat.id}>{cat.name}</option>
 							{/each}
 						</select>
@@ -744,8 +752,16 @@
 
 <!-- Edit modals (unchanged) -->
 {#if editingIncId}
-	<div class="modal-overlay" onclick={() => closeEditIncome()} role="dialog" aria-modal="true" aria-label="Edit recurring income">
-		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
+	<div
+		class="modal-overlay"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Edit recurring income"
+		tabindex="-1"
+		onclick={(e) => e.target === e.currentTarget && closeEditIncome()}
+		onkeydown={(e) => e.key === 'Escape' && closeEditIncome()}
+	>
+		<div class="modal-content">
 			<div class="modal-header">
 				<h2 class="modal-title">Edit recurring income</h2>
 				<button class="modal-close" onclick={() => closeEditIncome()} aria-label="Close"><X size={20} aria-hidden="true" /></button>
@@ -754,7 +770,7 @@
 				{#if incError}<p class="error" role="alert">{incError}</p>{/if}
 				<div class="field"><label for="edit-inc-name">Name</label><input id="edit-inc-name" type="text" bind:value={editIncName} maxlength="60" required /></div>
 				<div class="field"><label for="edit-inc-amount">Amount</label><div class="amount-row"><span class="currency-symbol" aria-hidden="true">₹</span><input id="edit-inc-amount" type="text" inputmode="decimal" placeholder="0" value={editIncAmount} oninput={(e) => (editIncAmount = formatAmountInput(e.currentTarget.value))} class="money" /></div></div>
-				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f}<button type="button" class="freq-pill" class:selected={editIncFrequency === f.value} onclick={() => (editIncFrequency = f.value)} aria-pressed={editIncFrequency === f.value}>{f.label}</button>{/each}</div></div>
+				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f (f.value)}<button type="button" class="freq-pill" class:selected={editIncFrequency === f.value} onclick={() => (editIncFrequency = f.value)} aria-pressed={editIncFrequency === f.value}>{f.label}</button>{/each}</div></div>
 				<div class="field"><label for="edit-inc-next-due">Next due date</label><input id="edit-inc-next-due" type="date" bind:value={editIncNextDue} /><p class="field-hint">When the next transaction should post</p></div>
 				<div class="field"><label for="edit-inc-due-time">Time of day (optional)</label><input id="edit-inc-due-time" type="time" bind:value={editIncDueTime} /><p class="field-hint">When income lands (IST).</p></div>
 				<div class="field"><label for="edit-inc-end-date">End date (optional)</label><input id="edit-inc-end-date" type="date" bind:value={editIncEndDate} /><p class="field-hint">Stop creating transactions after this date</p></div>
@@ -772,8 +788,16 @@
 {/if}
 
 {#if editingExpId}
-	<div class="modal-overlay" onclick={() => closeEditExpense()} role="dialog" aria-modal="true" aria-label="Edit recurring expense">
-		<div class="modal-content" onclick={(e) => e.stopPropagation()} role="document">
+	<div
+		class="modal-overlay"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Edit recurring expense"
+		tabindex="-1"
+		onclick={(e) => e.target === e.currentTarget && closeEditExpense()}
+		onkeydown={(e) => e.key === 'Escape' && closeEditExpense()}
+	>
+		<div class="modal-content">
 			<div class="modal-header">
 				<h2 class="modal-title">Edit recurring expense</h2>
 				<button class="modal-close" onclick={() => closeEditExpense()} aria-label="Close"><X size={20} aria-hidden="true" /></button>
@@ -782,8 +806,8 @@
 				{#if expError}<p class="error" role="alert">{expError}</p>{/if}
 				<div class="field"><label for="edit-exp-name">Name</label><input id="edit-exp-name" type="text" bind:value={editExpName} maxlength="60" required /></div>
 				<div class="field"><label for="edit-exp-amount">Amount</label><div class="amount-row"><span class="currency-symbol" aria-hidden="true">₹</span><input id="edit-exp-amount" type="text" inputmode="decimal" placeholder="0" value={editExpAmount} oninput={(e) => (editExpAmount = formatAmountInput(e.currentTarget.value))} class="money" /></div></div>
-				<div class="field"><label for="edit-exp-category">Category</label><select id="edit-exp-category" bind:value={editExpCategory}><option value="">Uncategorized</option>{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat}<option value={cat.id}>{cat.name}</option>{/each}</select></div>
-				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f}<button type="button" class="freq-pill" class:selected={editExpFrequency === f.value} onclick={() => (editExpFrequency = f.value)} aria-pressed={editExpFrequency === f.value}>{f.label}</button>{/each}</div></div>
+				<div class="field"><label for="edit-exp-category">Category</label><select id="edit-exp-category" bind:value={editExpCategory}><option value="">Uncategorized</option>{#each data.categories.filter((c) => !c.is_system && c.kind === 'expense') as cat (cat.id)}<option value={cat.id}>{cat.name}</option>{/each}</select></div>
+				<div class="field"><span class="field-label">Frequency</span><div class="freq-pills" role="radiogroup" aria-label="Frequency">{#each FREQUENCIES as f (f.value)}<button type="button" class="freq-pill" class:selected={editExpFrequency === f.value} onclick={() => (editExpFrequency = f.value)} aria-pressed={editExpFrequency === f.value}>{f.label}</button>{/each}</div></div>
 				<div class="field"><label for="edit-exp-next-due">Next due date</label><input id="edit-exp-next-due" type="date" bind:value={editExpNextDue} /><p class="field-hint">When the next transaction should post</p></div>
 				<div class="field"><label for="edit-exp-due-time">Time of day (optional)</label><input id="edit-exp-due-time" type="time" bind:value={editExpDueTime} /><p class="field-hint">Post at this time (IST).</p></div>
 				<div class="field"><label for="edit-exp-end-date">End date (optional)</label><input id="edit-exp-end-date" type="date" bind:value={editExpEndDate} /><p class="field-hint">Stop posting after this date</p></div>

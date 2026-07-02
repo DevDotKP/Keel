@@ -1,5 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { getDb } from '$lib/server/db';
+import { rateLimited } from '$lib/server/rate-limit';
+import { isDemoUser } from '$lib/server/demo';
 
 // iOS Safari's Web Speech API is unreliable, so on those devices the client
 // records audio and posts it here. We transcribe with Whisper on Cloudflare
@@ -12,6 +15,13 @@ export const POST: RequestHandler = async ({ request, platform, locals }) => {
 
 	const ai = platform?.env?.AI;
 	if (!ai) throw error(503, 'Transcription is not available right now.');
+
+	// Whisper runs on our Workers AI quota, so cap per user per hour. Demo
+	// sessions get a taste, not a firehose (a script can mint demo sessions).
+	const cap = isDemoUser(locals.userId) ? 10 : 30;
+	if (await rateLimited(getDb(platform), `transcribe:${locals.userId}`, cap, 60)) {
+		throw error(429, 'Voice limit reached for now. Type this one, or try again later.');
+	}
 
 	const buf = await request.arrayBuffer();
 	if (buf.byteLength === 0) throw error(400, 'No audio received');

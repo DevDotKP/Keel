@@ -20,11 +20,13 @@
 
 	"env": {
 		"preview": {
+			// Previews run unreviewed branch code on public URLs; they must NEVER
+			// bind the production database.
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "keel-prod",
-					"database_id": "eacc7feb-df14-4a2e-a2e4-a572bb00ed1a",
+					"database_name": "keel-preview",
+					"database_id": "c3255918-bab8-4839-926e-392c29e3fca7",
 					"migrations_dir": "migrations"
 				}
 			],

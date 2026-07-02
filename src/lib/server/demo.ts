@@ -204,8 +204,10 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 		['Food & Dining', -52000, 'Swiggy dinner', 27, 'voice'],
 		['Groceries', -110000, 'Vegetables', 28, 'voice']
 	];
+	// Clamp to today: a visitor on the 2nd must not see entries dated the 28th.
+	const todayDom = now.getUTCDate();
 	for (const [name, amt, desc, day, src] of cur) {
-		writes.push(tx(C(name), amt, desc, utcNoon(Y, Mo, day), src, null, 0, who()));
+		writes.push(tx(C(name), amt, desc, utcNoon(Y, Mo, Math.min(day, todayDom)), src, null, 0, who()));
 	}
 
 	// Obligations (small, genuinely upcoming), recurring income, portfolio.

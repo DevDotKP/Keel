@@ -78,7 +78,13 @@ export async function issueMagicLink(
 
 	// Production path: send via Resend. Fire-and-forget; a delivery failure
 	// should not block the 200 response to the client.
-	const fromEmail = opts.fromEmail ?? 'noreply@keel.app';
+	// No hard-coded fallback sender: Resend refuses unverified domains, so a
+	// missing MAGIC_LINK_FROM_EMAIL must fail loudly, not dead-end silently.
+	const fromEmail = opts.fromEmail;
+	if (!fromEmail) {
+		console.error('[auth] MAGIC_LINK_FROM_EMAIL is not set; cannot send magic link');
+		return { token: null };
+	}
 	const emailRes = await fetch('https://api.resend.com/emails', {
 		method: 'POST',
 		headers: {

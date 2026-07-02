@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Trash2, ArrowLeft, X } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -21,9 +22,12 @@
 	let busyId = $state<string | null>(null);
 	let error = $state<string | null>(null);
 
-	// Overall cycle budget
+	// Overall cycle budget. Seeds the editable input from the loaded value once;
+	// after that the input is the source of truth (untrack makes that explicit).
 	let budgetInput = $state(
-		data.cycleBudgetPaise > 0 ? formatAmountInput((data.cycleBudgetPaise / 100).toString()) : ''
+		untrack(() =>
+			data.cycleBudgetPaise > 0 ? formatAmountInput((data.cycleBudgetPaise / 100).toString()) : ''
+		)
 	);
 	let budgetWords = $derived(amountInWordsIndian(parseToPaise(budgetInput) ?? 0));
 	let budgetSaving = $state(false);

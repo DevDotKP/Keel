@@ -17,6 +17,24 @@ export function isSpeechSupported(): boolean {
 	return 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window;
 }
 
+/**
+ * True on iOS/iPadOS. Modern iOS Safari EXPOSES webkitSpeechRecognition, so
+ * isSpeechSupported() returns true there, but recognition errors or returns
+ * nothing in practice. iOS must take the recorder + server-Whisper path even
+ * though the Speech API looks available. iPadOS reports itself as "MacIntel",
+ * so touch-point count is the tell.
+ */
+export function isLikelyIOS(): boolean {
+	if (typeof navigator === 'undefined') return false;
+	if (/iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
+	return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
+/** True when Web Speech should actually be used (available AND trustworthy). */
+export function shouldUseWebSpeech(): boolean {
+	return isSpeechSupported() && !isLikelyIOS();
+}
+
 /** True when we can record audio for server-side transcription (works on iOS). */
 export function isRecorderSupported(): boolean {
 	if (typeof window === 'undefined') return false;

@@ -29,6 +29,20 @@ self.addEventListener('activate', (event) => {
 	event.waitUntil(deleteOldCaches());
 });
 
+// On sign-out the auth page asks us to drop cached page navigations (they hold
+// SSR'd balances). Pre-cached static assets stay — they're user-agnostic.
+self.addEventListener('message', (event) => {
+	if ((event.data as { type?: string } | null)?.type !== 'purge-pages') return;
+	async function purgePages() {
+		const cache = await caches.open(CACHE);
+		for (const req of await cache.keys()) {
+			const path = new URL(req.url).pathname;
+			if (!ASSETS.includes(path)) await cache.delete(req);
+		}
+	}
+	event.waitUntil(purgePages());
+});
+
 self.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 

@@ -45,9 +45,15 @@ export function parseFlexDate(input: string): string {
 	if (input === 'yesterday') return toIstIso(subDays(new Date(), 1));
 	const shorthand = input.match(/^-(\d+)d$/);
 	if (shorthand) return toIstIso(subDays(new Date(), parseInt(shorthand[1], 10)));
-	// Date-only input (YYYY-MM-DD) from the date picker: treat as IST midnight.
-	// Do not parse via new Date() — that would yield UTC midnight (wrong date for IST).
-	if (/^\d{4}-\d{2}-\d{2}$/.test(input)) return `${input}T00:00:00+05:30`;
+	// Date-only input (YYYY-MM-DD) from the date picker. Today's date means NOW,
+	// not midnight: with midnight, a fresh entry sorts below everything else
+	// logged today (ORDER BY occurred_at DESC) and vanishes from the top of the
+	// ledger, which reads as a failed add. Past dates keep IST midnight; the
+	// entered_at tiebreak orders same-day backfills. Do not parse via
+	// new Date() — that would yield UTC midnight (wrong date for IST).
+	if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+		return input === today() ? nowIso() : `${input}T00:00:00+05:30`;
+	}
 	const parsed = new Date(input);
 	return isNaN(parsed.getTime()) ? nowIso() : toIstIso(parsed);
 }

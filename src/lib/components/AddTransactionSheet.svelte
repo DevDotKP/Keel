@@ -6,7 +6,7 @@
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { parseFlexDate, nowIso, formatIstTime } from '$lib/utils/date';
 	import {
-		isSpeechSupported,
+		shouldUseWebSpeech,
 		isVoiceSupported,
 		captureOnce,
 		captureViaRecorder
@@ -159,8 +159,9 @@
 
 		try {
 			// Android/Chrome use the instant, free Web Speech API. Where it's
-			// unreliable (iOS Safari), record audio and transcribe server-side.
-			const capture = isSpeechSupported()
+			// unreliable (iOS Safari exposes the API but it doesn't work), record
+			// audio and transcribe server-side instead.
+			const capture = shouldUseWebSpeech()
 				? await captureOnce({ signal: voiceAbort.signal })
 				: await captureViaRecorder({
 						signal: voiceAbort.signal,
