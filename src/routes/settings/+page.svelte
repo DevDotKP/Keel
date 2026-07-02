@@ -602,9 +602,10 @@
 	.role-select {
 		flex: none;
 		width: auto;
-		max-width: 110px;
+		max-width: 130px;
 		height: 36px;
-		padding: 0 var(--space-6) 0 var(--space-2);
+		/* Clear the global select chevron; space-6 clipped "Member". */
+		padding: 0 var(--space-8) 0 var(--space-3);
 		font-size: 0.8125rem;
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
@@ -644,11 +645,14 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
+		/* On narrow phones the email field wraps to its own full line instead of
+		   squeezing to nothing beside the role select and Send. */
+		flex-wrap: wrap;
 	}
 
 	.invite-input {
 		flex: 1;
-		min-width: 0;
+		min-width: 180px;
 		height: 40px;
 		padding: 0 var(--space-3);
 		border: 1px solid var(--color-border);
@@ -665,7 +669,9 @@
 		flex: none;
 		width: auto;
 		height: 40px;
-		padding: 0 var(--space-6) 0 var(--space-2);
+		/* Right padding must clear the global select chevron (16px glyph inset
+		   var(--space-3) from the right), or it overlaps the label text. */
+		padding: 0 var(--space-8) 0 var(--space-3);
 		border: 1px solid var(--color-border);
 		border-radius: var(--radius-md);
 		background-color: var(--color-surface);
