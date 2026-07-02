@@ -933,7 +933,9 @@
 
 	.about-legal {
 		display: flex;
-		gap: 0;
+		/* Flex gap, not margins: the browser guarantees identical spacing on both
+		   sides of every dot. Margins drifted with each glyph's side bearings. */
+		gap: var(--space-2);
 		/* Baseline, not center: the links have vertical padding for tap size, so
 		   centring the boxes sinks the dot separators below the text baseline. */
 		align-items: baseline;
@@ -949,9 +951,9 @@
 	}
 
 	/* Separator is its own element, outside every link's tap target, so tapping
-	   Privacy never highlights the dot before it. */
+	   Privacy never highlights the dot before it. Spacing comes from the flex
+	   gap above; margins here would make the gaps uneven. */
 	.legal-sep {
-		margin: 0 var(--space-2);
 		color: var(--color-text-subtle);
 		user-select: none;
 	}

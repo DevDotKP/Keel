@@ -51,6 +51,8 @@ export interface InsightsData {
 	spend_trends: SpendTrends;
 	/** Sum of active recurring income entries for this household (monthly paise). Zero if none set. */
 	household_income_paise: number;
+	/** Committed but not yet out this cycle: unpaid obligations + recurring due before cycle end. */
+	committed_upcoming_paise: number;
 	/** Last 6 months of flexible-only spend, oldest first. */
 	flexible_monthly: SpendTrendPoint[];
 }
@@ -199,7 +201,7 @@ export async function getInsightsData(
 		}
 	}
 
-	const [spend_trends, incomeRes, flexMonthlyRes] = await Promise.all([
+	const [spend_trends, incomeRes, flexMonthlyRes, upcomingRes] = await Promise.all([
 		getSpendTrends(readDb, account_id),
 		// Sum of active monthly recurring income for this household.
 		readDb
@@ -226,10 +228,28 @@ export async function getInsightsData(
 				 GROUP BY k`
 			)
 			.bind(account_id)
-			.all<{ k: string; p: number }>()
+			.all<{ k: string; p: number }>(),
+		// Committed money that has NOT gone out yet this cycle: unpaid obligations
+		// plus recurring expenses due before the cycle ends. Spent-so-far numbers
+		// alone overstate savings early in the cycle; this closes that gap.
+		readDb
+			.prepare(
+				`SELECT
+				   (SELECT COALESCE(SUM(o.amount_paise), 0) FROM obligations o
+				      WHERE o.household_id = ?1 AND o.is_active = 1 AND o.deleted_at IS NULL
+				        AND NOT EXISTS (SELECT 1 FROM obligation_settlements s
+				                        WHERE s.obligation_id = o.id AND s.period_id = ?2))
+				 + (SELECT COALESCE(SUM(r.amount_paise), 0) FROM recurring_expenses r
+				      WHERE r.household_id = ?1 AND r.is_active = 1 AND r.deleted_at IS NULL
+				        AND r.next_due_at IS NOT NULL
+				        AND substr(r.next_due_at, 1, 10) <= ?3) AS upcoming`
+			)
+			.bind(household_id ?? user_id, period.id, period.period_end)
+			.first<{ upcoming: number }>()
 	]);
 
 	const household_income_paise = incomeRes?.income ?? 0;
+	const committed_upcoming_paise = upcomingRes?.upcoming ?? 0;
 
 	// Build the 6-month flexible series, zero-filling months with no spend.
 	const flexMap = new Map((flexMonthlyRes.results ?? []).map((r) => [r.k, r.p]));
@@ -258,6 +278,7 @@ export async function getInsightsData(
 		prev_by_category,
 		spend_trends,
 		household_income_paise,
+		committed_upcoming_paise,
 		flexible_monthly
 	};
 }

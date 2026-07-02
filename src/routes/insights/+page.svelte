@@ -169,16 +169,31 @@
 							{/if}
 						</div>
 						{#if insights.base_budget_paise > 0}
-							{@const over = total > insights.cycle_budget_paise}
+							{@const committedAhead = insights.committed_upcoming_paise}
+							{@const projected = total + committedAhead}
+							{@const over = projected > insights.cycle_budget_paise}
+							{@const spentPct = Math.min(100, pct(total, insights.cycle_budget_paise))}
+							{@const committedPctOfTarget = Math.min(100 - spentPct, pct(committedAhead, insights.cycle_budget_paise))}
+							<!-- Two segments: spent (solid) + committed but not out yet (dim).
+							     Spent alone reads as savings you don't actually have. -->
 							<div class="prog-track" aria-hidden="true">
 								<div
 									class="prog-fill"
 									class:prog-fill--over={over}
-									style="width:{Math.min(100, pct(total, insights.cycle_budget_paise))}%"
+									style="width:{spentPct}%"
 								></div>
+								{#if committedPctOfTarget > 0}
+									<div class="prog-fill prog-fill--committed" style="width:{committedPctOfTarget}%"></div>
+								{/if}
 							</div>
+							{#if committedAhead > 0}
+								<p class="carry-note">
+									{formatPaiseLedger(total)} spent, {formatPaiseLedger(committedAhead)} more committed:
+									{formatPaiseLedger(Math.max(0, insights.cycle_budget_paise - projected))} truly left.
+								</p>
+							{/if}
 							{#if over}
-								<p class="over-note">{formatPaiseLedger(total - insights.cycle_budget_paise)} over target this cycle.</p>
+								<p class="over-note">{formatPaiseLedger(projected - insights.cycle_budget_paise)} over target once committed bills go out.</p>
 							{/if}
 							{#if insights.carryover_paise !== 0}
 								<p class="carry-note">
@@ -192,11 +207,14 @@
 						{/if}
 					</section>
 
-					<!-- Savings rate: income vs spend. Prompt if no income set. -->
+					<!-- Savings: income minus spent minus what is still committed to go out.
+					     "Saved = income - spent" mid-cycle overstates savings and reads
+					     as a lie the day rent posts. Prompt if no income set. -->
 					{#if insights.household_income_paise > 0}
-						{@const savings = insights.household_income_paise - insights.total_expense_paise}
+						{@const committedAhead = insights.committed_upcoming_paise}
+						{@const savings = insights.household_income_paise - insights.total_expense_paise - committedAhead}
 						{@const savingsRate = Math.round((savings / insights.household_income_paise) * 100)}
-						<section class="savings-card" aria-label="Savings rate">
+						<section class="savings-card" aria-label="Projected savings">
 							<div class="savings-row">
 								<span class="savings-item">
 									<span class="savings-label">Income</span>
@@ -207,13 +225,15 @@
 									<span class="savings-val money">{formatPaise(Math.round(insights.total_expense_paise / 100) * 100)}</span>
 								</span>
 								<span class="savings-item">
-									<span class="savings-label">Saved</span>
-									<span class="savings-val money" class:savings-val--neg={savings < 0}>{formatPaise(Math.round(Math.abs(savings) / 100) * 100)}</span>
+									<span class="savings-label">Committed</span>
+									<span class="savings-val money">{formatPaise(Math.round(committedAhead / 100) * 100)}</span>
 								</span>
 							</div>
 							<div class="savings-rate-row">
-								<span class="savings-rate-label">Savings rate</span>
-								<span class="savings-rate-val" class:savings-rate--neg={savingsRate < 0}>{savingsRate}%</span>
+								<span class="savings-rate-label">On track to save</span>
+								<span class="savings-rate-val" class:savings-rate--neg={savingsRate < 0}>
+									<span class="money">{formatPaise(Math.round(Math.abs(savings) / 100) * 100)}</span> · {savingsRate}%
+								</span>
 							</div>
 							<div class="prog-track" aria-hidden="true">
 								<div
@@ -232,21 +252,22 @@
 
 					<!-- Committed / flexible split -->
 					{#if insights.committed_paise + insights.flexible_paise > 0}
-						<section class="split-card" aria-label="Committed and flexible spend">
+						<section class="split-card" aria-label="Where the spending went so far">
+							<p class="split-title">Spent so far, split</p>
 							<div class="split-labels">
 								<span class="split-col">
 									<span class="split-kind"
-										>Committed<HelpTip
-											term="Committed"
+										>On essentials<HelpTip
+											term="Essentials"
 											align="start"
-											text="Spending you can't easily avoid, like rent and bills. Flexible is everything else."
+											text="What you spent so far on must-pay categories like rent, groceries and bills. Bills that have not gone out yet are under Committed in the savings card above."
 										/></span
 									>
 									<span class="split-amount money">{formatPaiseLedger(insights.committed_paise)}</span>
 									<span class="split-pct">{committedPct}%</span>
 								</span>
 								<span class="split-col split-col--right">
-									<span class="split-kind">Flexible</span>
+									<span class="split-kind">On extras</span>
 									<span class="split-amount money">{formatPaiseLedger(insights.flexible_paise)}</span>
 									<span class="split-pct">{flexiblePct}%</span>
 								</span>
@@ -841,6 +862,8 @@
 		background: var(--color-border);
 		border-radius: var(--radius-full);
 		overflow: hidden;
+		/* Segments sit side by side (spent, then committed-not-yet-out). */
+		display: flex;
 	}
 
 	.prog-fill {
@@ -848,9 +871,24 @@
 		background: var(--color-text-muted);
 		border-radius: var(--radius-full);
 		transition: width 0.3s var(--ease-out);
+		flex: none;
 	}
 
 	.prog-fill--over { background: var(--color-clay); }
+
+	/* Committed but not yet out: same bar, clearly lighter than real spend. */
+	.prog-fill--committed {
+		background: color-mix(in srgb, var(--color-text-muted) 40%, transparent);
+	}
+
+	.split-title {
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--color-text-subtle);
+		margin-bottom: var(--space-2);
+	}
 
 	.over-note {
 		font-size: 0.8125rem;
