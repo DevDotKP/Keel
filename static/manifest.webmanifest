@@ -1,7 +1,7 @@
 {
   "name": "Keel",
   "short_name": "Keel",
-  "description": "A forgiving expense tracker. Track money left, come to harbour weekly.",
+  "description": "A forgiving expense tracker. See what is safe to spend, settle up once a cycle.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

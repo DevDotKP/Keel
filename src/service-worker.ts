@@ -21,12 +21,65 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-	async function deleteOldCaches() {
+	async function activate() {
 		for (const key of await caches.keys()) {
 			if (key !== CACHE) await caches.delete(key);
 		}
+		// Take over open pages immediately so deploys land without every
+		// tab/PWA window being closed first.
+		await self.clients.claim();
 	}
-	event.waitUntil(deleteOldCaches());
+	event.waitUntil(activate());
+});
+
+// ── Web Push: harbour reminders ────────────────────────────────────────────
+// These MUST live in this file: this is the service worker SvelteKit actually
+// registers. A push with no handler here shows the user nothing.
+
+interface KeelPush {
+	title?: string;
+	body?: string;
+	url?: string;
+	tag?: string;
+}
+
+self.addEventListener('push', (event) => {
+	let data: KeelPush = {};
+	try {
+		if (event.data) data = event.data.json() as KeelPush;
+	} catch {
+		/* malformed payload: fall back to a generic notice below */
+	}
+	const title = data.title || 'Keel';
+	event.waitUntil(
+		self.registration.showNotification(title, {
+			body: data.body || '',
+			icon: '/icons/icon-192-v2.png',
+			badge: '/icons/icon-192-v2.png',
+			tag: data.tag,
+			data: { url: data.url || '/' }
+		})
+	);
+});
+
+self.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const target = (event.notification.data as { url?: string } | undefined)?.url || '/';
+	event.waitUntil(
+		(async () => {
+			const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+			for (const client of clientList) {
+				await client.focus();
+				try {
+					await client.navigate(target);
+				} catch {
+					/* navigation can fail across origins; focus is enough */
+				}
+				return;
+			}
+			await self.clients.openWindow(target);
+		})()
+	);
 });
 
 // On sign-out the auth page asks us to drop cached page navigations (they hold
