@@ -1,16 +1,16 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { ShieldCheck, LifeBuoy, Tag } from 'lucide-svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
-	// Magic-link state
-	type MailState = 'idle' | 'submitting' | 'sent';
-	let mailState = $state<MailState>('idle');
+	// Email + password state. 'signin' and 'signup' share one form.
+	let mode = $state<'signin' | 'signup'>('signin');
 	let email = $state('');
-	let devToken = $state<string | null>(null);
+	let password = $state('');
+	let submitting = $state(false);
 
 	function errorFromParam(e: string | null): string | null {
 		if (e === 'oauth') return 'Google sign-in failed. Try again.';
@@ -21,26 +21,34 @@
 
 	let formError = $state<string | null>(errorFromParam(untrack(() => data.error)));
 
-	async function sendMagicLink(e: SubmitEvent) {
+	onMount(() => {
+		// Landing here means signed out (or session expired). Purge cached page
+		// navigations so the previous user's balances can't be read offline on a
+		// shared device. Best-effort; static assets stay cached.
+		navigator.serviceWorker?.controller?.postMessage({ type: 'purge-pages' });
+	});
+
+	async function submitPassword(e: SubmitEvent) {
 		e.preventDefault();
 		formError = null;
-		mailState = 'submitting';
+		submitting = true;
 
-		const res = await fetch('/api/auth/send', {
+		const res = await fetch(mode === 'signup' ? '/api/auth/signup' : '/api/auth/login', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ email })
+			body: JSON.stringify({ email, password })
 		});
 
 		if (!res.ok) {
-			mailState = 'idle';
-			formError = 'Something went wrong. Try again.';
+			submitting = false;
+			const body = (await res.json().catch(() => ({}))) as { message?: string };
+			formError = body.message ?? 'Something went wrong. Try again.';
 			return;
 		}
 
-		const body = (await res.json().catch(() => ({}))) as { ok?: boolean; token?: string };
-		devToken = body.token ?? null;
-		mailState = 'sent';
+		// Full reload so the server hook picks up the new session cookie.
+		const next = data.next && data.next.startsWith('/') && !data.next.startsWith('//') ? data.next : '/';
+		window.location.href = next;
 	}
 </script>
 
@@ -106,49 +114,53 @@
 			Continue with Google
 		</a>
 
-		<!-- Email magic-link: shown when it can actually send (dev, or Resend configured) -->
-		{#if data.magicLink}
-			<div class="divider"><span>or</span></div>
+		<div class="divider"><span>or use email</span></div>
 
-			{#if mailState === 'sent'}
-				<div class="sent-state">
-					{#if devToken}
-						<p class="sent-heading">Your sign-in link</p>
-						<p class="sent-body">Tap to sign in as <strong>{email}</strong>. Expires in 15 minutes.</p>
-						<a href="/api/auth/verify?token={devToken}" class="reveal-link" role="button">Sign in</a>
-					{:else}
-						<p class="sent-heading">Check your email</p>
-						<p class="sent-body">Sent to <strong>{email}</strong>. Expires in 15 minutes.</p>
-					{/if}
-					<button class="link-btn" onclick={() => { mailState = 'idle'; devToken = null; }}>
-						Use a different email
-					</button>
-				</div>
-			{:else}
-				<form class="magic-form" onsubmit={sendMagicLink} novalidate>
-					<input
-						id="email"
-						type="email"
-						name="email"
-						bind:value={email}
-						class="field-input"
-						placeholder="you@example.com"
-						autocomplete="email"
-						inputmode="email"
-						aria-label="Email"
-						required
-						disabled={mailState === 'submitting'}
-					/>
-					<button class="magic-btn" type="submit" disabled={mailState === 'submitting' || !email}>
-						{#if mailState === 'submitting'}
-							<Spinner size={16} label="Sending link" />
-						{:else}
-							Email me a link
-						{/if}
-					</button>
-				</form>
-			{/if}
-		{/if}
+		<form class="pw-form" onsubmit={submitPassword} novalidate>
+			<input
+				id="email"
+				type="email"
+				name="email"
+				bind:value={email}
+				class="field-input"
+				placeholder="you@example.com"
+				autocomplete="email"
+				inputmode="email"
+				aria-label="Email"
+				required
+				disabled={submitting}
+			/>
+			<input
+				id="password"
+				type="password"
+				name="password"
+				bind:value={password}
+				class="field-input"
+				placeholder={mode === 'signup' ? 'Choose a password (8+ characters)' : 'Password'}
+				autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
+				aria-label="Password"
+				required
+				minlength={mode === 'signup' ? 8 : undefined}
+				disabled={submitting}
+			/>
+			<button class="pw-btn" type="submit" disabled={submitting || !email || !password}>
+				{#if submitting}
+					<Spinner size={16} label={mode === 'signup' ? 'Creating account' : 'Signing in'} />
+				{:else}
+					{mode === 'signup' ? 'Create account' : 'Sign in'}
+				{/if}
+			</button>
+			<p class="mode-switch">
+				{mode === 'signup' ? 'Already have an account?' : 'New to Keel?'}
+				<button
+					type="button"
+					class="link-btn"
+					onclick={() => { mode = mode === 'signup' ? 'signin' : 'signup'; formError = null; }}
+				>
+					{mode === 'signup' ? 'Sign in' : 'Create an account'}
+				</button>
+			</p>
+		</form>
 	</div>
 
 	<!-- Why Keel: scannable, icon-led, not prose. -->
@@ -411,8 +423,9 @@
 		background: var(--color-border);
 	}
 
-	.magic-form {
+	.pw-form {
 		display: flex;
+		flex-direction: column;
 		gap: var(--space-2);
 	}
 
@@ -435,8 +448,7 @@
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 15%, transparent);
 	}
 
-	.magic-btn {
-		flex: none;
+	.pw-btn {
 		height: 48px;
 		padding: 0 var(--space-4);
 		background: var(--color-surface-subtle);
@@ -454,39 +466,17 @@
 		white-space: nowrap;
 	}
 
-	.magic-btn:disabled {
+	.pw-btn:disabled {
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
 
-	.sent-state {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-3);
-	}
-
-	.sent-heading {
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--color-text);
-	}
-
-	.sent-body {
-		font-size: 0.9375rem;
+	.mode-switch {
+		font-size: 0.875rem;
 		color: var(--color-text-muted);
-		line-height: 1.5;
-	}
-
-	.reveal-link {
 		display: flex;
-		align-items: center;
+		gap: var(--space-2);
 		justify-content: center;
-		height: 48px;
-		background: var(--color-gold);
-		color: var(--color-ink);
-		font-weight: 700;
-		border-radius: var(--radius-md);
-		text-decoration: none;
 	}
 
 	.link-btn {

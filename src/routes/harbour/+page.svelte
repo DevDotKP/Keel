@@ -42,7 +42,7 @@
 
 	async function handleHarbour(freshStart: boolean) {
 		if (!data.period || enteredPaise === null) {
-			error = 'Enter your balance to close the period';
+			error = 'Enter your balance to settle';
 			return;
 		}
 		submitting = true;
@@ -54,7 +54,7 @@
 		});
 		submitting = false;
 		if (!res.ok) {
-			error = 'Could not close the period. Try again.';
+			error = 'Could not settle. Try again.';
 			return;
 		}
 		await goto('/');
@@ -62,26 +62,26 @@
 </script>
 
 <svelte:head>
-	<title>Harbour - Keel</title>
+	<title>Settle - Keel</title>
 </svelte:head>
 
 <div class="harbour-page">
 	<header class="page-header">
 		<div class="harbour-title-row">
-			<h1 class="section-head">Harbour</h1>
+			<h1 class="section-head">Settle up</h1>
 			<HelpTip
-				term="Harbour"
-				text="A quick check-in where you confirm your real balance. Keel squares any gap, so a missed entry never breaks your total."
+				term="Settling"
+				text="Type what is really in your bank account. Keel saves any gap as one entry, so a missed expense never breaks your numbers."
 			/>
 			{#if data.harbourVisits > 0}
-				<span class="visits-badge" aria-label="{data.harbourVisits} harbour visits">
-					{data.harbourVisits} {data.harbourVisits === 1 ? 'visit' : 'visits'}
+				<span class="visits-badge" aria-label="Settled {data.harbourVisits} times">
+					settled {data.harbourVisits}{data.harbourVisits === 1 ? ' time' : ' times'}
 				</span>
 			{/if}
 		</div>
 		<p class="page-sub">{periodRange()}</p>
 		<p class="harbour-intro">
-			Back to harbour. Confirm what's really in your account and Keel squares the difference, then seals the period.
+			Check your bank app, type what is really there, and Keel squares the difference. That is all.
 		</p>
 	</header>
 
@@ -125,7 +125,7 @@
 	</section>
 
 	<section class="entries">
-		<h2 class="entries-head">What you logged this period</h2>
+		<h2 class="entries-head">What you logged this cycle</h2>
 		{#if data.transactions.length === 0}
 			<EmptyState heading="Nothing logged yet" body="Add entries, then come back to settle." />
 		{:else}
@@ -166,7 +166,8 @@
 			<!-- Amnesty: behind by several periods. Start fresh is the recommended,
 			     forgiving path; it seals them all at once. Settling one is secondary. -->
 			<p class="amnesty-note">
-				You're {data.openPeriods} periods behind. Starting fresh seals them all in one step, no need to settle each.
+				You haven't settled in {data.openPeriods} cycles. No problem: "Start fresh" closes them
+				all in one step. Nothing to catch up on, nothing lost.
 			</p>
 			<button
 				class="primary-btn"
@@ -184,7 +185,7 @@
 				disabled={submitting || enteredPaise === null}
 				onclick={() => handleHarbour(false)}
 			>
-				Settle just this period
+				Settle only this cycle
 			</button>
 		{:else}
 			<button
@@ -193,9 +194,9 @@
 				onclick={() => handleHarbour(false)}
 			>
 				{#if submitting}
-					<Spinner size={18} label="Closing period" />
+					<Spinner size={18} label="Settling" />
 				{:else}
-					Close this period
+					Settle this cycle
 				{/if}
 			</button>
 		{/if}

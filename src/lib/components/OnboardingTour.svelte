@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { X, ChevronRight, ChevronLeft } from 'lucide-svelte';
-	import { isSpeechSupported } from '$lib/utils/voice/capture';
+	import { isVoiceSupported } from '$lib/utils/voice/capture';
 
 	const TOUR_KEY = 'keel_tour_v1';
 
-	// Don't promise voice where the browser can't do it (notably iOS Safari).
-	const voiceSupported = isSpeechSupported();
+	// Don't promise voice where the browser can't do it. iOS counts as supported:
+	// it records audio and transcribes server-side instead of using Web Speech.
+	const voiceSupported = isVoiceSupported();
 
 	interface TourStep {
 		title: string;
@@ -15,35 +16,39 @@
 		placement?: 'above' | 'below'; // tooltip position relative to spotlight
 	}
 
-	// Five steps: Welcome, Safe-to-spend, Runway, Log, Harbour. Runway is here because
-	// the card isn't visible until data exists, so the tour is the only reliable place
-	// to introduce it. The gold dot and cycle details are discoverable in context.
+	// Welcome, Safe-to-spend, Log, Budget, Recurring, Settle. Plain words only:
+	// user feedback said the English was heavy and "harbour" was unclear, so every
+	// step says what to do, not what we call it.
 	const STEPS: TourStep[] = [
 		{
 			title: 'Welcome to Keel',
-			body: 'A few seconds on the three things that matter. Skip anytime.'
+			body: 'One minute, five things. Skip anytime.'
 		},
 		{
 			title: 'Safe to spend',
-			body: "What's left after what you still owe this cycle. Not your bank balance.",
+			body: 'The money you can still spend this cycle after bills and essentials are set aside. Not your bank balance.',
 			target: '[aria-label="Safe to spend"]',
 			placement: 'below'
 		},
 		{
-			title: 'Runway',
-			body: 'Your balance divided by your average daily spend. A calm forward read, not a deadline. Cut the flexible spending and watch the number grow.'
-		},
-		{
-			title: 'Log an expense',
+			title: 'Add an expense',
 			body: voiceSupported
-				? 'Tap the gold button. Amount first. Or just say "Swiggy 200 rupees".'
-				: 'Tap the gold button. Amount first. Quick, and forgiving if you miss one.',
+				? 'Tap the gold button, type the amount, done. Or just say it: "Swiggy 200 rupees".'
+				: 'Tap the gold button, type the amount, done. Missed a day? Nothing breaks.',
 			target: '.fab',
 			placement: 'above'
 		},
 		{
-			title: 'The Harbour',
-			body: 'At cycle end, type your real balance. Keel squares the books. No guilt.'
+			title: 'Set a budget',
+			body: 'Go to Settings, then "Budget and categories". Set one amount for the whole cycle, or a limit per category. "Safe to spend" starts from it.'
+		},
+		{
+			title: 'Salary and bills, on repeat',
+			body: 'Add your salary, rent and subscriptions once: Settings, then "Recurring & income". Keel posts them every cycle so you never re-type them.'
+		},
+		{
+			title: 'Settle up, once a cycle',
+			body: 'When the cycle ends, type what is really in your bank account. Keel saves any gap as one entry. Missed expenses never break your numbers.'
 		}
 	];
 

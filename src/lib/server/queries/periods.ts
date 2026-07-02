@@ -128,6 +128,26 @@ export async function getOrCreateCurrentPeriod(
 }
 
 /**
+ * Recent settled cycles, newest first. Used to group ledger history on the
+ * dashboard under per-cycle collapsible bars.
+ */
+export async function listRecentClosedPeriods(
+	db: D1Database,
+	account_id: string,
+	limit = 6
+): Promise<Array<Pick<ReconciliationPeriod, 'id' | 'period_start' | 'period_end'>>> {
+	const { results } = await db
+		.prepare(
+			`SELECT id, period_start, period_end FROM reconciliation_periods
+			 WHERE account_id = ? AND harboured_at IS NOT NULL
+			 ORDER BY period_start DESC LIMIT ?`
+		)
+		.bind(account_id, limit)
+		.all<Pick<ReconciliationPeriod, 'id' | 'period_start' | 'period_end'>>();
+	return results ?? [];
+}
+
+/**
  * Harbour (close) a period.
  *
  * Miss-tolerant by design: existing categories are preserved. The gap between

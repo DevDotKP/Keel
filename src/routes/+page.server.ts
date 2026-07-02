@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { getDb, getReadDb } from '$lib/server/db';
-import { getAccountSummary, getRunway } from '$lib/server/queries/periods';
+import { getAccountSummary, getRunway, listRecentClosedPeriods } from '$lib/server/queries/periods';
 import { listTransactions } from '$lib/server/queries/transactions';
 import { listCategories } from '$lib/server/queries/categories';
 import { getDefaultAccount } from '$lib/server/queries/accounts';
@@ -46,6 +46,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		transactions: Promise.resolve([]),
 		categories: Promise.resolve([]),
 		runway: Promise.resolve(null),
+		pastPeriods: Promise.resolve([]),
 		currentUserId: locals.userId,
 		memberEmails: {} as Record<string, string>,
 		memberNames: {} as Record<string, string>,
@@ -80,9 +81,12 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 	// Return promises — the page shell renders immediately while D1 responds.
 	return {
 		summary: getAccountSummary(db, account.id as string, cadence, harbourDay, rdb),
-		transactions: listTransactions(rdb, { account_id: account.id as string, limit: 20 }),
+		// 60 covers the current cycle plus enough history to fill the collapsed
+		// per-cycle groups below the fold.
+		transactions: listTransactions(rdb, { account_id: account.id as string, limit: 60 }),
 		categories: listCategories(rdb, hid),
 		runway: getRunway(rdb, account.id as string, cadence, harbourDay),
+		pastPeriods: listRecentClosedPeriods(rdb, account.id as string, 6),
 		currentUserId: locals.userId,
 		memberEmails,
 		memberNames,

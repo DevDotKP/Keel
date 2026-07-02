@@ -5,7 +5,7 @@
 	const links = [
 		{ href: '/',         label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/insights', label: 'Insights',  icon: TrendingUp },
-		{ href: '/harbour',  label: 'Harbour',   icon: Anchor },
+		{ href: '/harbour',  label: 'Settle',    icon: Anchor },
 		{ href: '/settings', label: 'Settings',  icon: Settings }
 	] as const;
 </script>

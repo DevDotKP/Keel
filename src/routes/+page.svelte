@@ -169,19 +169,97 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		transactions: Awaited<PageData['transactions']>;
 		categories: Awaited<PageData['categories']>;
 		runway: Awaited<PageData['runway']>;
+		pastPeriods: Awaited<PageData['pastPeriods']>;
 	} | null>(null);
 	let loadError = $state(false);
 
 	$effect(() => {
-		Promise.all([data.summary, data.transactions, data.categories, data.runway])
-			.then(([summary, transactions, categories, runway]) => {
-				view = { summary, transactions, categories, runway };
+		Promise.all([data.summary, data.transactions, data.categories, data.runway, data.pastPeriods])
+			.then(([summary, transactions, categories, runway, pastPeriods]) => {
+				view = { summary, transactions, categories, runway, pastPeriods };
 				loadError = false;
 			})
 			.catch(() => {
 				loadError = true;
 			});
 	});
+
+	// ── Inline settle (the Harbour action, on the dashboard) ─────────────────
+	let settleOpen = $state(false);
+	let settleInput = $state('');
+	let settling = $state(false);
+	let settleError = $state<string | null>(null);
+
+	async function settleCycle(): Promise<void> {
+		const summary = view?.summary;
+		const paise = parseToPaise(settleInput);
+		if (!summary || paise === null) return;
+		settling = true;
+		settleError = null;
+		const res = await fetch(`/api/periods/${summary.current_period.id}/harbour`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ closing_balance_paise: paise })
+		});
+		settling = false;
+		if (!res.ok) {
+			settleError = 'Could not settle. Try again.';
+			return;
+		}
+		settleOpen = false;
+		settleInput = '';
+		toast.show({ message: 'Cycle settled. Fresh start.', duration: 4000 });
+		await invalidateAll();
+	}
+
+	// ── Ledger grouping: this cycle expanded, older cycles collapsed ─────────
+	type Tx = Transaction;
+	interface CycleGroup {
+		id: string;
+		label: string;
+		txs: Tx[];
+		net: number;
+	}
+
+	function groupLedger(
+		transactions: Tx[],
+		periodStart: string | undefined,
+		pastPeriods: Array<{ id: string; period_start: string; period_end: string }>
+	): { current: Tx[]; groups: CycleGroup[] } {
+		const cpStart = periodStart ?? '';
+		const current: Tx[] = [];
+		const older: Tx[] = [];
+		for (const t of transactions) {
+			if (!cpStart || t.occurred_at.slice(0, 10) >= cpStart) current.push(t);
+			else older.push(t);
+		}
+		const groups: Array<CycleGroup & { start: string; end: string }> = pastPeriods.map((p) => ({
+			id: p.id,
+			label: `${formatDisplayDate(p.period_start)} to ${formatDisplayDate(p.period_end)}`,
+			start: p.period_start,
+			end: p.period_end,
+			txs: [],
+			net: 0
+		}));
+		const earlier: CycleGroup & { start: string; end: string } = {
+			id: 'earlier',
+			label: 'Earlier',
+			start: '',
+			end: '',
+			txs: [],
+			net: 0
+		};
+		for (const t of older) {
+			const d = t.occurred_at.slice(0, 10);
+			const g = groups.find((p) => d >= p.start && d <= p.end) ?? earlier;
+			g.txs.push(t);
+			g.net += t.amount_paise;
+		}
+		return {
+			current,
+			groups: [...groups.filter((g) => g.txs.length > 0), ...(earlier.txs.length > 0 ? [earlier] : [])]
+		};
+	}
 </script>
 
 <svelte:head>
@@ -198,6 +276,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		.filter((c) => c.bucket === 'committed' && c.daily_reserve_paise > 0)
 		.sort((a, b) => b.daily_reserve_paise - a.daily_reserve_paise)}
 	{@const visibleTransactions = transactions.filter((t) => !hiddenIds.includes(t.id))}
+	{@const grouped = groupLedger(visibleTransactions, summary?.current_period?.period_start, view.pastPeriods)}
 		{@const showBalanceNudge = !!summary && summary.balance_paise === 0 && transactions.length === 0 && summary.harbour_visits === 0}
 
 	<div class="dashboard">
@@ -217,7 +296,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 					{#if summary.safe_to_spend_paise < 0}
 						Over by {formatPaise(Math.abs(summary.safe_to_spend_paise))} until {formatDisplayDate(summary.current_period.period_end)}.
 					{:else}
-						Free to spend before your next harbour · {periodRange(summary.current_period)}
+						Yours to spend until {formatDisplayDate(summary.current_period.period_end)}, after bills and essentials.
 					{/if}
 				{/if}
 			</p>
@@ -265,7 +344,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 				{/if}
 				{#if summary.locked_obligations_paise > 0}
 					<a class="breakdown-row breakdown-row--link" href="/obligations">
-						<span class="breakdown-label">Obligations still due</span>
+						<span class="breakdown-label">Bills still due</span>
 						<span class="money breakdown-amount muted"
 							>−{formatPaiseLedger(summary.locked_obligations_paise)}</span
 						>
@@ -330,88 +409,174 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 				<p class="runway-days">{label}</p>
 				<p class="runway-basis">at your current pace</p>
 				{#if extra !== null}
-					<p class="runway-extra">Cut discretionary: +{formatRunwayDays(extra)} days</p>
+					<p class="runway-extra">Cut back on extras and this lasts {formatRunwayDays(extra)} days longer</p>
 				{/if}
 			</section>
 		{/if}
 
-		<!-- Harbour open-loop pull (Zeigarnik, not guilt). Shown once there is something to settle. -->
-		{#if transactions.length > 0}
-			<a href="/harbour" class="harbour-nudge" aria-label="Come to harbour, about two minutes">
-				<span class="harbour-disc" aria-hidden="true">
-					<Anchor size={18} />
-				</span>
-				<span class="harbour-text">
-					<span class="harbour-title">Come to harbour</span>
-					<span class="harbour-sub">Settle this cycle · about 2 min</span>
-				</span>
-				<ChevronRight class="harbour-chevron" size={20} aria-hidden="true" />
-			</a>
+		<!-- Settle: the Harbour action, right on the dashboard. Open loop, no guilt. -->
+		{#if transactions.length > 0 && summary}
+			{#if summary.open_periods > 1}
+				<!-- Multiple unsettled cycles: the catch-up flow (with its one-tap
+				     fresh-start option) lives on the full page. -->
+				<a href="/harbour" class="harbour-nudge" aria-label="Catch up on {summary.open_periods} unsettled cycles">
+					<span class="harbour-disc" aria-hidden="true">
+						<Anchor size={18} />
+					</span>
+					<span class="harbour-text">
+						<span class="harbour-title">Welcome back</span>
+						<span class="harbour-sub">Catch up on {summary.open_periods} cycles in one tap</span>
+					</span>
+					<ChevronRight class="harbour-chevron" size={20} aria-hidden="true" />
+				</a>
+			{:else}
+				<section class="settle-card" aria-label="Settle this cycle">
+					<button
+						class="settle-head"
+						onclick={() => (settleOpen = !settleOpen)}
+						aria-expanded={settleOpen}
+						aria-controls="settle-body"
+					>
+						<span class="harbour-disc" aria-hidden="true">
+							<Anchor size={18} />
+						</span>
+						<span class="harbour-text">
+							<span class="harbour-title">Settle up</span>
+							<span class="harbour-sub">Check your numbers against your bank · 2 min</span>
+						</span>
+						<span class="settle-chevron" class:open={settleOpen} aria-hidden="true">
+							<ChevronRight size={20} />
+						</span>
+					</button>
+					{#if settleOpen}
+						<div class="settle-body" id="settle-body">
+							<p class="settle-line">
+								By Keel's count you have <strong class="money">{formatPaise(summary.remaining_paise)}</strong>.
+								Open your bank app: how much is really there?
+							</p>
+							<div class="settle-row">
+								<span class="settle-currency" aria-hidden="true">₹</span>
+								<label for="settle-input" class="sr-only">Balance in your bank account, in rupees</label>
+								<input
+									id="settle-input"
+									type="text"
+									inputmode="decimal"
+									placeholder="0"
+									value={settleInput}
+									oninput={(e) => (settleInput = formatAmountInput(e.currentTarget.value))}
+									class="settle-input money"
+									autocomplete="off"
+								/>
+								<button
+									class="settle-btn"
+									onclick={settleCycle}
+									disabled={settling || parseToPaise(settleInput) === null}
+								>
+									{settling ? 'Settling…' : 'Settle'}
+								</button>
+							</div>
+							{#if settleError}
+								<p class="settle-error" role="alert">{settleError}</p>
+							{/if}
+							<p class="settle-hint">
+								If the numbers differ, the gap is saved as one "Uncategorized" entry. Nothing breaks,
+								and you can sort it out later.
+							</p>
+							<a href="/harbour" class="settle-more">More options</a>
+						</div>
+					{/if}
+				</section>
+			{/if}
 		{/if}
 
-		<!-- Recent transactions -->
+		<!-- Ledger: this cycle expanded, older cycles collapsed into per-cycle bars -->
+		{#snippet ledgerRow(tx: Transaction)}
+			{@const cat = catById.get(tx.category_id)}
+			{@const income = tx.amount_paise >= 0}
+			{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
+			{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'You' : (data.memberNames[tx.entered_by] ?? (data.memberEmails[tx.entered_by] ?? '').split('@')[0])) : ''}
+			{@const enteredByAvatar = tx.entered_by ? (data.memberAvatars[tx.entered_by] ?? '') : ''}
+			<li class="ledger-row">
+				<button
+					class="row-tap"
+					onclick={() => { editingTx = tx; sheetOpen = true; }}
+					aria-label="Edit {tx.description || 'entry'}"
+				>
+					<span class="ledger-main">
+						<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
+						<span class="ledger-meta">
+							{#if uncategorized}
+								<span class="uncat-dot" aria-hidden="true"></span>
+							{/if}
+							{#if tx.description}
+								<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
+								<span class="meta-sep" aria-hidden="true">·</span>
+							{/if}
+							<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
+							<span class="meta-sep" aria-hidden="true">·</span>
+							<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
+						</span>
+						{#if tx.note}
+							<span class="ledger-note">{tx.note}</span>
+						{/if}
+						{#if isShared && enteredByName}
+							<span class="ledger-by" aria-label="Added by {enteredByName}">
+								<span class="by-avatar" aria-hidden="true">
+									{#if enteredByAvatar}<img src={enteredByAvatar} alt="" class="by-avatar-img" />{:else}{enteredByName.charAt(0).toUpperCase()}{/if}
+								</span>
+								<span class="by-name">{enteredByName}</span>
+							</span>
+						{/if}
+					</span>
+					<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
+						{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
+					</span>
+				</button>
+				<button
+					class="row-delete"
+					onclick={() => handleDelete(tx.id)}
+					aria-label="Delete {tx.description || 'entry'}"
+				>
+					<Trash2 size={16} aria-hidden="true" />
+				</button>
+			</li>
+		{/snippet}
+
 		<section class="ledger-section">
 			<div class="ledger-header">
-				<h2 class="section-head">Recent</h2>
+				<h2 class="section-head">This cycle</h2>
 				<a href="/transactions" class="see-all-link">See all</a>
 			</div>
 
 			{#if visibleTransactions.length === 0}
 				<EmptyState heading="No entries yet" body="Add your first expense below." />
 			{:else}
-				<ul class="ledger">
-					{#each visibleTransactions as tx (tx.id)}
-						{@const cat = catById.get(tx.category_id)}
-						{@const income = tx.amount_paise >= 0}
-						{@const uncategorized = cat?.name === 'Uncategorized' || tx.is_uncategorized_fallback === 1}
-						{@const enteredByName = tx.entered_by ? (tx.entered_by === data.currentUserId ? 'You' : (data.memberNames[tx.entered_by] ?? (data.memberEmails[tx.entered_by] ?? '').split('@')[0])) : ''}
-						{@const enteredByAvatar = tx.entered_by ? (data.memberAvatars[tx.entered_by] ?? '') : ''}
-						<li class="ledger-row">
-							<button
-								class="row-tap"
-								onclick={() => { editingTx = tx; sheetOpen = true; }}
-								aria-label="Edit {tx.description || 'entry'}"
-							>
-								<span class="ledger-main">
-									<span class="ledger-desc">{tx.description || cat?.name || 'Expense'}</span>
-									<span class="ledger-meta">
-										{#if uncategorized}
-											<span class="uncat-dot" aria-hidden="true"></span>
-										{/if}
-										{#if tx.description}
-											<span class="ledger-cat">{cat?.name ?? 'Uncategorized'}</span>
-											<span class="meta-sep" aria-hidden="true">·</span>
-										{/if}
-										<span class="ledger-date">{formatDisplayDate(tx.occurred_at)}</span>
-										<span class="meta-sep" aria-hidden="true">·</span>
-										<span class="ledger-time">{formatIstTime(tx.entered_at)}</span>
-									</span>
-									{#if tx.note}
-										<span class="ledger-note">{tx.note}</span>
-									{/if}
-									{#if isShared && enteredByName}
-										<span class="ledger-by" aria-label="Added by {enteredByName}">
-											<span class="by-avatar" aria-hidden="true">
-												{#if enteredByAvatar}<img src={enteredByAvatar} alt="" class="by-avatar-img" />{:else}{enteredByName.charAt(0).toUpperCase()}{/if}
-											</span>
-											<span class="by-name">{enteredByName}</span>
-										</span>
-									{/if}
-								</span>
-								<span class="money ledger-amount {income ? 'money--income' : 'money--expense'}">
-									{income ? '+' : ''}{formatPaiseLedger(Math.abs(tx.amount_paise))}
-								</span>
-							</button>
-							<button
-								class="row-delete"
-								onclick={() => handleDelete(tx.id)}
-								aria-label="Delete {tx.description || 'entry'}"
-							>
-								<Trash2 size={16} aria-hidden="true" />
-							</button>
-						</li>
-					{/each}
-				</ul>
+				{#if grouped.current.length === 0}
+					<p class="cycle-fresh">Fresh cycle, nothing spent yet. Older entries are below.</p>
+				{:else}
+					<ul class="ledger">
+						{#each grouped.current as tx (tx.id)}
+							{@render ledgerRow(tx)}
+						{/each}
+					</ul>
+				{/if}
+
+				{#each grouped.groups as g (g.id)}
+					<details class="cycle-group">
+						<summary class="cycle-summary">
+							<span class="cycle-range">{g.label}</span>
+							<span class="cycle-meta">
+								{g.txs.length} {g.txs.length === 1 ? 'entry' : 'entries'} ·
+								<span class="money">{g.net > 0 ? '+' : g.net < 0 ? '−' : ''}{formatPaiseLedger(Math.abs(g.net))}</span>
+							</span>
+						</summary>
+						<ul class="ledger">
+							{#each g.txs as tx (tx.id)}
+								{@render ledgerRow(tx)}
+							{/each}
+						</ul>
+					</details>
+				{/each}
 			{/if}
 		</section>
 
@@ -462,7 +627,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		</div>
 		<section class="ledger-section">
 			<div class="skel skel-section-head"></div>
-			{#each [1, 2, 3] as _}
+			{#each [1, 2, 3] as n (n)}
 				<div class="skel skel-ledger-row"></div>
 			{/each}
 		</section>
@@ -770,6 +935,174 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		transition:
 			border-color var(--duration-fast) var(--ease-out),
 			transform var(--duration-fast) var(--ease-out);
+	}
+
+	/* ── Settle card (inline Harbour) ──────────────────────────────────────── */
+	.settle-card {
+		background: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+	}
+
+	.settle-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		width: 100%;
+		padding: var(--space-3) var(--space-4);
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-family: inherit;
+		text-align: left;
+		min-height: var(--tap-target);
+	}
+
+	.settle-chevron {
+		margin-left: auto;
+		display: flex;
+		color: var(--color-text-subtle);
+		transition: transform var(--duration-fast) var(--ease-out);
+	}
+
+	.settle-chevron.open {
+		transform: rotate(90deg);
+	}
+
+	.settle-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: 0 var(--space-4) var(--space-4);
+	}
+
+	.settle-line {
+		font-size: 0.9375rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+	}
+
+	.settle-line strong {
+		color: var(--color-text);
+	}
+
+	.settle-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+
+	.settle-currency {
+		font-size: 1.125rem;
+		color: var(--color-text-subtle);
+	}
+
+	.settle-input {
+		flex: 1;
+		min-width: 0;
+		height: 48px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 1.125rem;
+		color: var(--color-text);
+	}
+
+	.settle-input:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	.settle-btn {
+		flex: none;
+		height: 48px;
+		padding: 0 var(--space-5);
+		background: var(--color-gold);
+		color: var(--color-ink);
+		font-weight: 700;
+		font-size: 0.9375rem;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.settle-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.settle-hint {
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		color: var(--color-text-subtle);
+	}
+
+	.settle-error {
+		font-size: 0.875rem;
+		color: var(--color-clay);
+	}
+
+	.settle-more {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		text-underline-offset: 3px;
+	}
+
+	/* ── Collapsed past cycles ─────────────────────────────────────────────── */
+	.cycle-fresh {
+		font-size: 0.875rem;
+		color: var(--color-text-muted);
+		padding: var(--space-3) 0;
+	}
+
+	.cycle-group {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		margin-top: var(--space-2);
+		background: var(--color-surface);
+	}
+
+	.cycle-summary {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-4);
+		cursor: pointer;
+		min-height: var(--tap-target);
+		list-style: none;
+		font-size: 0.875rem;
+	}
+
+	.cycle-summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.cycle-summary::before {
+		content: '▸';
+		color: var(--color-text-subtle);
+		margin-right: var(--space-2);
+	}
+
+	.cycle-group[open] .cycle-summary::before {
+		content: '▾';
+	}
+
+	.cycle-range {
+		flex: 1;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.cycle-meta {
+		color: var(--color-text-muted);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.cycle-group .ledger {
+		padding: 0 var(--space-4) var(--space-2);
 	}
 
 	.harbour-nudge:hover {

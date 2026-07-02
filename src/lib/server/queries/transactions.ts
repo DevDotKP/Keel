@@ -1,22 +1,23 @@
 import type { Transaction, NewTransaction } from '$lib/types';
 
+export interface TransactionFilterOpts {
+	account_id: string;
+	period_id?: string;
+	category_id?: string;
+	from?: string;
+	to?: string;
+	q?: string;
+}
+
 /**
- * List transactions for an account, most recent first.
- * Scoped to the account_id (which is itself user-scoped). Excludes soft-deleted rows.
- * Optional occurred_at window: from (inclusive) and to (exclusive).
+ * Shared WHERE builder so the list and its COUNT always agree.
+ * q matches description/note (substring) and, when it parses as an amount in
+ * rupees, the exact absolute amount.
  */
-export async function listTransactions(
-	db: D1Database,
-	opts: {
-		account_id: string;
-		limit?: number;
-		offset?: number;
-		period_id?: string;
-		category_id?: string;
-		from?: string;
-		to?: string;
-	}
-): Promise<Transaction[]> {
+export function transactionFilters(opts: TransactionFilterOpts): {
+	where: string[];
+	binds: unknown[];
+} {
 	const where = ['account_id = ?', 'deleted_at IS NULL'];
 	const binds: unknown[] = [opts.account_id];
 	if (opts.period_id) {
@@ -35,6 +36,42 @@ export async function listTransactions(
 		where.push('occurred_at < ?');
 		binds.push(opts.to);
 	}
+	if (opts.q) {
+		const like = `%${opts.q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
+		const rupees = parseFloat(opts.q.replace(/[₹,\s]/g, ''));
+		const paise = Number.isFinite(rupees) && rupees > 0 ? Math.round(rupees * 100) : null;
+		if (paise !== null) {
+			where.push(
+				"(description LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\' OR ABS(amount_paise) = ?)"
+			);
+			binds.push(like, like, paise);
+		} else {
+			where.push("(description LIKE ? ESCAPE '\\' OR note LIKE ? ESCAPE '\\')");
+			binds.push(like, like);
+		}
+	}
+	return { where, binds };
+}
+
+/**
+ * List transactions for an account, most recent first.
+ * Scoped to the account_id (which is itself user-scoped). Excludes soft-deleted rows.
+ * Optional occurred_at window: from (inclusive) and to (exclusive).
+ */
+export async function listTransactions(
+	db: D1Database,
+	opts: {
+		account_id: string;
+		limit?: number;
+		offset?: number;
+		period_id?: string;
+		category_id?: string;
+		from?: string;
+		to?: string;
+		q?: string;
+	}
+): Promise<Transaction[]> {
+	const { where, binds } = transactionFilters(opts);
 	let sql = `SELECT * FROM transactions WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC, entered_at DESC`;
 	if (opts.limit != null) {
 		sql += ' LIMIT ?';
@@ -49,6 +86,19 @@ export async function listTransactions(
 		.bind(...binds)
 		.all<Transaction>();
 	return results ?? [];
+}
+
+/** Count transactions under the same filters listTransactions uses. */
+export async function countTransactions(
+	db: D1Database,
+	opts: TransactionFilterOpts
+): Promise<number> {
+	const { where, binds } = transactionFilters(opts);
+	const row = await db
+		.prepare(`SELECT COUNT(*) AS n FROM transactions WHERE ${where.join(' AND ')}`)
+		.bind(...binds)
+		.first<{ n: number }>();
+	return row?.n ?? 0;
 }
 
 /**

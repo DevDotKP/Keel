@@ -18,14 +18,28 @@
 
 	let totalPages = $derived(Math.max(1, Math.ceil(data.total / data.pageSize)));
 
-	function navigate(p: number, catId?: string) {
+	// Search-as-you-type, debounced so we don't hit the server per keystroke.
+	let search = $state(page.url.searchParams.get('q') ?? '');
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function navigate(p: number, catId?: string, q?: string) {
 		const params = new URLSearchParams(page.url.searchParams);
 		params.set('page', String(p));
 		if (catId !== undefined) {
 			if (catId) params.set('category', catId);
 			else params.delete('category');
 		}
-		goto(`/transactions?${params}`, { replaceState: true });
+		if (q !== undefined) {
+			if (q) params.set('q', q);
+			else params.delete('q');
+		}
+		goto(`/transactions?${params}`, { replaceState: true, keepFocus: true });
+	}
+
+	function onSearchInput(value: string) {
+		search = value;
+		if (searchTimer) clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => navigate(1, undefined, search.trim()), 250);
 	}
 
 	async function handleSubmit(draft: Required<TransactionDraft>): Promise<void> {
@@ -64,8 +78,18 @@
 		<p class="count-sub" aria-live="polite">{data.total} {data.total === 1 ? 'entry' : 'entries'}</p>
 	</header>
 
-	<!-- Category filter -->
+	<!-- Search + category filter -->
 	<div class="filter-row">
+		<label for="tx-search" class="sr-only">Search entries</label>
+		<input
+			id="tx-search"
+			class="search-input"
+			type="search"
+			placeholder="Search by name, note or amount"
+			value={search}
+			oninput={(e) => onSearchInput(e.currentTarget.value)}
+			autocomplete="off"
+		/>
 		<label for="cat-filter" class="sr-only">Filter by category</label>
 		<select
 			id="cat-filter"
@@ -73,14 +97,14 @@
 			onchange={(e) => navigate(1, e.currentTarget.value)}
 		>
 			<option value="">All categories</option>
-			{#each data.categories as cat}
+			{#each data.categories as cat (cat.id)}
 				<option value={cat.id}>{cat.name}</option>
 			{/each}
 		</select>
 	</div>
 
 	{#if data.transactions.length === 0}
-		<EmptyState heading="No entries" body={data.categoryId ? 'None in this category yet.' : 'Add your first expense below.'} />
+		<EmptyState heading="No entries" body={data.q ? 'Nothing matches your search.' : data.categoryId ? 'None in this category yet.' : 'Add your first expense below.'} />
 	{:else}
 		{@const catById = new Map(data.categories.map((c) => [c.id, c]))}
 		<ul class="ledger">
@@ -203,6 +227,26 @@
 
 	.filter-row {
 		display: flex;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+	}
+
+	.search-input {
+		flex: 1;
+		min-width: 200px;
+		height: 40px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background-color: var(--color-surface);
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		font-family: inherit;
+	}
+
+	.search-input:focus {
+		outline: none;
+		border-color: var(--color-gold);
 	}
 
 	.filter-row select {
