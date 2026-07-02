@@ -189,6 +189,18 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	let settleInput = $state('');
 	let settling = $state(false);
 	let settleError = $state<string | null>(null);
+	// Funnel event: opened the settle UI. Once per page load, fire-and-forget.
+	let settleTracked = $state(false);
+
+	function trackSettleOpen() {
+		if (settleTracked) return;
+		settleTracked = true;
+		fetch('/api/events', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ name: 'settle_open' })
+		}).catch(() => {});
+	}
 
 	async function settleCycle(): Promise<void> {
 		const summary = view?.summary;
@@ -433,7 +445,7 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 				<section class="settle-card" aria-label="Settle this cycle">
 					<button
 						class="settle-head"
-						onclick={() => (settleOpen = !settleOpen)}
+						onclick={() => { settleOpen = !settleOpen; if (settleOpen) trackSettleOpen(); }}
 						aria-expanded={settleOpen}
 						aria-controls="settle-body"
 					>

@@ -27,6 +27,12 @@ export interface HabitMetrics {
 	entriesPerActiveWeek: number;
 	usersWithEntries: number;
 	totalUsers: number;
+	// Settle funnel (14d): distinct users who opened the settle UI vs users who
+	// completed a settle. Approximate (not a per-user join) but directionally
+	// answers "do people look at settle and walk away".
+	settleOpeners14: number;
+	settleCompleters14: number;
+	settleAbandonPct: number | null;
 }
 
 function parseUtc(s: string): number {
@@ -41,7 +47,7 @@ const TREND_WEEKS = 8;
 const pct = (n: number, d: number): number => (d > 0 ? Math.round((n / d) * 100) : 0);
 
 export async function getHabitMetrics(db: D1Database): Promise<HabitMetrics> {
-	const [txRes, usersRes, periodsRes, voiceRes] = await db.batch([
+	const [txRes, usersRes, periodsRes, voiceRes, settleOpenRes, settleDoneRes] = await db.batch([
 		db.prepare(
 			`SELECT entered_by AS uid, entered_at AS t, source, is_uncategorized_fallback AS uncat
 			 FROM transactions
@@ -56,7 +62,19 @@ export async function getHabitMetrics(db: D1Database): Promise<HabitMetrics> {
 				 WHERE period_end < date('now')
 				   AND account_id NOT IN (SELECT id FROM accounts WHERE user_id LIKE 'demo-%')`
 		),
-		db.prepare("SELECT COUNT(*) AS total, SUM(was_corrected) AS corrected FROM voice_samples WHERE user_id NOT LIKE 'demo-%'")
+		db.prepare("SELECT COUNT(*) AS total, SUM(was_corrected) AS corrected FROM voice_samples WHERE user_id NOT LIKE 'demo-%'"),
+		db.prepare(
+			`SELECT COUNT(DISTINCT user_id) AS n FROM app_events
+			 WHERE name IN ('settle_open', 'settle_view')
+			   AND user_id NOT LIKE 'demo-%'
+			   AND created_at >= datetime('now', '-14 days')`
+		),
+		db.prepare(
+			`SELECT COUNT(DISTINCT a.household_id) AS n FROM reconciliation_periods rp
+			 JOIN accounts a ON a.id = rp.account_id
+			 WHERE rp.harboured_at >= datetime('now', '-14 days')
+			   AND a.user_id NOT LIKE 'demo-%'`
+		)
 	]);
 
 	const now = Date.now();
@@ -123,6 +141,13 @@ export async function getHabitMetrics(db: D1Database): Promise<HabitMetrics> {
 
 	const entriesPerActiveWeek = weekSum > 0 ? +(tx.length / weekSum).toFixed(1) : 0;
 
+	const settleOpeners14 = ((settleOpenRes.results?.[0] ?? {}) as { n?: number }).n ?? 0;
+	const settleCompleters14 = ((settleDoneRes.results?.[0] ?? {}) as { n?: number }).n ?? 0;
+	const settleAbandonPct =
+		settleOpeners14 > 0
+			? pct(Math.max(0, settleOpeners14 - settleCompleters14), settleOpeners14)
+			: null;
+
 	return {
 		avgActiveWeeks,
 		retention: { w1: retentionAt(1), w2: retentionAt(2), w4: retentionAt(4) },
@@ -133,6 +158,9 @@ export async function getHabitMetrics(db: D1Database): Promise<HabitMetrics> {
 		voiceCorrectionPct,
 		entriesPerActiveWeek,
 		usersWithEntries,
-		totalUsers: users.length
+		totalUsers: users.length,
+		settleOpeners14,
+		settleCompleters14,
+		settleAbandonPct
 	};
 }

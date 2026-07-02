@@ -42,6 +42,21 @@ export async function hashPassword(password: string): Promise<string> {
 	return `pbkdf2:${ITERATIONS}:${toHex(salt)}:${hash}`;
 }
 
+/**
+ * Recovery code: xxxx-xxxx-xxxx-xxxx (16 hex chars, 64 bits). The only reset
+ * path without email. Shown once; only the SHA-256 hash is stored.
+ */
+export function generateRecoveryCode(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(8));
+	const hex = toHex(bytes);
+	return `${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}`;
+}
+
+/** Normalise user-typed recovery codes: case, spaces, and dashes don't matter. */
+export function normalizeRecoveryCode(input: string): string {
+	return input.toLowerCase().replace(/[^0-9a-f]/g, '');
+}
+
 /** Verify a password against a stored hash. Constant-time comparison. */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
 	const parts = stored.split(':');

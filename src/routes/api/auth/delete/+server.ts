@@ -73,6 +73,7 @@ export const POST: RequestHandler = async (event) => {
 	// later Google sign-in silently resurrects the "deleted" account.
 	await db.batch([
 		db.prepare('DELETE FROM voice_samples WHERE user_id = ?').bind(userId),
+		db.prepare('DELETE FROM app_events WHERE user_id = ?').bind(userId),
 		db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(userId),
 		db.prepare('DELETE FROM entitlements WHERE user_id = ?').bind(userId),
 		db.prepare('DELETE FROM settings WHERE user_id = ?').bind(userId),
@@ -80,10 +81,12 @@ export const POST: RequestHandler = async (event) => {
 		db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId),
 		db.prepare('DELETE FROM holdings WHERE user_id = ?').bind(userId),
 		// Anonymise: replace identity with a stable non-PII sentinel so FK
-		// references in surviving shared ledgers don't break.
+		// references in surviving shared ledgers don't break. Credentials must go
+		// too, or a password reset could resurrect the "deleted" account.
 		db.prepare(
 			`UPDATE users SET email = 'deleted+' || id || '@keel.deleted',
-				google_sub = NULL, display_name = NULL, avatar = NULL WHERE id = ?`
+				google_sub = NULL, display_name = NULL, avatar = NULL,
+				password_hash = NULL, recovery_code_hash = NULL WHERE id = ?`
 		).bind(userId),
 	]);
 

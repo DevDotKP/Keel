@@ -160,6 +160,35 @@
 		location.href = '/auth';
 	}
 
+	// Recovery code: shown once after generating. Rotating invalidates the old one.
+	let recoveryCode = $state<string | null>(null);
+	let recoveryBusy = $state(false);
+	let recoveryCopied = $state(false);
+
+	async function generateRecovery() {
+		recoveryBusy = true;
+		profileError = null;
+		const res = await fetch('/api/auth/recovery-code', { method: 'POST' });
+		recoveryBusy = false;
+		if (!res.ok) {
+			profileError = 'Could not generate a recovery code. Try again.';
+			return;
+		}
+		const body = (await res.json().catch(() => ({}))) as { recovery_code?: string };
+		recoveryCode = body.recovery_code ?? null;
+		recoveryCopied = false;
+	}
+
+	async function copyRecovery() {
+		if (!recoveryCode) return;
+		try {
+			await navigator.clipboard.writeText(recoveryCode);
+			recoveryCopied = true;
+		} catch {
+			/* clipboard blocked: code stays on screen for manual copy */
+		}
+	}
+
 	async function handleDeleteAccount() {
 		deleteBusy = true;
 		profileError = null;
@@ -225,6 +254,24 @@
 
 		{#if profileError}
 			<p class="error" role="alert">{profileError}</p>
+		{/if}
+	</div>
+
+	<div class="recovery-block">
+		<p class="field-label">Recovery code</p>
+		<p class="recovery-sub">
+			The only way to reset a lost password. Generating a new code replaces the old one.
+		</p>
+		{#if recoveryCode}
+			<p class="recovery-code money" role="alert">{recoveryCode}</p>
+			<p class="recovery-sub">Save it now. It will not be shown again.</p>
+			<button class="secondary-btn" onclick={copyRecovery}>
+				{recoveryCopied ? 'Copied' : 'Copy code'}
+			</button>
+		{:else}
+			<button class="secondary-btn" onclick={generateRecovery} disabled={recoveryBusy}>
+				{recoveryBusy ? 'Generating…' : 'Generate recovery code'}
+			</button>
 		{/if}
 	</div>
 
@@ -474,6 +521,33 @@
 
 	.link-btn.danger { color: var(--color-clay); }
 	.link-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+	.recovery-block {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-4);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+	}
+
+	.recovery-sub {
+		font-size: 0.8125rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+	}
+
+	.recovery-code {
+		font-size: 1.125rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-align: center;
+		padding: var(--space-3);
+		border: 1px dashed var(--color-border);
+		border-radius: var(--radius-sm);
+		user-select: all;
+	}
 
 	.sign-out-btn {
 		display: flex;

@@ -270,6 +270,7 @@ export async function purgeOldDemoUsers(db: D1Database, maxAgeMinutes = 10): Pro
 		db.prepare(`DELETE FROM recurring_income WHERE household_id IN ${OLD}`),
 		db.prepare(`DELETE FROM obligations WHERE household_id IN ${OLD}`),
 		db.prepare(`DELETE FROM voice_samples WHERE user_id IN ${OLD}`),
+		db.prepare(`DELETE FROM app_events WHERE user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM categories WHERE household_id IN ${OLD}`),
 		db.prepare(`DELETE FROM accounts WHERE user_id IN ${OLD}`),
 		db.prepare(`DELETE FROM magic_link_tokens WHERE user_id IN ${OLD}`),

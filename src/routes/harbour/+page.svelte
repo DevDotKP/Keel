@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import HelpTip from '$lib/components/HelpTip.svelte';
@@ -12,6 +13,16 @@
 	let submitting = $state(false);
 	let balanceInput = $state(initialBalance());
 	let error = $state<string | null>(null);
+
+	onMount(() => {
+		// Funnel event: viewed the settle page. Completion is derived from
+		// harboured_at, so views without a matching settle measure abandonment.
+		fetch('/api/events', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ name: 'settle_view' })
+		}).catch(() => {});
+	});
 
 	// Prefill with Keel's estimate so the user confirms or adjusts, not types from zero.
 	function initialBalance(): string {

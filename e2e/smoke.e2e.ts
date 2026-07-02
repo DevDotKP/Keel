@@ -24,12 +24,15 @@ test('legal and pricing pages respond', async ({ page }) => {
 	}
 });
 
-test('email signup creates an account and signs in', async ({ page }) => {
+test('email signup issues a recovery code and signs in', async ({ page }) => {
 	await page.goto('/auth');
 	await page.getByRole('button', { name: 'Create an account' }).click();
 	await page.getByLabel('Email').fill(`smoke+${Date.now()}@example.com`);
 	await page.getByLabel('Password').fill('smoke-pass-123');
 	await page.getByRole('button', { name: 'Create account' }).click();
+	// The recovery code gate appears before any redirect (shown exactly once).
+	await expect(page.getByText('Save your recovery code')).toBeVisible();
+	await page.getByRole('button', { name: 'I saved it, continue' }).click();
 	// New accounts land on first-run setup (/welcome); a session cookie is set.
 	await page.waitForURL(/\/(welcome)?(\?.*)?$/, { timeout: 10_000 });
 	expect((await page.context().cookies()).some((c) => c.name === 'keel_session')).toBe(true);

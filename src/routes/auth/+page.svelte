@@ -6,11 +6,15 @@
 
 	let { data }: { data: PageData } = $props();
 
-	// Email + password state. 'signin' and 'signup' share one form.
-	let mode = $state<'signin' | 'signup'>('signin');
+	// Email + password state. 'signin', 'signup', and 'reset' share one form.
+	let mode = $state<'signin' | 'signup' | 'reset'>('signin');
 	let email = $state('');
 	let password = $state('');
+	let recoveryInput = $state('');
 	let submitting = $state(false);
+	// Set after signup/reset: shown exactly once, user must confirm they saved it.
+	let issuedCode = $state<string | null>(null);
+	let codeCopied = $state(false);
 
 	function errorFromParam(e: string | null): string | null {
 		if (e === 'oauth') return 'Google sign-in failed. Try again.';
@@ -28,15 +32,27 @@
 		navigator.serviceWorker?.controller?.postMessage({ type: 'purge-pages' });
 	});
 
+	function proceed() {
+		// Full reload so the server hook picks up the new session cookie.
+		const next = data.next && data.next.startsWith('/') && !data.next.startsWith('//') ? data.next : '/';
+		window.location.href = next;
+	}
+
 	async function submitPassword(e: SubmitEvent) {
 		e.preventDefault();
 		formError = null;
 		submitting = true;
 
-		const res = await fetch(mode === 'signup' ? '/api/auth/signup' : '/api/auth/login', {
+		const endpoint =
+			mode === 'signup' ? '/api/auth/signup' : mode === 'reset' ? '/api/auth/reset' : '/api/auth/login';
+		const payload =
+			mode === 'reset'
+				? { email, recovery_code: recoveryInput, new_password: password }
+				: { email, password };
+		const res = await fetch(endpoint, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ email, password })
+			body: JSON.stringify(payload)
 		});
 
 		if (!res.ok) {
@@ -46,9 +62,24 @@
 			return;
 		}
 
-		// Full reload so the server hook picks up the new session cookie.
-		const next = data.next && data.next.startsWith('/') && !data.next.startsWith('//') ? data.next : '/';
-		window.location.href = next;
+		const body = (await res.json().catch(() => ({}))) as { recovery_code?: string };
+		if (body.recovery_code) {
+			// Session is live, but hold the redirect until they save the code.
+			issuedCode = body.recovery_code;
+			submitting = false;
+			return;
+		}
+		proceed();
+	}
+
+	async function copyCode() {
+		if (!issuedCode) return;
+		try {
+			await navigator.clipboard.writeText(issuedCode);
+			codeCopied = true;
+		} catch {
+			/* clipboard blocked: the code is on screen, user can copy manually */
+		}
 	}
 </script>
 
@@ -116,57 +147,116 @@
 
 		<div class="divider"><span>or use email</span></div>
 
-		<form class="pw-form" onsubmit={submitPassword} novalidate>
-			<input
-				id="email"
-				type="email"
-				name="email"
-				bind:value={email}
-				class="field-input"
-				placeholder="you@example.com"
-				autocomplete="email"
-				inputmode="email"
-				aria-label="Email"
-				required
-				disabled={submitting}
-			/>
-			<input
-				id="password"
-				type="password"
-				name="password"
-				bind:value={password}
-				class="field-input"
-				placeholder={mode === 'signup' ? 'Choose a password (8+ characters)' : 'Password'}
-				autocomplete={mode === 'signup' ? 'new-password' : 'current-password'}
-				aria-label="Password"
-				required
-				minlength={mode === 'signup' ? 8 : undefined}
-				disabled={submitting}
-			/>
-			<button class="pw-btn" type="submit" disabled={submitting || !email || !password}>
-				{#if submitting}
-					<Spinner size={16} label={mode === 'signup' ? 'Creating account' : 'Signing in'} />
-				{:else}
-					{mode === 'signup' ? 'Create account' : 'Sign in'}
-				{/if}
-			</button>
-			{#if mode === 'signup'}
-				<p class="pw-note">
-					Password reset is not available yet, so keep it somewhere safe. If your email is a
-					Google account, "Continue with Google" also works and can never lock you out.
+		{#if issuedCode}
+			<!-- Shown exactly once. The session is already live; we hold the redirect
+			     until the user confirms they saved the code. -->
+			<div class="code-panel" role="alert">
+				<p class="code-heading">Save your recovery code</p>
+				<p class="code-body">
+					This code is the only way to reset your password. Keel cannot email you a reset link.
+					Save it in your password manager or notes now; it will not be shown again.
 				</p>
-			{/if}
-			<p class="mode-switch">
-				{mode === 'signup' ? 'Already have an account?' : 'New to Keel?'}
+				<p class="code-value money">{issuedCode}</p>
+				<div class="code-actions">
+					<button type="button" class="pw-btn" onclick={copyCode}>
+						{codeCopied ? 'Copied' : 'Copy code'}
+					</button>
+					<button type="button" class="pw-btn pw-btn--primary" onclick={proceed}>
+						I saved it, continue
+					</button>
+				</div>
+			</div>
+		{:else}
+			<form class="pw-form" onsubmit={submitPassword} novalidate>
+				<input
+					id="email"
+					type="email"
+					name="email"
+					bind:value={email}
+					class="field-input"
+					placeholder="you@example.com"
+					autocomplete="email"
+					inputmode="email"
+					aria-label="Email"
+					required
+					disabled={submitting}
+				/>
+				{#if mode === 'reset'}
+					<input
+						id="recovery-code"
+						type="text"
+						name="recovery-code"
+						bind:value={recoveryInput}
+						class="field-input"
+						placeholder="Recovery code (xxxx-xxxx-xxxx-xxxx)"
+						autocomplete="off"
+						spellcheck="false"
+						aria-label="Recovery code"
+						required
+						disabled={submitting}
+					/>
+				{/if}
+				<input
+					id="password"
+					type="password"
+					name="password"
+					bind:value={password}
+					class="field-input"
+					placeholder={mode === 'signup'
+						? 'Choose a password (8+ characters)'
+						: mode === 'reset'
+							? 'New password (8+ characters)'
+							: 'Password'}
+					autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+					aria-label={mode === 'reset' ? 'New password' : 'Password'}
+					required
+					minlength={mode === 'signin' ? undefined : 8}
+					disabled={submitting}
+				/>
 				<button
-					type="button"
-					class="link-btn"
-					onclick={() => { mode = mode === 'signup' ? 'signin' : 'signup'; formError = null; }}
+					class="pw-btn"
+					type="submit"
+					disabled={submitting || !email || !password || (mode === 'reset' && !recoveryInput)}
 				>
-					{mode === 'signup' ? 'Sign in' : 'Create an account'}
+					{#if submitting}
+						<Spinner
+							size={16}
+							label={mode === 'signup' ? 'Creating account' : mode === 'reset' ? 'Resetting' : 'Signing in'}
+						/>
+					{:else}
+						{mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Reset password' : 'Sign in'}
+					{/if}
 				</button>
-			</p>
-		</form>
+				{#if mode === 'signup'}
+					<p class="pw-note">
+						You will get a recovery code: the only way to reset a lost password. If your email
+						is a Google account, "Continue with Google" also works and can never lock you out.
+					</p>
+				{/if}
+				{#if mode === 'reset'}
+					<p class="pw-note">
+						Lost the code too? If your email is a Google account, "Continue with Google" still
+						signs you in. Otherwise there is no way back in; that is the cost of no email access.
+					</p>
+				{/if}
+				<p class="mode-switch">
+					{#if mode === 'signin'}
+						New to Keel?
+						<button type="button" class="link-btn" onclick={() => { mode = 'signup'; formError = null; }}>
+							Create an account
+						</button>
+						<button type="button" class="link-btn" onclick={() => { mode = 'reset'; formError = null; }}>
+							Forgot password?
+						</button>
+					{:else}
+						Already have an account?
+						<button type="button" class="link-btn" onclick={() => { mode = 'signin'; formError = null; }}>
+							Sign in
+						</button>
+					{/if}
+				</p>
+			</form>
+		{/if}
 	</div>
 
 	<!-- Why Keel: scannable, icon-led, not prose. -->
@@ -481,6 +571,56 @@
 		font-size: 0.8125rem;
 		line-height: 1.5;
 		color: var(--color-text-subtle);
+	}
+
+	.pw-btn--primary {
+		background: var(--color-gold);
+		color: var(--color-ink);
+		border-color: var(--color-gold);
+		font-weight: 700;
+	}
+
+	.code-panel {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: var(--space-4);
+		border: 1px solid var(--color-gold);
+		border-radius: var(--radius-md);
+		background: color-mix(in srgb, var(--color-gold) 6%, transparent);
+	}
+
+	.code-heading {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--color-text);
+	}
+
+	.code-body {
+		font-size: 0.875rem;
+		line-height: 1.5;
+		color: var(--color-text-muted);
+	}
+
+	.code-value {
+		font-size: 1.25rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		text-align: center;
+		padding: var(--space-3);
+		background: var(--color-surface);
+		border: 1px dashed var(--color-border);
+		border-radius: var(--radius-sm);
+		user-select: all;
+	}
+
+	.code-actions {
+		display: flex;
+		gap: var(--space-2);
+	}
+
+	.code-actions .pw-btn {
+		flex: 1;
 	}
 
 	.mode-switch {

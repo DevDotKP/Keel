@@ -162,6 +162,11 @@
 						<span class="card-value">{h.entriesPerActiveWeek}</span>
 						<span class="card-sub">capture frequency</span>
 					</div>
+					<div class="card card--static">
+						<span class="card-label">Settle abandonment</span>
+						<span class="card-value">{pd(h.settleAbandonPct)}</span>
+						<span class="card-sub">{h.settleOpeners14} opened · {h.settleCompleters14} settled (14d)</span>
+					</div>
 				</div>
 
 				<h2 class="section-head section-head--sub">% uncategorized, last 8 weeks (churn signal)</h2>

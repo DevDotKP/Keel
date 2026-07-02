@@ -2,8 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 import { getDb } from '$lib/server/db';
-import { createSession } from '$lib/server/auth';
-import { hashPassword } from '$lib/server/password';
+import { createSession, sha256 } from '$lib/server/auth';
+import { hashPassword, generateRecoveryCode, normalizeRecoveryCode } from '$lib/server/password';
 import { ensureUserSetup } from '$lib/server/bootstrap';
 import { rateLimited, clientIp } from '$lib/server/rate-limit';
 
@@ -42,9 +42,13 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	const password_hash = await hashPassword(body.data.password);
+	// Recovery code: generated here, returned once, never stored raw. Without an
+	// email channel this is the only way back into a password account.
+	const recoveryCode = generateRecoveryCode();
+	const recoveryHash = await sha256(normalizeRecoveryCode(recoveryCode));
 	await db
-		.prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)')
-		.bind(email, password_hash)
+		.prepare('INSERT INTO users (email, password_hash, recovery_code_hash) VALUES (?, ?, ?)')
+		.bind(email, password_hash, recoveryHash)
 		.run();
 	const user = await db
 		.prepare('SELECT id FROM users WHERE email = ? LIMIT 1')
@@ -55,5 +59,5 @@ export const POST: RequestHandler = async (event) => {
 	await ensureUserSetup(db, user.id, email);
 	await createSession(db, event, user.id);
 
-	return json({ ok: true }, { status: 201 });
+	return json({ ok: true, recovery_code: recoveryCode }, { status: 201 });
 };
