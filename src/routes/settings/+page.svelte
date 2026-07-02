@@ -934,7 +934,9 @@
 	.about-legal {
 		display: flex;
 		gap: 0;
-		align-items: center;
+		/* Baseline, not center: the links have vertical padding for tap size, so
+		   centring the boxes sinks the dot separators below the text baseline. */
+		align-items: baseline;
 		flex-wrap: wrap;
 	}
 

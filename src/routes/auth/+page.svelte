@@ -237,7 +237,7 @@
 					/>
 				</div>
 				<button
-					class="pw-btn"
+					class="pw-btn pw-btn--primary"
 					type="submit"
 					disabled={submitting || !email || !password || (mode === 'reset' && !recoveryInput)}
 				>
@@ -564,6 +564,12 @@
 		gap: var(--space-2);
 	}
 
+	/* Quiet utility link: must not compete with the label or the inputs. */
+	.pw-label-row .link-btn {
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
 	.field-input {
 		flex: 1;
 		min-width: 0;
@@ -662,12 +668,20 @@
 		flex: 1;
 	}
 
+	/* One centred line of prose with an inline action: block + inline children,
+	   not flex, so "Sign in" can never wrap onto its own ragged line. */
 	.mode-switch {
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
-		display: flex;
-		gap: var(--space-2);
-		justify-content: center;
+		display: block;
+		text-align: center;
+	}
+
+	.mode-switch .link-btn {
+		display: inline;
+		margin-left: var(--space-1);
+		color: var(--color-text);
+		font-weight: 600;
 	}
 
 	.link-btn {

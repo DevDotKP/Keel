@@ -124,6 +124,21 @@ export async function getOrCreateCurrentPeriod(
 
 	const period = selectRes.results?.[0];
 	if (!period) throw new Error('getOrCreateCurrentPeriod: upsert returned no row');
+
+	// Self-heal a stale boundary, same as getAccountSummary: if this open period
+	// was created under a different cadence or harbour day, its stored end is
+	// wrong. Every caller (dashboard, insights, budgets) must see the SAME
+	// window, or their numbers silently disagree.
+	if (period.harboured_at === null && (period.period_end !== end || period.cadence !== cadence)) {
+		await db
+			.prepare(
+				'UPDATE reconciliation_periods SET period_end = ?, cadence = ? WHERE id = ? AND harboured_at IS NULL'
+			)
+			.bind(end, cadence, period.id)
+			.run();
+		period.period_end = end;
+		period.cadence = cadence;
+	}
 	return period;
 }
 
@@ -423,10 +438,12 @@ export async function getRunway(
 			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
 			      FROM transactions t
 			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
+			        AND NOT (t.is_uncategorized_fallback = 1 AND t.description = 'Harbour adjustment')
 			        AND t.occurred_at >= datetime('now', '-30 days')) AS spend_30d,
 			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
 			      FROM transactions t
 			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
+			        AND NOT (t.is_uncategorized_fallback = 1 AND t.description = 'Harbour adjustment')
 			        AND t.occurred_at >= datetime('now', '-7 days')) AS spend_7d,
 			   (SELECT COALESCE(SUM(CASE WHEN t.amount_paise < 0 THEN ABS(t.amount_paise) ELSE 0 END), 0)
 			      FROM transactions t
@@ -441,13 +458,16 @@ export async function getRunway(
 		.first<RunwayRow>();
 
 	// Daily spend buckets for the blended estimate. substr keeps the IST
-	// calendar day (occurred_at is stored with the +05:30 offset).
+	// calendar day (occurred_at is stored with the +05:30 offset). Harbour
+	// drift adjustments are excluded everywhere here: they are reconciliation
+	// corrections, not spending pace, and one big one wrecks the estimate.
 	const { results: dailyRows } = await db
 		.prepare(
 			`SELECT substr(occurred_at, 1, 10) AS d,
 			        SUM(CASE WHEN amount_paise < 0 THEN ABS(amount_paise) ELSE 0 END) AS spend
 			 FROM transactions
 			 WHERE account_id = ?1 AND deleted_at IS NULL
+			   AND NOT (is_uncategorized_fallback = 1 AND description = 'Harbour adjustment')
 			   AND occurred_at >= datetime('now', '-31 days')
 			 GROUP BY substr(occurred_at, 1, 10)`
 		)
