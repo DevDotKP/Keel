@@ -126,21 +126,35 @@ html {
      checkboxes), the scrollbar, and the iOS overscroll backdrop follow the OS
      scheme, instead of rendering light-on-navy. Fixes the iOS Chrome mismatch. */
   color-scheme: light dark;
-  /* Belt-and-braces against rubber-band overscroll (main fix is svh below). */
+  /* Belt-and-braces; the real overscroll fix is the locked body + .app-scroll. */
   overscroll-behavior: none;
+  height: 100%;
   /* Prevent horizontal scroll at >=320px */
   overflow-x: hidden;
 }
 
 body {
-  /* svh (smallest viewport), NOT dvh: dvh grows as the iOS toolbar collapses,
-     which kept adding scrollable height and let you scroll past the content. */
-  min-height: 100svh;
-  /* Reserve bottom nav space */
-  padding-bottom: var(--nav-height);
-  /* WebKit propagates the root overscroll value from <body>, not <html>, so
-     the html rule above never reached iOS Safari. Both are set on purpose. */
+  /* iOS ignores overscroll-behavior on the DOCUMENT (WebKit gap), so the
+     document doesn't scroll at all: html/body are locked and the app scrolls
+     inside .app-scroll (layout), where iOS 16+ does honour overscroll rules.
+     This is the standard iOS-PWA pattern to kill the rubber-band bounce. */
+  height: 100%;
+  overflow: hidden;
   overscroll-behavior: none;
+}
+
+/* The single scroll surface for the whole app (set on the layout wrapper). */
+.app-scroll {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
+
+/* Reserve bottom nav space (moved here from body: body no longer scrolls).
+   Only when the nav is shown; auth/admin pages have no nav to clear. */
+.app-scroll.with-nav {
+  padding-bottom: var(--nav-height);
 }
 
 /* ── Money display ─────────────────────────────────────────────────────────── */

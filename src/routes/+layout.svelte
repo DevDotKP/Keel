@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { page, navigating } from '$app/state';
+	import { afterNavigate } from '$app/navigation';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import OfflineBanner from '$lib/components/OfflineBanner.svelte';
 	import ClarityLoader from '$lib/components/ClarityLoader.svelte';
@@ -20,6 +21,13 @@
 			!page.url.pathname.startsWith('/opt-out') &&
 			!page.url.pathname.startsWith('/admin')
 	);
+
+	// The app scrolls inside this wrapper, not the document (iOS bounce fix).
+	// SvelteKit resets window scroll on navigation; the wrapper is ours to reset.
+	let scroller = $state<HTMLDivElement | undefined>();
+	afterNavigate((nav) => {
+		if (nav.type !== 'popstate') scroller?.scrollTo(0, 0);
+	});
 </script>
 
 <svelte:head>
@@ -30,22 +38,24 @@
 	<div class="nav-bar" aria-hidden="true"></div>
 {/if}
 
-<OfflineBanner />
+<div class="app-scroll" class:with-nav={showChrome} bind:this={scroller}>
+	<OfflineBanner />
 
-{#if data.isDemo && showChrome}
-	<div class="demo-banner" role="status">
-		<span class="demo-banner-text">Demo mode. Nothing here is saved.</span>
-		<!-- Sign out first: a demo user is logged in, so a plain /auth link would
-		     bounce straight back here. Signout clears the session, then lands on /auth. -->
-		<form method="POST" action="/api/auth/signout" class="demo-banner-form">
-			<button type="submit" class="demo-banner-btn">Sign up</button>
-		</form>
-	</div>
-{/if}
+	{#if data.isDemo && showChrome}
+		<div class="demo-banner" role="status">
+			<span class="demo-banner-text">Demo mode. Nothing here is saved.</span>
+			<!-- Sign out first: a demo user is logged in, so a plain /auth link would
+			     bounce straight back here. Signout clears the session, then lands on /auth. -->
+			<form method="POST" action="/api/auth/signout" class="demo-banner-form">
+				<button type="submit" class="demo-banner-btn">Sign up</button>
+			</form>
+		</div>
+	{/if}
 
-<main class="main" class:full-height={!showChrome}>
-	{@render children()}
-</main>
+	<main class="main" class:full-height={!showChrome}>
+		{@render children()}
+	</main>
+</div>
 
 <InstallPrompt />
 <Toast />
