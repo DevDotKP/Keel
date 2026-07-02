@@ -5,7 +5,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { formatPaiseLedger, parseToPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
-	import { today, formatDisplayDate, friendlyDueDate } from '$lib/utils/date';
+	import { today, toDateString, formatDisplayDate, friendlyDueDate } from '$lib/utils/date';
 	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
 	import { holidaysForState, type IndianState } from '$lib/holidays';
 	import type { PageData } from './$types';
@@ -414,6 +414,34 @@
 	let activeTab = $state<'expenses' | 'income'>('expenses');
 	let showPaid = $state(false);
 
+	// Urgency groups for recurring expenses: the page should answer "what is
+	// about to hit my account", not just list subscriptions.
+	let expenseGroups = $derived.by(() => {
+		const t = today();
+		const weekOut = toDateString(new Date(Date.now() + 7 * 86_400_000));
+		const overdue: RecurringExpense[] = [];
+		const soon: RecurringExpense[] = [];
+		const later: RecurringExpense[] = [];
+		for (const exp of visibleExpenses) {
+			const d = exp.next_due_at?.split('T')[0] ?? '';
+			if (d && d < t) overdue.push(exp);
+			else if (d && d <= weekOut) soon.push(exp);
+			else later.push(exp);
+		}
+		return [
+			{ key: 'overdue', label: 'Overdue', items: overdue },
+			{ key: 'soon', label: 'Next 7 days', items: soon },
+			{ key: 'later', label: 'Later', items: later }
+		].filter((g) => g.items.length > 0);
+	});
+
+	let dueSoonPaise = $derived(
+		expenseGroups
+			.filter((g) => g.key !== 'later')
+			.flatMap((g) => g.items)
+			.reduce((sum, e) => sum + e.amount_paise, 0)
+	);
+
 	let displayedObligations = $derived(
 		showPaid ? visibleObligations : visibleObligations.filter((o) => !o.paid)
 	);
@@ -474,9 +502,14 @@
 		<section class="tab-panel" role="tabpanel">
 			{#if totalDue > 0}
 				<div class="due-summary">
-					<span class="due-label">Still due this period</span>
+					<span class="due-label">Still due this cycle</span>
 					<span class="money due-amount">{formatPaiseLedger(totalDue)}</span>
 				</div>
+				{#if dueSoonPaise > 0}
+					<p class="due-soon-line">
+						Auto-posting in the next 7 days: <span class="money">{formatPaiseLedger(dueSoonPaise)}</span>
+					</p>
+				{/if}
 			{/if}
 
 			{#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -512,17 +545,22 @@
 						</li>
 					{/each}
 
-					{#each visibleExpenses as exp (exp.id)}
-						<li class="recurring-row">
-							<span class="rec-main">
-								<span class="rec-name">{exp.name}</span>
-								<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
-							</span>
-							<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
-							<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
-								<Edit2 size={16} aria-hidden="true" />
-							</button>
-						</li>
+					{#each expenseGroups as group (group.key)}
+						{#if expenseGroups.length > 1}
+							<li class="rec-group-head" class:overdue={group.key === 'overdue'}>{group.label}</li>
+						{/if}
+						{#each group.items as exp (exp.id)}
+							<li class="recurring-row">
+								<span class="rec-main">
+									<span class="rec-name">{exp.name}</span>
+									<span class="rec-meta">{expFrequencyLabel(exp.frequency)} · {friendlyDueDate(exp.next_due_at?.split('T')[0] ?? '')}</span>
+								</span>
+								<span class="money rec-amount">{formatPaiseLedger(exp.amount_paise)}</span>
+								<button class="edit-btn" onclick={() => openEditExpense(exp)} disabled={expBusyId === exp.id} aria-label="Edit {exp.name}">
+									<Edit2 size={16} aria-hidden="true" />
+								</button>
+							</li>
+						{/each}
 					{/each}
 				</ul>
 
@@ -1075,6 +1113,26 @@
 		transition: color var(--duration-fast) var(--ease-out);
 	}
 	.show-paid-btn:hover { color: var(--color-text-muted); }
+
+	.due-soon-line {
+		font-size: 0.8125rem;
+		color: var(--color-text-muted);
+		padding: var(--space-1) 0 var(--space-2);
+	}
+
+	.rec-group-head {
+		list-style: none;
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--color-text-subtle);
+		padding: var(--space-3) 0 var(--space-1);
+	}
+
+	.rec-group-head.overdue {
+		color: var(--color-clay);
+	}
 
 	.due-summary {
 		display: flex;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { Trash2, ArrowLeft, X } from 'lucide-svelte';
+	import { Trash2, ArrowLeft, X, Archive, ArchiveRestore } from 'lucide-svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -61,8 +61,35 @@
 	}
 
 	// Spending tree and income categories shown as separate sections.
-	let spendingTree = $derived(data.tree.filter((t) => t.kind === 'expense'));
-	let incomeCats = $derived(data.tree.filter((t) => t.kind === 'income'));
+	// Quick filter: with dozens of categories, typing beats scrolling. A match on
+	// a child keeps its parent visible for context.
+	let search = $state('');
+
+	function matchesSearch(name: string): boolean {
+		return name.toLowerCase().includes(search.trim().toLowerCase());
+	}
+
+	function filterTree(tree: typeof data.tree) {
+		const active = tree
+			.filter((t) => !t.archived_at)
+			.map((t) => ({ ...t, children: t.children.filter((c) => !c.archived_at) }));
+		if (!search.trim()) return active;
+		return active
+			.map((t) => ({
+				...t,
+				children: matchesSearch(t.name) ? t.children : t.children.filter((c) => matchesSearch(c.name))
+			}))
+			.filter((t) => matchesSearch(t.name) || t.children.length > 0);
+	}
+
+	let spendingTree = $derived(filterTree(data.tree.filter((t) => t.kind === 'expense')));
+	let incomeCats = $derived(filterTree(data.tree.filter((t) => t.kind === 'income')));
+	// Archived: out of every picker, history intact, one tap to bring back.
+	let archivedCats = $derived(
+		data.tree
+			.flatMap((t) => [t, ...t.children])
+			.filter((c) => c.archived_at)
+	);
 
 	const PRESET_COLORS = [
 		'#E07B54', '#E0A82E', '#5FA85D', '#2F7E72',
@@ -181,6 +208,18 @@
 	</header>
 
 	<!-- Tab bar -->
+	<div class="cat-search-row">
+		<label for="cat-search" class="sr-only">Search categories</label>
+		<input
+			id="cat-search"
+			class="cat-search"
+			type="search"
+			placeholder="Search categories"
+			bind:value={search}
+			autocomplete="off"
+		/>
+	</div>
+
 	<div class="tab-bar" role="tablist">
 		<button
 			class="tab-btn"
@@ -382,6 +421,31 @@
 			{/if}
 		</section>
 	{/if}
+
+	{#if archivedCats.length > 0}
+		<details class="archived-group">
+			<summary class="archived-summary">
+				Archived ({archivedCats.length})
+				<span class="archived-hint">hidden from pickers, history kept</span>
+			</summary>
+			<ul class="archived-list">
+				{#each archivedCats as cat (cat.id)}
+					<li class="archived-row">
+						<span class="cat-name">{cat.name}</span>
+						<button
+							class="unarchive-btn"
+							onclick={() => patchCategory(cat.id, { archived: false })}
+							disabled={busyId === cat.id}
+							aria-label="Restore {cat.name}"
+						>
+							<ArchiveRestore size={14} aria-hidden="true" />
+							Restore
+						</button>
+					</li>
+				{/each}
+			</ul>
+		</details>
+	{/if}
 </div>
 
 <ConfirmDialog
@@ -446,6 +510,15 @@
 
 			<button
 				class="delete-btn"
+				onclick={() => patchCategory(cat.id, { archived: true })}
+				disabled={busyId === cat.id}
+				aria-label="Archive {cat.name}"
+				title="Archive: hide from pickers, keep history"
+			>
+				<Archive size={16} aria-hidden="true" />
+			</button>
+			<button
+				class="delete-btn"
 				onclick={() => handleDelete(cat.id)}
 				disabled={busyId === cat.id}
 				aria-label="Delete {cat.name}"
@@ -465,6 +538,82 @@
 		flex-direction: column;
 		gap: var(--space-4);
 		padding-bottom: calc(var(--space-6) + var(--nav-height));
+	}
+
+	.cat-search-row {
+		display: flex;
+	}
+
+	.cat-search {
+		flex: 1;
+		height: 40px;
+		padding: 0 var(--space-3);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+		font-size: 0.9375rem;
+		color: var(--color-text);
+		font-family: inherit;
+	}
+
+	.cat-search:focus {
+		outline: none;
+		border-color: var(--color-gold);
+	}
+
+	.archived-group {
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-md);
+		background: var(--color-surface);
+	}
+
+	.archived-summary {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-4);
+		cursor: pointer;
+		min-height: var(--tap-target);
+		font-size: 0.875rem;
+		font-weight: 600;
+		color: var(--color-text);
+	}
+
+	.archived-hint {
+		font-weight: 400;
+		font-size: 0.8125rem;
+		color: var(--color-text-subtle);
+	}
+
+	.archived-list {
+		list-style: none;
+		padding: 0 var(--space-4) var(--space-3);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.archived-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
+		padding: var(--space-2) 0;
+		border-top: 1px solid var(--color-border);
+	}
+
+	.unarchive-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-1) var(--space-3);
+		min-height: 36px;
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-full);
+		background: var(--color-surface);
+		color: var(--color-text);
+		font-size: 0.8125rem;
+		font-family: inherit;
+		cursor: pointer;
 	}
 
 	.back-btn {

@@ -82,10 +82,16 @@ export async function updateCategory(
 		name?: string;
 		color?: string;
 		budget_paise?: number;
+		archived?: boolean;
 	}
 ): Promise<Category> {
 	const sets: string[] = [];
 	const binds: unknown[] = [];
+	if (fields.archived !== undefined) {
+		// System categories (Uncategorized, Income) can never be archived: the
+		// forgiving fallback depends on them existing in every picker.
+		sets.push(fields.archived ? "archived_at = datetime('now')" : 'archived_at = NULL');
+	}
 	if (fields.bucket !== undefined) {
 		sets.push('bucket = ?');
 		binds.push(fields.bucket);
@@ -109,9 +115,10 @@ export async function updateCategory(
 	if (sets.length === 0) throw new Error('No fields to update');
 
 	binds.push(id, household_id);
+	const guard = fields.archived !== undefined ? ' AND is_system = 0' : '';
 	const result = await db
 		.prepare(
-			`UPDATE categories SET ${sets.join(', ')} WHERE id = ? AND household_id = ? AND deleted_at IS NULL RETURNING *`
+			`UPDATE categories SET ${sets.join(', ')} WHERE id = ? AND household_id = ? AND deleted_at IS NULL${guard} RETURNING *`
 		)
 		.bind(...binds)
 		.first<Category>();

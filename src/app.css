@@ -138,6 +138,9 @@ body {
   min-height: 100svh;
   /* Reserve bottom nav space */
   padding-bottom: var(--nav-height);
+  /* WebKit propagates the root overscroll value from <body>, not <html>, so
+     the html rule above never reached iOS Safari. Both are set on purpose. */
+  overscroll-behavior: none;
 }
 
 /* ── Money display ─────────────────────────────────────────────────────────── */

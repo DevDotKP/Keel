@@ -129,6 +129,7 @@ export interface Category {
 	daily_reserve_paise: number; // paise locked per remaining day (0 = none)
 	kind: CategoryKind; // expense (default) or income; drives the transaction sign
 	budget_paise: number; // optional soft cap for the cycle (0 = none)
+	archived_at: string | null; // hidden from pickers, history intact
 	deleted_at: string | null;
 }
 

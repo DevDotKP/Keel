@@ -41,6 +41,14 @@
 	async function submitPassword(e: SubmitEvent) {
 		e.preventDefault();
 		formError = null;
+		if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+			formError = 'Enter a valid email address, like name@example.com.';
+			return;
+		}
+		if (mode !== 'signin' && password.length < 8) {
+			formError = 'Choose a password of at least 8 characters.';
+			return;
+		}
 		submitting = true;
 
 		const endpoint =
@@ -168,51 +176,66 @@
 			</div>
 		{:else}
 			<form class="pw-form" onsubmit={submitPassword} novalidate>
-				<input
-					id="email"
-					type="email"
-					name="email"
-					bind:value={email}
-					class="field-input"
-					placeholder="you@example.com"
-					autocomplete="email"
-					inputmode="email"
-					aria-label="Email"
-					required
-					disabled={submitting}
-				/>
-				{#if mode === 'reset'}
+				<div class="pw-field">
+					<label class="pw-label" for="email">Email</label>
 					<input
-						id="recovery-code"
-						type="text"
-						name="recovery-code"
-						bind:value={recoveryInput}
+						id="email"
+						type="email"
+						name="email"
+						bind:value={email}
 						class="field-input"
-						placeholder="Recovery code (xxxx-xxxx-xxxx-xxxx)"
-						autocomplete="off"
-						spellcheck="false"
-						aria-label="Recovery code"
+						placeholder="you@example.com"
+						autocomplete="email"
+						inputmode="email"
 						required
 						disabled={submitting}
 					/>
+				</div>
+				{#if mode === 'reset'}
+					<div class="pw-field">
+						<label class="pw-label" for="recovery-code">Recovery code</label>
+						<input
+							id="recovery-code"
+							type="text"
+							name="recovery-code"
+							bind:value={recoveryInput}
+							class="field-input"
+							placeholder="xxxx-xxxx-xxxx-xxxx"
+							autocomplete="off"
+							spellcheck="false"
+							required
+							disabled={submitting}
+						/>
+					</div>
 				{/if}
-				<input
-					id="password"
-					type="password"
-					name="password"
-					bind:value={password}
-					class="field-input"
-					placeholder={mode === 'signup'
-						? 'Choose a password (8+ characters)'
-						: mode === 'reset'
-							? 'New password (8+ characters)'
-							: 'Password'}
-					autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
-					aria-label={mode === 'reset' ? 'New password' : 'Password'}
-					required
-					minlength={mode === 'signin' ? undefined : 8}
-					disabled={submitting}
-				/>
+				<div class="pw-field">
+					<div class="pw-label-row">
+						<label class="pw-label" for="password">
+							{mode === 'reset' ? 'New password' : 'Password'}
+						</label>
+						{#if mode === 'signin'}
+							<button
+								type="button"
+								class="link-btn"
+								onclick={() => { mode = 'reset'; formError = null; }}
+							>
+								Forgot password?
+							</button>
+						{/if}
+					</div>
+					<input
+						id="password"
+						type="password"
+						name="password"
+						bind:value={password}
+						class="field-input"
+						placeholder={mode === 'signin' ? 'Your password' : 'At least 8 characters'}
+						autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+						required
+						minlength={mode === 'signin' ? undefined : 8}
+						disabled={submitting}
+					/>
+				</div>
 				<button
 					class="pw-btn"
 					type="submit"
@@ -241,15 +264,12 @@
 				{/if}
 				<p class="mode-switch">
 					{#if mode === 'signin'}
-						New to Keel?
+						<span>New to Keel?</span>
 						<button type="button" class="link-btn" onclick={() => { mode = 'signup'; formError = null; }}>
 							Create an account
 						</button>
-						<button type="button" class="link-btn" onclick={() => { mode = 'reset'; formError = null; }}>
-							Forgot password?
-						</button>
 					{:else}
-						Already have an account?
+						<span>Already have an account?</span>
 						<button type="button" class="link-btn" onclick={() => { mode = 'signin'; formError = null; }}>
 							Sign in
 						</button>
@@ -522,6 +542,25 @@
 	.pw-form {
 		display: flex;
 		flex-direction: column;
+		gap: var(--space-3);
+	}
+
+	.pw-field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+
+	.pw-label {
+		font-size: 0.8125rem;
+		font-weight: 600;
+		color: var(--color-text-muted);
+	}
+
+	.pw-label-row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
 		gap: var(--space-2);
 	}
 

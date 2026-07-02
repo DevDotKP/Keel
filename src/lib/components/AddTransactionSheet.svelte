@@ -2,6 +2,7 @@
 	import { Mic, Square, X, Check } from 'lucide-svelte';
 	import { fly, fade } from 'svelte/transition';
 	import Spinner from './Spinner.svelte';
+	import Combobox from './Combobox.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { parseFlexDate, nowIso, formatIstTime } from '$lib/utils/date';
@@ -70,13 +71,45 @@
 	]);
 
 	// Categories matching the chosen kind (income vs spending), minus the fallbacks.
-	let pickableCategories = $derived(
-		allCategories.filter(
+	// Recently used categories float to the top of the picker: with dozens of
+	// categories, the handful someone actually uses should cost zero scrolling.
+	const RECENT_CATS_KEY = 'keel_recent_cats';
+
+	function readRecents(): string[] {
+		try {
+			return JSON.parse(localStorage.getItem(RECENT_CATS_KEY) ?? '[]') as string[];
+		} catch {
+			return [];
+		}
+	}
+
+	function recordRecent(catId: string) {
+		if (!catId) return;
+		const next = [catId, ...readRecents().filter((id) => id !== catId)].slice(0, 6);
+		try {
+			localStorage.setItem(RECENT_CATS_KEY, JSON.stringify(next));
+		} catch {
+			/* storage full or blocked: recents are a nicety, not a requirement */
+		}
+	}
+
+	// Re-read recents each time the sheet opens so the ordering stays fresh.
+	let recents = $derived(open ? readRecents() : []);
+
+	let pickableCategories = $derived.by(() => {
+		const pickable = allCategories.filter(
 			(c) =>
 				c.kind === entryKind &&
+				!c.archived_at &&
 				!(c.is_system && (c.name === 'Uncategorized' || c.name === 'Income'))
-		)
-	);
+		);
+		const rank = new Map(recents.map((id, i) => [id, i]));
+		return pickable.sort((a, b) => {
+			const ra = rank.get(a.id) ?? 99;
+			const rb = rank.get(b.id) ?? 99;
+			return ra !== rb ? ra - rb : a.name.localeCompare(b.name);
+		});
+	});
 
 	// Switching kind clears a category that no longer matches.
 	function setKind(kind: 'expense' | 'income') {
@@ -86,8 +119,7 @@
 		if (!stillValid) categoryId = '';
 	}
 
-	function onCategoryChange(e: Event) {
-		const v = (e.currentTarget as HTMLSelectElement).value;
+	function onCategoryPick(v: string) {
 		if (v === '__new__') {
 			showNewCategory = true;
 			categoryId = '';
@@ -276,6 +308,9 @@
 
 		try {
 			await onsubmit(finalDraft);
+			// Only explicit picks count as "recent": auto-fallbacks would pollute
+			// the ordering with Uncategorized.
+			if (categoryId) recordRecent(categoryId);
 
 			// Fire-and-forget: log voice sample if this was a voice entry.
 			if (pendingVoice) {
@@ -508,16 +543,20 @@
 				{/if}
 			</div>
 
-			<!-- Category: only those matching the chosen kind. Kind sets the sign. -->
+			<!-- Category: search-as-you-type, recently used first. Kind sets the sign. -->
 			<div class="field">
 				<label for="category">Category</label>
-				<select id="category" bind:value={categoryId} onchange={onCategoryChange}>
-					<option value="">Uncategorized</option>
-					{#each pickableCategories as cat}
-						<option value={cat.id}>{cat.name}</option>
-					{/each}
-					<option value="__new__">+ New category</option>
-				</select>
+				<Combobox
+					id="category"
+					options={[
+						{ value: '', label: 'Uncategorized' },
+						...pickableCategories.map((c) => ({ value: c.id, label: c.name })),
+						{ value: '__new__', label: '+ New category' }
+					]}
+					bind:value={categoryId}
+					placeholder="Search categories"
+					onchange={onCategoryPick}
+				/>
 				{#if showNewCategory}
 					<div class="new-cat-row">
 						<input
@@ -682,30 +721,6 @@
 	.field textarea:focus {
 		outline: none;
 		border-color: var(--color-gold);
-	}
-
-	/* Category picker: themed to match the sheet, with a custom chevron. */
-	.field select {
-		appearance: none;
-		-webkit-appearance: none;
-		height: 44px;
-		width: 100%;
-		padding: 0 var(--space-8) 0 var(--space-4);
-		border: 1px solid var(--color-border);
-		border-radius: var(--radius-md);
-		background-color: var(--color-surface);
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237C756A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-		background-repeat: no-repeat;
-		background-position: right var(--space-3) center;
-		font-size: 1rem;
-		color: var(--color-text);
-		font-family: inherit;
-	}
-
-	.field select:focus {
-		outline: none;
-		border-color: var(--color-gold);
-		box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-gold) 15%, transparent);
 	}
 
 	/* Expense/Income segmented toggle */

@@ -9,7 +9,8 @@ const PatchSchema = z.object({
 	daily_reserve_paise: z.number().int().min(0).optional(),
 	budget_paise: z.number().int().min(0).optional(),
 	name: z.string().min(1).max(50).optional(),
-	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional()
+	color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+	archived: z.boolean().optional()
 });
 
 export const PATCH: RequestHandler = async ({ platform, locals, params, request }) => {
