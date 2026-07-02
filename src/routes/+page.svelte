@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import AddTransactionSheet from '$lib/components/AddTransactionSheet.svelte';
 	import EmptyState from '$lib/components/EmptyState.svelte';
+	import HelpTip from '$lib/components/HelpTip.svelte';
 import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import { formatPaise, formatPaiseLedger, parseToPaise, formatAmountInput } from '$lib/utils/money';
 	import { formatDisplayDate, formatIstTime } from '$lib/utils/date';
@@ -12,12 +13,6 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	import type { PageData } from './$types';
 	import type { TransactionDraft, Transaction, ReconciliationPeriod, RunwaySummary } from '$lib/types';
 
-	function runwayDays(r: RunwaySummary): { low: number; high: number } | null {
-		const values = [r.days_30, r.days_7].filter((v): v is number => v !== null);
-		if (values.length === 0) return null;
-		return { low: Math.min(...values), high: Math.max(...values) };
-	}
-
 	function formatRunwayDays(n: number): string {
 		if (n >= 365) return '1yr+';
 		if (n >= 180) return '6mo+';
@@ -25,19 +20,16 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		return `${n}`;
 	}
 
+	// One number, not a range. Testers read "22 to 44 days" as "you don't know";
+	// the blended estimate commits, and sharpens as history accumulates.
 	function runwayLabel(r: RunwaySummary): string {
-		const range = runwayDays(r);
-		if (!range) return '';
-		const { low, high } = range;
-		if (high - low <= 5) return `~${formatRunwayDays(low)} days`;
-		return `${formatRunwayDays(low)}–${formatRunwayDays(high)} days`;
+		if (r.days_est === null) return '';
+		return `~${formatRunwayDays(r.days_est)} days`;
 	}
 
 	function runwayExtra(r: RunwaySummary): number | null {
-		const range = runwayDays(r);
-		if (!range) return null;
-		if (r.days_committed === null) return null;
-		const extra = r.days_committed - range.low;
+		if (r.days_est === null || r.days_committed === null) return null;
+		const extra = r.days_committed - r.days_est;
 		return extra > 1 ? extra : null;
 	}
 
@@ -253,24 +245,32 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 			txs: [],
 			net: 0
 		}));
-		const earlier: CycleGroup & { start: string; end: string } = {
-			id: 'earlier',
-			label: 'Earlier',
-			start: '',
-			end: '',
-			txs: [],
-			net: 0
-		};
+		// Entries with no matching settled cycle (older history, cadence changes)
+		// still group by calendar month, never into one bottomless "Earlier" pile.
+		const monthGroups = new Map<string, CycleGroup & { start: string; end: string }>();
 		for (const t of older) {
 			const d = t.occurred_at.slice(0, 10);
-			const g = groups.find((p) => d >= p.start && d <= p.end) ?? earlier;
+			let g: (CycleGroup & { start: string; end: string }) | undefined = groups.find(
+				(p) => d >= p.start && d <= p.end
+			);
+			if (!g) {
+				const ym = d.slice(0, 7);
+				g = monthGroups.get(ym);
+				if (!g) {
+					const label = new Date(`${ym}-01T00:00:00`).toLocaleDateString('en-IN', {
+						month: 'long',
+						year: 'numeric'
+					});
+					g = { id: `month-${ym}`, label, start: `${ym}-01`, end: '', txs: [], net: 0 };
+					monthGroups.set(ym, g);
+				}
+			}
 			g.txs.push(t);
 			g.net += t.amount_paise;
 		}
-		return {
-			current,
-			groups: [...groups.filter((g) => g.txs.length > 0), ...(earlier.txs.length > 0 ? [earlier] : [])]
-		};
+		const all = [...groups.filter((g) => g.txs.length > 0), ...monthGroups.values()];
+		all.sort((a, b) => (a.start < b.start ? 1 : -1));
+		return { current, groups: all };
 	}
 </script>
 
@@ -413,13 +413,15 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		{/if}
 
 		<!-- Runway: balance ÷ trailing burn, forward-looking safety signal (not guilt). -->
-		{#if runway?.has_data}
+		{#if runway?.has_data && runway.days_est !== null}
 			{@const label = runwayLabel(runway!)}
 			{@const extra = runwayExtra(runway!)}
 			<section class="runway-card" aria-label="Runway estimate">
-				<p class="runway-label">Runway</p>
+				<p class="runway-label">How long your money lasts</p>
 				<p class="runway-days">{label}</p>
-				<p class="runway-basis">at your current pace</p>
+				<p class="runway-basis">
+					at your recent pace{runway!.window_days < 14 ? ' · early estimate, sharpens as you log' : ''}
+				</p>
 				{#if extra !== null}
 					<p class="runway-extra">Cut back on extras and this lasts {formatRunwayDays(extra)} days longer</p>
 				{/if}
@@ -564,6 +566,10 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 		<section class="ledger-section">
 			<div class="ledger-header">
 				<h2 class="section-head">This cycle</h2>
+				<HelpTip
+					term="Cycle"
+					text="Your money month: it runs payday to payday, or weekly or monthly if you chose that in Settings. Keel plans your budget and settles up once per cycle. Past cycles are folded up below."
+				/>
 				<a href="/transactions" class="see-all-link">See all</a>
 			</div>
 
@@ -1458,10 +1464,11 @@ import OnboardingTour from '$lib/components/OnboardingTour.svelte';
 	.ledger-header {
 		display: flex;
 		align-items: baseline;
-		justify-content: space-between;
+		gap: var(--space-2);
 	}
 
 	.see-all-link {
+		margin-left: auto;
 		font-size: 0.875rem;
 		color: var(--color-text-muted);
 		text-decoration: none;

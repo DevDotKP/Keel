@@ -86,7 +86,7 @@ export const load: PageServerLoad = async ({ platform, locals, setHeaders }) => 
 		transactions: listTransactions(rdb, { account_id: account.id as string, limit: 60 }),
 		categories: listCategories(rdb, hid),
 		runway: getRunway(rdb, account.id as string, cadence, harbourDay),
-		pastPeriods: listRecentClosedPeriods(rdb, account.id as string, 6),
+		pastPeriods: listRecentClosedPeriods(rdb, account.id as string, 12),
 		currentUserId: locals.userId,
 		memberEmails,
 		memberNames,

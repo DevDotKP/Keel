@@ -386,8 +386,11 @@
 		<p class="about-maker">By <a href="https://annapurnalabs.in" class="about-link">Annapurna Labs</a></p>
 		<nav class="about-legal" aria-label="Legal">
 			<a href="/legal/terms">Terms</a>
+			<span class="legal-sep" aria-hidden="true">·</span>
 			<a href="/legal/privacy">Privacy</a>
+			<span class="legal-sep" aria-hidden="true">·</span>
 			<a href="/legal/refund">Refund</a>
+			<span class="legal-sep" aria-hidden="true">·</span>
 			<a href="/legal/contact">Contact</a>
 		</nav>
 		<p class="about-copy">© 2026 Annapurna Labs. All rights reserved.</p>
@@ -943,11 +946,12 @@
 		padding: var(--space-1) 0;
 	}
 
-	/* Separator lives inside the second+ link so it never orphans on its own line */
-	.about-legal a + a::before {
-		content: '·';
+	/* Separator is its own element, outside every link's tap target, so tapping
+	   Privacy never highlights the dot before it. */
+	.legal-sep {
 		margin: 0 var(--space-2);
 		color: var(--color-text-subtle);
+		user-select: none;
 	}
 
 	.about-legal a:hover { color: var(--color-text); text-decoration: underline; }

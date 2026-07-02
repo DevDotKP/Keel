@@ -404,6 +404,7 @@ export async function getRunway(
 		spend_30d: number;
 		spend_7d: number;
 		committed_spend_30d: number;
+		first_entry: string | null;
 	};
 
 	// Runway is based on money actually left now (a cushion: "if income stopped,
@@ -432,10 +433,26 @@ export async function getRunway(
 			      JOIN categories c ON c.id = t.category_id
 			      WHERE t.account_id = ?1 AND t.deleted_at IS NULL
 			        AND c.bucket = 'committed'
-			        AND t.occurred_at >= datetime('now', '-30 days')) AS committed_spend_30d`
+			        AND t.occurred_at >= datetime('now', '-30 days')) AS committed_spend_30d,
+			   (SELECT MIN(occurred_at) FROM transactions
+			      WHERE account_id = ?1 AND deleted_at IS NULL) AS first_entry`
 		)
 		.bind(account_id, start, to)
 		.first<RunwayRow>();
+
+	// Daily spend buckets for the blended estimate. substr keeps the IST
+	// calendar day (occurred_at is stored with the +05:30 offset).
+	const { results: dailyRows } = await db
+		.prepare(
+			`SELECT substr(occurred_at, 1, 10) AS d,
+			        SUM(CASE WHEN amount_paise < 0 THEN ABS(amount_paise) ELSE 0 END) AS spend
+			 FROM transactions
+			 WHERE account_id = ?1 AND deleted_at IS NULL
+			   AND occurred_at >= datetime('now', '-31 days')
+			 GROUP BY substr(occurred_at, 1, 10)`
+		)
+		.bind(account_id)
+		.all<{ d: string; spend: number }>();
 
 	const balance = (row?.balance_paise ?? 0) + (row?.period_net ?? 0);
 	const spend30 = row?.spend_30d ?? 0;
@@ -446,6 +463,28 @@ export async function getRunway(
 	const daily7 = spend7 / 7;
 	const dailyCommitted = committed30 / 30;
 
+	// Blended daily burn: exponentially weighted average over recent days
+	// (half-life 14), zero-spend days included. The window is capped by how much
+	// history exists, so a new user gets an honest short-window estimate instead
+	// of a 30-day average diluted by empty pre-signup days, and the estimate
+	// sharpens automatically as history accumulates. Today is excluded: a
+	// half-finished day reads as low spend and would inflate the runway.
+	const spendByDay = new Map((dailyRows ?? []).map((r) => [r.d, r.spend]));
+	const historyDays = row?.first_entry
+		? Math.max(1, Math.ceil((Date.now() - Date.parse(row.first_entry)) / 86_400_000))
+		: 0;
+	const windowDays = Math.max(3, Math.min(30, historyDays));
+	const HALF_LIFE = 14;
+	let wSum = 0;
+	let spendSum = 0;
+	for (let i = 1; i <= windowDays; i++) {
+		const d = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10);
+		const w = 0.5 ** (i / HALF_LIFE);
+		wSum += w;
+		spendSum += w * (spendByDay.get(d) ?? 0);
+	}
+	const dailyEst = wSum > 0 ? spendSum / wSum : 0;
+
 	const runway = (bal: number, daily: number): number | null => {
 		if (daily <= 0) return null;
 		return bal <= 0 ? 0 : Math.min(Math.floor(bal / daily), 9999);
@@ -453,6 +492,9 @@ export async function getRunway(
 
 	return {
 		balance_paise: balance,
+		days_est: runway(balance, dailyEst),
+		daily_burn_est_paise: Math.round(dailyEst),
+		window_days: windowDays,
 		days_30: runway(balance, daily30),
 		daily_burn_30_paise: Math.round(daily30),
 		days_7: runway(balance, daily7),

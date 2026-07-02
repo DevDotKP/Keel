@@ -330,7 +330,13 @@ export interface BudgetOverview {
 
 export interface RunwaySummary {
 	balance_paise: number;
-	// Trailing 30-day window (more stable estimate)
+	// Blended estimate: exponentially weighted daily burn (recent days count
+	// more) over a window that grows with the user's history. One number that
+	// sharpens as more data arrives.
+	days_est: number | null; // null = no spend yet
+	daily_burn_est_paise: number;
+	window_days: number; // how much history backs the estimate
+	// Trailing 30-day window (kept for insights and internals)
 	days_30: number | null; // null = no spend yet
 	daily_burn_30_paise: number;
 	// Trailing 7-day window (recent pace)
