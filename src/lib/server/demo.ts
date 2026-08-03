@@ -6,6 +6,7 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { createSession } from './auth';
 import { ensureUserSetup } from './bootstrap';
+import { purgeUsersWhere } from './queries/purge';
 
 export const DEMO_PREFIX = 'demo-';
 
@@ -260,27 +261,9 @@ export async function seedDemoData(db: D1Database, userId: string): Promise<void
 export async function purgeOldDemoUsers(db: D1Database, maxAgeMinutes = 10): Promise<void> {
 	const mins = Math.max(1, Math.floor(maxAgeMinutes));
 	// Never purge the shared, fixed family accounts (demo-fam-*); only per-visitor demos.
-	const OLD = `(SELECT id FROM users WHERE id LIKE 'demo-%' AND id NOT LIKE 'demo-fam-%' AND created_at < datetime('now','-${mins} minutes'))`;
-	const OLDACC = `(SELECT id FROM accounts WHERE user_id IN ${OLD})`;
+	const OLD = `id LIKE 'demo-%' AND id NOT LIKE 'demo-fam-%' AND created_at < datetime('now','-${mins} minutes')`;
 	await db.batch([
-		db.prepare(`DELETE FROM transactions WHERE account_id IN ${OLDACC}`),
-		db.prepare(`DELETE FROM reconciliation_periods WHERE account_id IN ${OLDACC}`),
-		db.prepare(`DELETE FROM holdings WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM portfolio_snapshots WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM recurring_income WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM obligations WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM voice_samples WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM app_events WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM categories WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM accounts WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM magic_link_tokens WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM sessions WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM entitlements WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM settings WHERE user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM household_invites WHERE household_id IN ${OLD}`),
-		db.prepare(`DELETE FROM household_members WHERE household_id IN ${OLD} OR user_id IN ${OLD}`),
-		db.prepare(`DELETE FROM households WHERE id IN ${OLD}`),
-		db.prepare(`DELETE FROM users WHERE id IN ${OLD}`),
+		...purgeUsersWhere(db, OLD),
 		// Throttle rows only matter for an hour; sweep anything older.
 		db.prepare("DELETE FROM demo_throttle WHERE created_at < datetime('now','-2 hours')")
 	]);

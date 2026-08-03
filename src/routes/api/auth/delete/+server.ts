@@ -43,26 +43,39 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Sole member: delete all household-scoped data in dependency order.
+		// Order and scoping follow the same rules as queries/purge.ts — see the
+		// comments there. Two of them are load-bearing:
+		//  - obligation_settlements references transactions and periods, so it must
+		//    be cleared before them, not after.
+		//  - `household_id IS NULL AND user_id = ?` catches rows written before the
+		//    households migration, which otherwise survive and hold a foreign key
+		//    on the categories being deleted.
+		const OWNED = (t: string) =>
+			`(${t}.household_id = ? OR (${t}.household_id IS NULL AND ${t}.user_id = ?))`;
+		const ACC = `(SELECT id FROM accounts WHERE ${OWNED('accounts')})`;
 		await db.batch([
 			db.prepare(
-				`DELETE FROM transactions WHERE account_id IN
-				 (SELECT id FROM accounts WHERE household_id = ?)`
-			).bind(hid),
-			db.prepare(
-				`DELETE FROM reconciliation_periods WHERE account_id IN
-				 (SELECT id FROM accounts WHERE household_id = ?)`
-			).bind(hid),
-			db.prepare('DELETE FROM accounts WHERE household_id = ?').bind(hid),
-			db.prepare('DELETE FROM categories WHERE household_id = ?').bind(hid),
-			db.prepare(
-				`DELETE FROM obligation_settlements WHERE obligation_id IN
-				 (SELECT id FROM obligations WHERE household_id = ?)`
-			).bind(hid),
-			db.prepare('DELETE FROM obligations WHERE household_id = ?').bind(hid),
-			db.prepare('DELETE FROM recurring_income WHERE household_id = ?').bind(hid),
-			db.prepare('DELETE FROM recurring_expenses WHERE household_id = ?').bind(hid),
-			db.prepare('DELETE FROM holdings WHERE household_id = ?').bind(hid),
+				`DELETE FROM obligation_settlements
+				 WHERE obligation_id IN (SELECT id FROM obligations WHERE ${OWNED('obligations')})
+				    OR transaction_id IN (SELECT id FROM transactions WHERE account_id IN ${ACC})
+				    OR period_id IN (SELECT id FROM reconciliation_periods WHERE account_id IN ${ACC})`
+			).bind(hid, userId, hid, userId, hid, userId),
+			db.prepare(`DELETE FROM obligations WHERE ${OWNED('obligations')}`).bind(hid, userId),
+			db.prepare(`DELETE FROM transactions WHERE account_id IN ${ACC}`).bind(hid, userId),
+			db.prepare(`DELETE FROM reconciliation_periods WHERE account_id IN ${ACC}`).bind(hid, userId),
+			db.prepare(`DELETE FROM accounts WHERE ${OWNED('accounts')}`).bind(hid, userId),
+			// recurring_income and recurring_expenses both carry a category_id, so
+			// they have to go before categories, not after.
+			db.prepare(`DELETE FROM recurring_income WHERE ${OWNED('recurring_income')}`).bind(hid, userId),
+			db.prepare(`DELETE FROM recurring_expenses WHERE ${OWNED('recurring_expenses')}`).bind(hid, userId),
+			db.prepare(`DELETE FROM holdings WHERE ${OWNED('holdings')}`).bind(hid, userId),
 			db.prepare('DELETE FROM portfolio_snapshots WHERE household_id = ?').bind(hid),
+			// categories.parent_id self-reference: break the links before deleting.
+			db.prepare(
+				`UPDATE categories SET parent_id = NULL WHERE parent_id IN
+				 (SELECT id FROM categories WHERE ${OWNED('categories')})`
+			).bind(hid, userId),
+			db.prepare(`DELETE FROM categories WHERE ${OWNED('categories')}`).bind(hid, userId),
 			db.prepare('DELETE FROM household_invites WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM household_members WHERE household_id = ?').bind(hid),
 			db.prepare('DELETE FROM households WHERE id = ?').bind(hid),
