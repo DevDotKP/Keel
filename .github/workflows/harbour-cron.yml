@@ -23,6 +23,9 @@ jobs:
             echo "CRON_SECRET not set; skipping the Harbour reminder ping."
             exit 0
           fi
-          curl -fsS -X POST "https://keel-aba.pages.dev/api/cron/harbour" \
+          # Retry transient failures (cold start, edge blip, deploy in flight).
+          # The endpoint is idempotent per cycle, so a retry can never double-send.
+          curl -fsS --retry 5 --retry-delay 10 --retry-all-errors --max-time 60 \
+            -X POST "https://keel-aba.pages.dev/api/cron/harbour" \
             -H "x-cron-key: $CRON_SECRET" \
             -H "content-type: application/json"
