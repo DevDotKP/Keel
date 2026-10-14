@@ -2,6 +2,9 @@
 	// A small accessible single-select combobox: type to filter, arrow keys to
 	// move, Enter to choose, Escape/click-outside to close. Hand-styled to match
 	// the app (themed input with a chevron, no off-the-shelf kit).
+	// Options choose on click, not pointerdown: a finger that lands on an option
+	// to scroll the list must not pick it. mousedown is cancelled so the input
+	// keeps focus; touch browsers only send it for real taps, never for scrolls.
 	interface Option {
 		value: string;
 		label: string;
@@ -105,15 +108,15 @@
 	{#if open && filtered.length > 0}
 		<ul class="combobox-list" id={id ? `${id}-listbox` : undefined} role="listbox">
 			{#each filtered as opt, i (opt.value)}
+				<!-- Keys live on the input (arrows + Enter), per the combobox pattern. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<li
 					role="option"
 					aria-selected={opt.value === value}
 					class="combobox-option"
 					class:highlight={i === highlight}
-					onpointerdown={(e) => {
-						e.preventDefault();
-						choose(opt);
-					}}
+					onmousedown={(e) => e.preventDefault()}
+					onclick={() => choose(opt)}
 					onmouseenter={() => (highlight = i)}
 				>
 					{opt.label}
@@ -158,6 +161,7 @@
 		z-index: var(--z-overlay);
 		max-height: 240px;
 		overflow-y: auto;
+		overscroll-behavior: contain;
 		list-style: none;
 		margin: 0;
 		padding: var(--space-1);

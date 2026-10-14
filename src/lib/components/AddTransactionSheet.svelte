@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Mic, Square, X, Check } from 'lucide-svelte';
+	import { Mic, Square, X, Check, Plus } from 'lucide-svelte';
 	import { fly, fade } from 'svelte/transition';
 	import Spinner from './Spinner.svelte';
-	import Combobox from './Combobox.svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { keyboardAware, dismissKeyboard } from '$lib/utils/keyboard';
 	import { parseToPaise, formatPaise, formatAmountInput, amountInWordsIndian } from '$lib/utils/money';
 	import { parseFlexDate, nowIso, formatIstTime } from '$lib/utils/date';
 	import {
@@ -111,6 +111,21 @@
 		});
 	});
 
+	// Categories are tap targets, not a search field: picking one never summons
+	// the keyboard. Long lists show the most likely chips first, the rest on
+	// demand. The current pick always stays visible, even past the cut.
+	const CHIP_LIMIT = 12;
+	let showAllCats = $state(false);
+
+	let visibleCats = $derived.by(() => {
+		// +1 so the toggle never reads "1 more": just show it.
+		if (showAllCats || pickableCategories.length <= CHIP_LIMIT + 1) return pickableCategories;
+		const top = pickableCategories.slice(0, CHIP_LIMIT);
+		const picked = pickableCategories.find((c) => c.id === categoryId);
+		return picked && !top.includes(picked) ? [...top, picked] : top;
+	});
+	let hiddenCatCount = $derived(pickableCategories.length - visibleCats.length);
+
 	// Switching kind clears a category that no longer matches.
 	function setKind(kind: 'expense' | 'income') {
 		if (entryKind === kind) return;
@@ -119,18 +134,40 @@
 		if (!stillValid) categoryId = '';
 	}
 
-	function onCategoryPick(v: string) {
-		if (v === '__new__') {
-			showNewCategory = true;
-			categoryId = '';
-			return;
-		}
+	// Tap to pick, tap again to unpick (back to Uncategorized).
+	function pickCategory(id: string) {
+		categoryId = categoryId === id ? '' : id;
 		categoryManuallySet = true;
+		showNewCategory = false;
+		dismissKeyboard();
+	}
+
+	function startNewCategory() {
+		showNewCategory = true;
 	}
 
 	function cancelNewCategory() {
 		showNewCategory = false;
 		newCatName = '';
+	}
+
+	function focusOnMount(node: HTMLInputElement) {
+		node.focus();
+	}
+
+	// The decimal keypad's Done key puts the keyboard away so the categories
+	// show, instead of saving before a category is picked.
+	function onAmountKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Enter') return;
+		e.preventDefault();
+		dismissKeyboard();
+	}
+
+	// Enter in the new-category field creates the category, not the entry.
+	function onNewCatKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Enter') return;
+		e.preventDefault();
+		void createCategoryInline();
 	}
 
 	// Create a category inline and select it, without leaving the sheet.
@@ -358,6 +395,9 @@
 		duplicate = null;
 		dupAcknowledged = false;
 		saved = false;
+		showAllCats = false;
+		showNewCategory = false;
+		newCatName = '';
 	}
 
 	// ── Auto-categorize typed description (new entries only) ─────────────────
@@ -461,6 +501,7 @@
 		aria-modal="true"
 		aria-label="Add entry"
 		use:focusTrap
+		use:keyboardAware
 		transition:fly={{ y: 40, duration: reduce ? 0 : 240 }}
 	>
 		<div class="sheet-header">
@@ -470,182 +511,210 @@
 			</button>
 		</div>
 
-		<form class="sheet-body" onsubmit={handleSubmit} novalidate>
-			<!-- Expense or income: drives the category list and the sign. -->
-			<div class="kind-toggle" role="radiogroup" aria-label="Expense or income">
-				<button
-					type="button"
-					class="kind-option"
-					class:active={entryKind === 'expense'}
-					aria-pressed={entryKind === 'expense'}
-					onclick={() => setKind('expense')}
-				>
-					Expense
-				</button>
-				<button
-					type="button"
-					class="kind-option"
-					class:active={entryKind === 'income'}
-					aria-pressed={entryKind === 'income'}
-					onclick={() => setKind('income')}
-				>
-					Income
-				</button>
-			</div>
-
-			<!-- Amount: first and largest -->
-			<div class="field field--hero">
-				<label for="amount" class="sr-only">Amount in rupees</label>
-				<div class="amount-row">
-					<span class="currency-symbol" aria-hidden="true">₹</span>
-					<input
-						id="amount"
-						type="text"
-						inputmode="decimal"
-						placeholder="0"
-						value={amountRaw}
-						oninput={(e) => (amountRaw = formatAmountInput(e.currentTarget.value))}
-						class="amount-input money"
-						autocomplete="off"
-						required
-					/>
-					{#if voiceSupported && !listening && !editingTx}
-						<button
-							type="button"
-							class="icon-btn voice-btn"
-							onclick={handleVoice}
-							aria-label="Add by voice"
-							disabled={submitting}
-						>
-							<Mic size={20} />
-						</button>
-					{/if}
+		<form class="sheet-form" onsubmit={handleSubmit} novalidate>
+			<div class="sheet-body">
+				<!-- Expense or income: drives the category list and the sign. -->
+				<div class="kind-toggle" role="radiogroup" aria-label="Expense or income">
+					<button
+						type="button"
+						class="kind-option"
+						class:active={entryKind === 'expense'}
+						aria-pressed={entryKind === 'expense'}
+						onclick={() => setKind('expense')}
+					>
+						Expense
+					</button>
+					<button
+						type="button"
+						class="kind-option"
+						class:active={entryKind === 'income'}
+						aria-pressed={entryKind === 'income'}
+						onclick={() => setKind('income')}
+					>
+						Income
+					</button>
 				</div>
-				{#if listening}
-					<div class="listening" role="status" aria-live="assertive">
-						<span class="listening-wave" aria-hidden="true">
-							<span></span><span></span><span></span>
-						</span>
-						<span class="listening-text"
-							>{transcribing ? 'Transcribing…' : 'Listening… speak now'}</span
-						>
-					</div>
-					{#if !transcribing}
-						<button type="button" class="stop-btn" onclick={stopVoice} aria-label="Stop recording">
-							<Square size={16} fill="currentColor" />
-							Stop
-						</button>
-					{/if}
-				{:else if amountPaise && amountPaise > 0}
-					<p class="amount-formatted" aria-live="polite">
-						{formatPaise(amountPaise)}{#if amountInWordsIndian(amountPaise)} · {amountInWordsIndian(amountPaise)}{/if}
-					</p>
-				{/if}
-			</div>
 
-			<!-- Category: search-as-you-type, recently used first. Kind sets the sign. -->
-			<div class="field">
-				<label for="category">Category</label>
-				<Combobox
-					id="category"
-					options={[
-						{ value: '', label: 'Uncategorized' },
-						...pickableCategories.map((c) => ({ value: c.id, label: c.name })),
-						{ value: '__new__', label: '+ New category' }
-					]}
-					bind:value={categoryId}
-					placeholder="Search categories"
-					onchange={onCategoryPick}
-				/>
-				{#if showNewCategory}
-					<div class="new-cat-row">
+				<!-- Amount: first and largest -->
+				<div class="field field--hero">
+					<label for="amount" class="sr-only">Amount in rupees</label>
+					<div class="amount-row">
+						<span class="currency-symbol" aria-hidden="true">₹</span>
 						<input
+							id="amount"
 							type="text"
-							class="new-cat-input"
-							placeholder="New category name"
-							bind:value={newCatName}
-							maxlength="50"
+							inputmode="decimal"
+							enterkeyhint="done"
+							placeholder="0"
+							value={amountRaw}
+							oninput={(e) => (amountRaw = formatAmountInput(e.currentTarget.value))}
+							onkeydown={onAmountKeydown}
+							class="amount-input money"
+							autocomplete="off"
+							required
 						/>
-						<button
-							type="button"
-							class="new-cat-add"
-							onclick={createCategoryInline}
-							disabled={creatingCat || !newCatName.trim()}
-						>
-							{#if creatingCat}<Spinner size={14} label="Creating" />{:else}Add{/if}
-						</button>
-						<button type="button" class="new-cat-cancel" onclick={cancelNewCategory}>Cancel</button>
+						{#if voiceSupported && !listening && !editingTx}
+							<button
+								type="button"
+								class="icon-btn voice-btn"
+								onclick={handleVoice}
+								aria-label="Add by voice"
+								disabled={submitting}
+							>
+								<Mic size={20} />
+							</button>
+						{/if}
 					</div>
+					{#if listening}
+						<div class="listening" role="status" aria-live="assertive">
+							<span class="listening-wave" aria-hidden="true">
+								<span></span><span></span><span></span>
+							</span>
+							<span class="listening-text"
+								>{transcribing ? 'Transcribing…' : 'Listening… speak now'}</span
+							>
+						</div>
+						{#if !transcribing}
+							<button type="button" class="stop-btn" onclick={stopVoice} aria-label="Stop recording">
+								<Square size={16} fill="currentColor" />
+								Stop
+							</button>
+						{/if}
+					{:else if amountPaise && amountPaise > 0}
+						<p class="amount-formatted" aria-live="polite">
+							{formatPaise(amountPaise)}{#if amountInWordsIndian(amountPaise)} · {amountInWordsIndian(amountPaise)}{/if}
+						</p>
+					{/if}
+				</div>
+
+				<!-- Category: one tap, recently used first, no keyboard. Kind sets the sign. -->
+				<fieldset class="field cat-field">
+					<legend>Category <span class="optional">· optional, sort it later</span></legend>
+					<div class="chips">
+						{#each visibleCats as c (c.id)}
+							<button
+								type="button"
+								class="chip"
+								class:chip--picked={categoryId === c.id}
+								aria-pressed={categoryId === c.id}
+								onclick={() => pickCategory(c.id)}
+							>
+								{#if categoryId === c.id}
+									<Check size={14} aria-hidden="true" />
+								{:else}
+									<span class="chip-dot" style:background={c.color} aria-hidden="true"></span>
+								{/if}
+								<span class="chip-label">{c.name}</span>
+							</button>
+						{/each}
+						{#if hiddenCatCount > 0}
+							<button type="button" class="chip chip--quiet" onclick={() => (showAllCats = true)}>
+								{hiddenCatCount} more
+							</button>
+						{/if}
+						{#if !showNewCategory}
+							<button type="button" class="chip chip--quiet" onclick={startNewCategory}>
+								<Plus size={14} aria-hidden="true" /> New
+							</button>
+						{/if}
+					</div>
+					{#if showNewCategory}
+						<div class="new-cat-row">
+							<input
+								type="text"
+								class="new-cat-input"
+								placeholder="New category name"
+								aria-label="New category name"
+								enterkeyhint="done"
+								bind:value={newCatName}
+								onkeydown={onNewCatKeydown}
+								use:focusOnMount
+								maxlength="50"
+							/>
+							<button
+								type="button"
+								class="new-cat-add"
+								onclick={createCategoryInline}
+								disabled={creatingCat || !newCatName.trim()}
+							>
+								{#if creatingCat}<Spinner size={14} label="Creating" />{:else}Add{/if}
+							</button>
+							<button type="button" class="new-cat-cancel" onclick={cancelNewCategory}>Cancel</button>
+						</div>
+					{/if}
+				</fieldset>
+
+				<!-- Description -->
+				<div class="field">
+					<label for="description">Description</label>
+					<input
+						id="description"
+						type="text"
+						placeholder="What was this for?"
+						bind:value={description}
+						autocomplete="off"
+					/>
+				</div>
+
+				<!-- Note: optional, revealed on demand to keep capture fast. -->
+				{#if showNote}
+					<div class="field">
+						<label for="note">Note</label>
+						<textarea
+							id="note"
+							placeholder="Any extra context"
+							bind:value={note}
+							rows="2"
+							maxlength="500"
+						></textarea>
+					</div>
+				{:else}
+					<button type="button" class="add-note-btn" onclick={() => (showNote = true)}>
+						+ Add a note
+					</button>
+				{/if}
+
+				<!-- Date -->
+				<div class="field">
+					<label for="date">Date</label>
+					<input id="date" type="date" bind:value={occurredAt} />
+				</div>
+			</div>
+
+			<!-- Pinned footer: Save stays reachable above the keyboard, no scrolling. -->
+			<div class="sheet-footer">
+				{#if error}
+					<p class="error" role="alert">{error}</p>
+				{/if}
+
+				{#if duplicate}
+					<div class="dup-warning" role="alert">
+						<p class="dup-text">
+							{duplicate.name} already added {duplicate.description || 'a charge'} for
+							{formatPaise(duplicate.amount_paise)} at {formatIstTime(duplicate.entered_at)}.
+							Add it again?
+						</p>
+						<div class="dup-actions">
+							<button type="button" class="dup-cancel" onclick={dismissDuplicate} disabled={submitting}>
+								Not now
+							</button>
+							<button type="button" class="dup-add" onclick={addAnyway} disabled={submitting}>
+								{#if submitting}<Spinner size={18} label="Saving" />{:else}Add anyway{/if}
+							</button>
+						</div>
+					</div>
+				{:else}
+					<button type="submit" class="submit-btn" class:submit-btn--saved={saved} disabled={submitting || saved || !amountPaise}>
+						{#if saved}
+							<Check size={18} aria-hidden="true" /> Saved
+						{:else if submitting}
+							<Spinner size={18} label="Saving" />
+						{:else}
+							{editingTx ? 'Save changes' : 'Save'}
+						{/if}
+					</button>
 				{/if}
 			</div>
-
-			<!-- Description -->
-			<div class="field">
-				<label for="description">Description</label>
-				<input
-					id="description"
-					type="text"
-					placeholder="What was this for?"
-					bind:value={description}
-					autocomplete="off"
-				/>
-			</div>
-
-			<!-- Note: optional, revealed on demand to keep capture fast. -->
-			{#if showNote}
-				<div class="field">
-					<label for="note">Note</label>
-					<textarea
-						id="note"
-						placeholder="Any extra context"
-						bind:value={note}
-						rows="2"
-						maxlength="500"
-					></textarea>
-				</div>
-			{:else}
-				<button type="button" class="add-note-btn" onclick={() => (showNote = true)}>
-					+ Add a note
-				</button>
-			{/if}
-
-			<!-- Date -->
-			<div class="field">
-				<label for="date">Date</label>
-				<input id="date" type="date" bind:value={occurredAt} />
-			</div>
-
-			{#if error}
-				<p class="error" role="alert">{error}</p>
-			{/if}
-
-			{#if duplicate}
-				<div class="dup-warning" role="alert">
-					<p class="dup-text">
-						{duplicate.name} already added {duplicate.description || 'a charge'} for
-						{formatPaise(duplicate.amount_paise)} at {formatIstTime(duplicate.entered_at)}.
-						Add it again?
-					</p>
-					<div class="dup-actions">
-						<button type="button" class="dup-cancel" onclick={dismissDuplicate} disabled={submitting}>
-							Not now
-						</button>
-						<button type="button" class="dup-add" onclick={addAnyway} disabled={submitting}>
-							{#if submitting}<Spinner size={18} label="Saving" />{:else}Add anyway{/if}
-						</button>
-					</div>
-				</div>
-			{:else}
-				<button type="submit" class="submit-btn" class:submit-btn--saved={saved} disabled={submitting || saved || !amountPaise}>
-					{#if saved}
-						<Check size={18} aria-hidden="true" /> Saved
-					{:else if submitting}
-						<Spinner size={18} label="Saving" />
-					{:else}
-						{editingTx ? 'Save changes' : 'Save'}
-					{/if}
-				</button>
-			{/if}
 		</form>
 	</div>
 {/if}
@@ -658,19 +727,28 @@
 		z-index: var(--z-sheet);
 	}
 
+	/* Sits on top of the keyboard (--kb-inset) and shrinks to the visible area
+	   (--vv-height), both set by keyboardAware. Header and footer stay put; only
+	   the body scrolls, so Save is always one tap away. */
 	.sheet {
 		position: fixed;
-		bottom: 0;
+		bottom: var(--kb-inset, 0px);
 		left: 0;
 		right: 0;
+		display: flex;
+		flex-direction: column;
 		background: var(--color-surface);
 		border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 		z-index: calc(var(--z-sheet) + 1);
-		padding-bottom: env(safe-area-inset-bottom, 0px);
-		max-height: 90dvh;
-		overflow-y: auto;
-		overscroll-behavior: contain;
-		-webkit-overflow-scrolling: touch;
+		max-height: min(90dvh, calc(var(--vv-height, 100dvh) - var(--space-4)));
+		overflow: hidden;
+	}
+
+	.sheet-form {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		min-height: 0;
 	}
 
 	.sheet-header {
@@ -691,6 +769,102 @@
 		flex-direction: column;
 		gap: var(--space-4);
 		padding: var(--space-6);
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	/* Breathing room when a field scrolls into view above the keyboard. */
+	.sheet-body input,
+	.sheet-body textarea {
+		scroll-margin-block: var(--space-6);
+	}
+
+	.sheet-footer {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3) var(--space-6) max(var(--space-3), env(safe-area-inset-bottom, 0px));
+		border-top: 1px solid var(--color-border);
+		background: var(--color-surface);
+	}
+
+	/* The keyboard covers the home indicator, so its safe area is dead space. */
+	.sheet:global([data-keyboard]) .sheet-footer {
+		padding-bottom: var(--space-3);
+	}
+
+	/* Category chips: tap to pick, wrap to as many rows as needed. */
+	.cat-field {
+		border: none;
+		margin: 0;
+		padding: 0;
+		min-width: 0;
+	}
+
+	.cat-field legend {
+		padding: 0;
+		margin-bottom: var(--space-2);
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: var(--color-text-muted);
+	}
+
+	.cat-field .optional {
+		font-weight: 400;
+	}
+
+	.chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-height: var(--tap-target);
+		max-width: 100%;
+		padding: 0 var(--space-4);
+		border: 1px solid var(--color-border);
+		border-radius: var(--radius-full);
+		background: var(--color-surface);
+		color: var(--color-text);
+		font-family: inherit;
+		font-size: 0.9375rem;
+		cursor: pointer;
+		transition:
+			border-color var(--duration-fast) var(--ease-out),
+			background var(--duration-fast) var(--ease-out);
+	}
+
+	.chip-label {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.chip-dot {
+		flex: none;
+		width: 10px;
+		height: 10px;
+		border-radius: var(--radius-full);
+	}
+
+	/* Picked: gold ring, tint, a check mark and bolder text. Never colour alone. */
+	.chip--picked {
+		border-color: var(--color-gold);
+		background: color-mix(in srgb, var(--color-gold) 14%, transparent);
+		font-weight: 600;
+	}
+
+	.chip--quiet {
+		border-style: dashed;
+		color: var(--color-text-muted);
 	}
 
 	.field {
@@ -888,7 +1062,6 @@
 		border-radius: var(--radius-md);
 		cursor: pointer;
 		transition: opacity var(--duration-fast) var(--ease-out);
-		margin-top: var(--space-2);
 	}
 
 	.submit-btn:disabled {
@@ -918,7 +1091,6 @@
 		flex-direction: column;
 		gap: var(--space-3);
 		padding: var(--space-4);
-		margin-top: var(--space-2);
 		background: color-mix(in srgb, var(--color-gold) 8%, transparent);
 		border: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
 		border-radius: var(--radius-md);

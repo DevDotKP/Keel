@@ -8,6 +8,7 @@
 	import { today, toDateString, formatDisplayDate, friendlyDueDate } from '$lib/utils/date';
 	import { resolvePaymentDate, type SalaryAnchor } from '$lib/utils/workdays';
 	import { holidaysForState, type IndianState } from '$lib/holidays';
+	import { keyboardAware } from '$lib/utils/keyboard';
 	import type { PageData } from './$types';
 	import type { RecurringIncome, SalaryAnchorKind } from '$lib/types';
 	import type { RecurringExpense } from '$lib/server/queries/recurring-expenses';
@@ -348,7 +349,7 @@
 	function deleteIncome(id: string) {
 		confirmState = {
 			title: 'Delete recurring income?',
-			message: 'This stops forecasting it. Past entries stay in your ledger.',
+			message: 'This stops auto-logging it. Past entries stay in your ledger.',
 			run: () => actuallyDeleteIncome(id)
 		};
 	}
@@ -602,6 +603,7 @@
 {#if addSheetOpen}
 	<div
 		class="sheet-overlay"
+		use:keyboardAware
 		role="dialog"
 		aria-modal="true"
 		aria-label="Add recurring"
@@ -792,6 +794,7 @@
 {#if editingIncId}
 	<div
 		class="modal-overlay"
+		use:keyboardAware
 		role="dialog"
 		aria-modal="true"
 		aria-label="Edit recurring income"
@@ -817,7 +820,7 @@
 					<button type="button" class="secondary-btn" onclick={() => closeEditIncome()}>Cancel</button>
 					<button type="submit" class="submit-btn" disabled={incBusyId === editingIncId || !editIncName.trim()}>{#if incBusyId === editingIncId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
-				<button type="button" class="delete-link" onclick={() => { closeEditIncome(); deleteIncome(editingIncId!); }}>
+				<button type="button" class="delete-link" onclick={() => { const id = editingIncId!; closeEditIncome(); deleteIncome(id); }}>
 					Delete this income
 				</button>
 			</form>
@@ -828,6 +831,7 @@
 {#if editingExpId}
 	<div
 		class="modal-overlay"
+		use:keyboardAware
 		role="dialog"
 		aria-modal="true"
 		aria-label="Edit recurring expense"
@@ -854,7 +858,7 @@
 					<button type="button" class="secondary-btn" onclick={() => closeEditExpense()}>Cancel</button>
 					<button type="submit" class="submit-btn" disabled={expBusyId === editingExpId || !editExpName.trim()}>{#if expBusyId === editingExpId}<Spinner size={18} label="Saving" />{:else}Save{/if}</button>
 				</div>
-				<button type="button" class="delete-link" onclick={() => { closeEditExpense(); deleteExpense(editingExpId!); }}>
+				<button type="button" class="delete-link" onclick={() => { const id = editingExpId!; closeEditExpense(); deleteExpense(id); }}>
 					Delete this expense
 				</button>
 			</form>
@@ -904,13 +908,15 @@
 	.fab:active { transform: scale(0.97); }
 
 	/* ── Add sheet ───────────────────────────────────────────────────────────── */
+	/* Above the bottom nav (it used to share z 200 and the nav hid Add income).
+	   Bottom tracks the on-screen keyboard via keyboardAware. */
 	.sheet-overlay {
 		position: fixed;
-		inset: 0;
+		inset: 0 0 var(--kb-inset, 0px);
 		background: rgba(0,0,0,0.5);
 		display: flex;
 		align-items: flex-end;
-		z-index: 200;
+		z-index: var(--z-sheet);
 	}
 
 	.sheet-panel {
@@ -924,8 +930,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-		max-height: 88vh;
+		max-height: min(88dvh, calc(var(--vv-height, 100dvh) - var(--space-4)));
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	.sheet-header {
@@ -1238,7 +1245,7 @@
 		top: 0;
 		left: 0;
 		right: 0;
-		bottom: 0;
+		bottom: var(--kb-inset, 0px);
 		background: rgba(0, 0, 0, 0.5);
 		display: flex;
 		align-items: flex-end;
@@ -1255,8 +1262,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-4);
-		max-height: 90vh;
+		max-height: min(90dvh, calc(var(--vv-height, 100dvh) - var(--space-4)));
 		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 
 	.modal-header {
